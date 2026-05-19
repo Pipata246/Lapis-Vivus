@@ -12,11 +12,6 @@ function requireEnv(name) {
   return value;
 }
 
-function optionalEnv(name) {
-  const value = process.env[name]?.trim();
-  return value || undefined;
-}
-
 export function loadConfig() {
   const botToken = requireEnv('BOT_TOKEN');
 
@@ -24,8 +19,5 @@ export function loadConfig() {
     throw new Error('BOT_TOKEN имеет неверный формат.');
   }
 
-  return {
-    botToken,
-    webhookSecret: optionalEnv('WEBHOOK_SECRET'),
-  };
+  return { botToken };
 }

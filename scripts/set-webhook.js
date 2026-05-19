@@ -13,7 +13,6 @@ function requireEnv(name) {
 async function main() {
   const botToken = requireEnv('BOT_TOKEN');
   const webhookUrl = requireEnv('WEBHOOK_URL');
-  const webhookSecret = process.env.WEBHOOK_SECRET?.trim();
 
   if (!TOKEN_PATTERN.test(botToken)) {
     throw new Error('BOT_TOKEN имеет неверный формат.');
@@ -23,17 +22,12 @@ async function main() {
     throw new Error('WEBHOOK_URL должен начинаться с https://');
   }
 
-  const body = { url: webhookUrl };
-  if (webhookSecret) {
-    body.secret_token = webhookSecret;
-  }
-
   const response = await fetch(
     `https://api.telegram.org/bot${botToken}/setWebhook`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ url: webhookUrl }),
     },
   );
 
