@@ -1,6 +1,9 @@
 import { Telegraf } from 'telegraf';
+import { askGpt } from './ai/gptunnel.js';
 import { upsertUserFromTelegram } from './db/users.js';
 import { loadConfig } from './config.js';
+
+const TELEGRAM_MAX_MESSAGE = 4096;
 
 const WELCOME_TEXT = 'Привет как дела?';
 
@@ -19,6 +22,23 @@ function registerHandlers(bot) {
     }
 
     await ctx.reply(WELCOME_TEXT);
+  });
+
+  bot.on('text', async (ctx) => {
+    const text = ctx.message.text?.trim();
+    if (!text || text.startsWith('/')) {
+      return;
+    }
+
+    await ctx.sendChatAction('typing');
+
+    try {
+      const answer = await askGpt(text);
+      await ctx.reply(answer.slice(0, TELEGRAM_MAX_MESSAGE));
+    } catch (err) {
+      console.error('Ошибка ИИ:', err.message);
+      await ctx.reply('Сейчас не могу ответить. Попробуй позже.');
+    }
   });
 
   bot.catch((err) => {
