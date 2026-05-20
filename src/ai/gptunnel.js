@@ -1,9 +1,28 @@
 import { loadAiConfig } from '../config.js';
 
 const API_URL = 'https://gptunnel.ru/v1/chat/completions';
+const ALLOWED_ROLES = new Set(['user', 'assistant', 'system']);
 
-export async function askGpt(userMessage) {
+function normalizeMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    throw new Error('Пустой контекст для ИИ.');
+  }
+
+  return messages.map((msg) => {
+    const role = msg?.role;
+    const content = msg?.content?.trim();
+
+    if (!ALLOWED_ROLES.has(role) || !content) {
+      throw new Error('Некорректное сообщение в контексте.');
+    }
+
+    return { role, content };
+  });
+}
+
+export async function askGpt(messages) {
   const { gptunnelApiKey, gptunnelModel, useWalletBalance } = loadAiConfig();
+  const payloadMessages = normalizeMessages(messages);
 
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -13,7 +32,7 @@ export async function askGpt(userMessage) {
     },
     body: JSON.stringify({
       model: gptunnelModel,
-      messages: [{ role: 'user', content: userMessage }],
+      messages: payloadMessages,
       useWalletBalance,
     }),
   });

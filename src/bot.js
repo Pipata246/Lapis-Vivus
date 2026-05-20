@@ -1,5 +1,6 @@
 import { Telegraf } from 'telegraf';
-import { askGpt } from './ai/gptunnel.js';
+import { handleUserText } from './services/conversation.js';
+import { getOrCreateUserChat } from './db/chats.js';
 import { upsertUserFromTelegram } from './db/users.js';
 import { loadBotConfig } from './config.js';
 
@@ -17,14 +18,19 @@ function registerHandlers(bot) {
 
     try {
       await upsertUserFromTelegram(ctx.from);
+      await getOrCreateUserChat(ctx.from.id);
     } catch (err) {
-      console.error('Ошибка сохранения пользователя в БД:', err.message);
+      console.error('Ошибка инициализации пользователя:', err.message);
     }
 
     await ctx.reply(WELCOME_TEXT);
   });
 
   bot.on('text', async (ctx) => {
+    if (!ctx.from?.id) {
+      return;
+    }
+
     const text = ctx.message.text?.trim();
     if (!text || text.startsWith('/')) {
       return;
@@ -33,7 +39,7 @@ function registerHandlers(bot) {
     await ctx.sendChatAction('typing');
 
     try {
-      const answer = await askGpt(text);
+      const answer = await handleUserText(ctx.from, text);
       await ctx.reply(answer.slice(0, TELEGRAM_MAX_MESSAGE));
     } catch (err) {
       console.error('Ошибка ИИ:', err.message);

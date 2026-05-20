@@ -3,7 +3,7 @@ import { askGpt } from '../src/ai/gptunnel.js';
 
 const testMessage = process.argv[2] || 'Привет, ответь одним словом: ок';
 
-askGpt(testMessage)
+askGpt([{ role: 'user', content: testMessage }])
   .then((answer) => {
     console.log('OK:', answer);
   })
