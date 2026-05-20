@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vercel dev",
     "webhook:set": "node scripts/set-webhook.js",
-    "test:ai": "node scripts/test-gptunnel.js"
+    "test:ai": "node scripts/test-gptunnel.js",
+    "models:list": "node scripts/list-models.js"
   },
   "engines": {
     "node": ">=18.0.0"

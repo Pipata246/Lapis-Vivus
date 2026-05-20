@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 const TOKEN_PATTERN = /^\d+:[A-Za-z0-9_-]{35,}$/;
+const ASCII_ONLY = /^[\x00-\x7F]+$/;
 
 function requireEnv(name) {
   const value = process.env[name]?.trim();
@@ -37,6 +38,18 @@ export function loadAiConfig() {
   const gptunnelApiKey = requireEnv('GPTUNNEL_API_KEY');
   const gptunnelModel = process.env.GPTUNNEL_MODEL?.trim() || 'gpt-4o-mini';
   const useWalletBalance = process.env.GPTUNNEL_USE_WALLET?.trim() !== 'false';
+
+  if (!ASCII_ONLY.test(gptunnelApiKey)) {
+    throw new Error(
+      'GPTUNNEL_API_KEY содержит недопустимые символы (кириллица или пробелы). Скопируйте ключ заново из личного кабинета GPTunnel — только латиница и цифры.',
+    );
+  }
+
+  if (!ASCII_ONLY.test(gptunnelModel)) {
+    throw new Error(
+      'GPTUNNEL_MODEL должен быть латинским id модели (например gpt-4o-mini), без русских букв.',
+    );
+  }
 
   return { gptunnelApiKey, gptunnelModel, useWalletBalance };
 }
