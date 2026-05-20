@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { askGpt } from './ai/gptunnel.js';
 import { upsertUserFromTelegram } from './db/users.js';
-import { loadConfig } from './config.js';
+import { loadBotConfig } from './config.js';
 
 const TELEGRAM_MAX_MESSAGE = 4096;
 
@@ -48,7 +48,7 @@ function registerHandlers(bot) {
 
 export function getBot() {
   if (!botInstance) {
-    const { botToken } = loadConfig();
+    const { botToken } = loadBotConfig();
     botInstance = new Telegraf(botToken);
     registerHandlers(botInstance);
   }

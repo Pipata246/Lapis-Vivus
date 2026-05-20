@@ -1,9 +1,9 @@
-import { loadConfig } from '../config.js';
+import { loadAiConfig } from '../config.js';
 
 const API_URL = 'https://gptunnel.ru/v1/chat/completions';
 
 export async function askGpt(userMessage) {
-  const { gptunnelApiKey, gptunnelModel } = loadConfig();
+  const { gptunnelApiKey, gptunnelModel, useWalletBalance } = loadAiConfig();
 
   const response = await fetch(API_URL, {
     method: 'POST',
@@ -14,12 +14,20 @@ export async function askGpt(userMessage) {
     body: JSON.stringify({
       model: gptunnelModel,
       messages: [{ role: 'user', content: userMessage }],
+      useWalletBalance,
     }),
   });
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`GPTunnel ${response.status}: ${body}`);
+    let detail = body;
+    try {
+      const json = JSON.parse(body);
+      detail = json?.error?.message ?? body;
+    } catch {
+      // keep raw body
+    }
+    throw new Error(`GPTunnel ${response.status}: ${detail}`);
   }
 
   const data = await response.json();

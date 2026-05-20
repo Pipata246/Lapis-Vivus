@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "webhook:set": "node scripts/set-webhook.js"
+    "webhook:set": "node scripts/set-webhook.js",
+    "test:ai": "node scripts/test-gptunnel.js"
   },
   "engines": {
     "node": ">=18.0.0"
