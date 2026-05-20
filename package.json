@@ -1,0 +1,21 @@
+{
+  "name": "lapis-vivus-tg-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot with /start welcome message (Vercel)",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "webhook:set": "node scripts/set-webhook.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.0",
+    "dotenv": "^16.5.0",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "vercel": "^41.7.0"
+  }
+}
