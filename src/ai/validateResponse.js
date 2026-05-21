@@ -1,5 +1,5 @@
 /**
- * Проверка ответа модели по 0x05_SATURN_CONVERGENCE v21.0 и 0x02 (пять уровней).
+ * Проверка ответа модели по 0x05_SATURN_CONVERGENCE v21.5 и 0x02 (пять уровней).
  */
 export function validateBlockResponse(text) {
   const issues = [];

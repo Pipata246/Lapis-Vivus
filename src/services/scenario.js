@@ -5,7 +5,10 @@ import {
   validateBirthDate,
   validateBirthTime,
   validateBirthPlace,
-  validateExternalDump,
+  getBlockAttachments,
+  getBlockFilesForRun,
+  saveBlockAttachment,
+  hasRequiredFiles,
 } from '../scenario/validators.js';
 import {
   menuKeyboard,
@@ -16,9 +19,8 @@ import {
   completedKeyboard,
   runningKeyboard,
   blockFailedKeyboard,
-  uploadDoneKeyboard,
+  blockPrepKeyboard,
 } from '../scenario/keyboards.js';
-import { hasExternalFaktura } from '../scenario/validators.js';
 import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram } from '../db/users.js';
 import {
@@ -44,10 +46,47 @@ function formatProfile(data) {
   ].join('\n');
 }
 
-function getUploadStepForKey(key) {
-  if (key === 'bazi_dump') return STEPS.BAZI_UPLOAD;
-  if (key === 'astro_dump') return STEPS.ASTRO_UPLOAD;
-  return null;
+function currentBlock(session) {
+  return BLOCK_STACK[session.block_index];
+}
+
+function blockPrepText(session) {
+  const block = currentBlock(session);
+  if (!block) {
+    return 'Стек блоков завершён.';
+  }
+
+  const files = getBlockFilesForRun(session.collected_data, block);
+  const ownCount = getBlockAttachments(session.collected_data, block.id).length;
+  let fileLine;
+  if (files.length > 0) {
+    fileLine =
+      ownCount > 0
+        ? `📎 Прикреплено файлов: ${ownCount}`
+        : `📎 Используются файлы блока 3 (${files.length}). Можно добавить свои.`;
+  } else if (block.requiresExternal) {
+    fileLine =
+      block.id === '3B'
+        ? '📎 Нужен файл (скрин/документ) или данные блока 3. Текст не принимается.'
+        : '📎 Файл обязателен (скрин/документ). Текст на этом шаге не принимается.';
+  } else {
+    fileLine = '📎 Файл по желанию (необязательно). Текст на этом шаге не принимается.';
+  }
+
+  return [
+    block.description,
+    '',
+    fileLine,
+    '',
+    'Когда готов — нажми «Запустить блок».',
+  ].join('\n');
+}
+
+function showBlockPrep(session) {
+  return {
+    text: blockPrepText(session),
+    keyboard: blockPrepKeyboard(),
+  };
 }
 
 async function ensureSession(from) {
@@ -63,7 +102,7 @@ async function ensureSession(from) {
 }
 
 export async function initUser(from) {
-  const { chat, session } = await ensureSession(from);
+  const { session } = await ensureSession(from);
   if (session.step === STEPS.MENU) {
     return showMenu();
   }
@@ -91,14 +130,7 @@ function resumePrompt(session) {
       text: formatProfile(session.collected_data),
       keyboard: confirmKeyboard(),
     },
-    [STEPS.BAZI_UPLOAD]: {
-      text: 'БЛОК 2 (Бацзы): текстовый дамп (≥50 символов) и/или скриншот. Затем «Данные загружены».',
-      keyboard: uploadDoneKeyboard(),
-    },
-    [STEPS.ASTRO_UPLOAD]: {
-      text: 'БЛОК 3 / 3B (Натал + транзиты): текстовый дамп карты и/или скрин. Затем «Данные загружены».',
-      keyboard: uploadDoneKeyboard(),
-    },
+    [STEPS.BLOCK_PREP]: showBlockPrep(session),
     [STEPS.BLOCK_FAILED]: {
       text: `Блок ${session.last_block_id ?? ''} не выполнен. Повтори или вернись в меню.`,
       keyboard: blockFailedKeyboard(),
@@ -126,7 +158,7 @@ export async function handleCallback(from, callbackData) {
     return { text: REJECT_TEXT, keyboard: menuKeyboard() };
   }
 
-  const { chat, session } = await ensureSession(from);
+  let { chat, session } = await ensureSession(from);
 
   switch (parsed.action) {
     case 'menu':
@@ -181,7 +213,30 @@ export async function handleCallback(from, callbackData) {
       await updateSession(from.id, {
         block_index: 0,
         last_block_id: null,
+        step: STEPS.BLOCK_PREP,
       });
+      session = await getSession(from.id);
+      return showBlockPrep(session);
+    }
+
+    case 'run_block': {
+      if (session.step !== STEPS.BLOCK_PREP) {
+        return resumePrompt(session);
+      }
+      const block = currentBlock(session);
+      if (!block) {
+        await updateSession(from.id, { step: STEPS.COMPLETED });
+        return {
+          text: '✅ Анализ по всем блокам завершён.',
+          keyboard: completedKeyboard(),
+        };
+      }
+      if (!hasRequiredFiles(session.collected_data, block)) {
+        return {
+          text: `${blockPrepText(session)}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин или документ).`,
+          keyboard: blockPrepKeyboard(),
+        };
+      }
       return runCurrentBlock(from, chat.id);
     }
 
@@ -189,22 +244,9 @@ export async function handleCallback(from, callbackData) {
       if (session.step !== STEPS.BLOCK_FAILED) {
         return resumePrompt(session);
       }
-      return runCurrentBlock(from, chat.id);
-    }
-
-    case 'upload_done': {
-      if (session.step !== STEPS.BAZI_UPLOAD && session.step !== STEPS.ASTRO_UPLOAD) {
-        return resumePrompt(session);
-      }
-      const dumpKey = session.step === STEPS.BAZI_UPLOAD ? 'bazi_dump' : 'astro_dump';
-      const photoKey = session.step === STEPS.BAZI_UPLOAD ? 'bazi_photo_ids' : 'astro_photo_ids';
-      if (!hasExternalFaktura(session.collected_data, dumpKey, photoKey)) {
-        return {
-          text: 'Нужен текстовый дамп (≥50 символов) или хотя бы один скриншот.',
-          keyboard: uploadDoneKeyboard(),
-        };
-      }
-      return runCurrentBlock(from, chat.id);
+      await updateSession(from.id, { step: STEPS.BLOCK_PREP });
+      session = await getSession(from.id);
+      return showBlockPrep(session);
     }
 
     case 'next_block': {
@@ -220,30 +262,12 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
-      const nextBlock = BLOCK_STACK[nextIndex];
-      const uploadKey = nextBlock?.externalKey ?? null;
-      if (uploadKey) {
-        const photoKey = nextBlock.photoKey ?? 'astro_photo_ids';
-        const collected = session.collected_data ?? {};
-        if (!hasExternalFaktura(collected, uploadKey, photoKey)) {
-          const uploadStep = getUploadStepForKey(uploadKey);
-          await updateSession(from.id, {
-            step: uploadStep,
-            block_index: nextIndex,
-          });
-          const label =
-            uploadKey === 'bazi_dump'
-              ? 'Бацзы (текстовый дамп)'
-              : 'Натальная карта / транзиты (текстовый дамп)';
-          return {
-            text: `Перед блоком ${nextBlock.id}: отправь ${label}.`,
-            keyboard: uploadKey === 'bazi_dump' ? null : uploadDoneKeyboard(),
-          };
-        }
-      }
-
-      await updateSession(from.id, { block_index: nextIndex });
-      return runCurrentBlock(from, chat.id);
+      await updateSession(from.id, {
+        block_index: nextIndex,
+        step: STEPS.BLOCK_PREP,
+      });
+      session = await getSession(from.id);
+      return showBlockPrep(session);
     }
 
     default:
@@ -265,7 +289,7 @@ async function runCurrentBlock(from, chatId) {
   await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
-    const { blockId, blockTitle, userMessage } = await runAnalysisBlock({
+    const { blockId, userMessage } = await runAnalysisBlock({
       session,
       chatId,
       userId,
@@ -308,10 +332,14 @@ export async function handleText(from, rawText) {
         keyboard: runningKeyboard(),
       };
     }
+    if (step === STEPS.BLOCK_PREP) {
+      return {
+        text: `${blockPrepText(session)}\n\nТекст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
+        keyboard: blockPrepKeyboard(),
+      };
+    }
     return { text: REJECT_TEXT, keyboard: menuKeyboard() };
   }
-
-  const { chat } = await ensureSession(from);
 
   switch (step) {
     case STEPS.BIRTH_DATE: {
@@ -344,73 +372,29 @@ export async function handleText(from, rawText) {
       };
     }
 
-    case STEPS.BAZI_UPLOAD: {
-      const v = validateExternalDump(rawText, 'Бацзы');
-      if (!v.ok) return { text: v.error, keyboard: uploadDoneKeyboard() };
-      const patch = v.value ? { bazi_dump: v.value } : {};
-      const data = mergeCollectedData(session, patch);
-      await updateSession(from.id, { collected_data: data });
-      if (hasExternalFaktura(data, 'bazi_dump', 'bazi_photo_ids')) {
-        return runCurrentBlock(from, chat.id);
-      }
-      return {
-        text: 'Текст сохранён. Добавь скрин или нажми «Данные загружены».',
-        keyboard: uploadDoneKeyboard(),
-      };
-    }
-
-    case STEPS.ASTRO_UPLOAD: {
-      const v = validateExternalDump(rawText, 'Астро-геометрия');
-      if (!v.ok) return { text: v.error, keyboard: uploadDoneKeyboard() };
-      const patch = v.value ? { astro_dump: v.value } : {};
-      const data = mergeCollectedData(session, patch);
-      await updateSession(from.id, { collected_data: data });
-      if (hasExternalFaktura(data, 'astro_dump', 'astro_photo_ids')) {
-        return runCurrentBlock(from, chat.id);
-      }
-      return {
-        text: 'Текст сохранён. Добавь скрин или нажми «Данные загружены».',
-        keyboard: uploadDoneKeyboard(),
-      };
-    }
-
     default:
       return { text: REJECT_TEXT, keyboard: menuKeyboard() };
   }
 }
 
-export async function handlePhoto(from, caption, photoFileId) {
-  const { session, chat } = await ensureSession(from);
-  const step = session.step;
+export async function handleFile(from, fileId) {
+  const { session } = await ensureSession(from);
 
-  if (step !== STEPS.BAZI_UPLOAD && step !== STEPS.ASTRO_UPLOAD) {
+  if (session.step !== STEPS.BLOCK_PREP) {
     return { text: REJECT_TEXT, keyboard: menuKeyboard() };
   }
 
-  const photoKey = step === STEPS.BAZI_UPLOAD ? 'bazi_photo_ids' : 'astro_photo_ids';
-  const dumpKey = step === STEPS.BAZI_UPLOAD ? 'bazi_dump' : 'astro_dump';
-  const existing = session.collected_data?.[photoKey] ?? [];
-  const data = mergeCollectedData(session, {
-    [photoKey]: [...existing, photoFileId].slice(-5),
-  });
+  const block = currentBlock(session);
+  if (!block) {
+    return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
+  }
+
+  const patch = saveBlockAttachment(session.collected_data, block.id, fileId);
+  const data = mergeCollectedData(session, patch);
   await updateSession(from.id, { collected_data: data });
 
-  if (caption?.trim()) {
-    const textResult = await handleText(from, caption);
-    return textResult;
-  }
-
-  if (hasExternalFaktura(data, dumpKey, photoKey)) {
-    return {
-      text: 'Скрин сохранён. Нажми «Данные загружены — запустить блок».',
-      keyboard: uploadDoneKeyboard(),
-    };
-  }
-
-  return {
-    text: 'Скрин сохранён. Добавь текстовый дамп или нажми «Данные загружены».',
-    keyboard: uploadDoneKeyboard(),
-  };
+  session = await getSession(from.id);
+  return showBlockPrep(session);
 }
 
 export async function sendScenarioReply(ctx, payload) {

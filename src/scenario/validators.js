@@ -8,9 +8,9 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'time_unknown',
   'confirm_yes',
   'confirm_edit',
+  'run_block',
   'next_block',
   'retry_block',
-  'upload_done',
   'reset',
   'menu',
 ]);
@@ -81,32 +81,31 @@ export function validateBirthPlace(text) {
   return { ok: true, value: trimmed };
 }
 
-export function validateExternalDump(text, label) {
-  const trimmed = text?.trim();
-  if (!trimmed) {
-    return { ok: true, value: null };
-  }
-  if (trimmed.length < 50) {
-    return {
-      ok: false,
-      error: `${label}: текстовый дамп минимум 50 символов или отправь скриншот.`,
-    };
-  }
-  if (trimmed.length > 12000) {
-    return { ok: false, error: `${label}: слишком длинный текст (макс. 12000 символов).` };
-  }
-  return { ok: true, value: trimmed };
+export function getBlockAttachments(data, blockId) {
+  const attachments = data?.block_attachments ?? {};
+  return attachments[blockId] ?? [];
 }
 
-export function hasExternalFaktura(data, dumpKey, photoKey) {
-  const dump = data?.[dumpKey];
-  const photos = data?.[photoKey] ?? [];
-  return Boolean(dump?.trim()) || photos.length > 0;
+/** Файлы для запуска блока (3B может использовать вложения блока 3) */
+export function getBlockFilesForRun(data, block) {
+  const own = getBlockAttachments(data, block.id);
+  if (own.length > 0) return own;
+  if (block.id === '3B') {
+    return getBlockAttachments(data, '3');
+  }
+  return own;
 }
 
-export function sanitizeTelegramUserId(id) {
-  if (!Number.isInteger(id) || id <= 0) {
-    return null;
+export function saveBlockAttachment(data, blockId, fileId) {
+  const attachments = { ...(data.block_attachments ?? {}) };
+  const list = [...(attachments[blockId] ?? []), fileId].slice(-5);
+  attachments[blockId] = list;
+  return { block_attachments: attachments };
+}
+
+export function hasRequiredFiles(data, block) {
+  if (!block.requiresExternal) {
+    return true;
   }
-  return id;
+  return getBlockFilesForRun(data, block).length > 0;
 }

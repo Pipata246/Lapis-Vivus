@@ -6,68 +6,84 @@ export const STEPS = {
   BIRTH_TIME: 'birth_time',
   BIRTH_PLACE: 'birth_place',
   CONFIRM: 'confirm',
-  BAZI_UPLOAD: 'bazi_upload',
-  ASTRO_UPLOAD: 'astro_upload',
+  BLOCK_PREP: 'block_prep',
   BLOCK_RUNNING: 'block_running',
   BLOCK_REVIEW: 'block_review',
   BLOCK_FAILED: 'block_failed',
   COMPLETED: 'completed',
 };
 
-/** Фиксированный стек итераций (0x04) v21.0 */
+/** Фиксированный стек v21.5 */
 export const BLOCK_STACK = [
   {
     id: '1A',
     title: 'Генетическая матрица (Дизайн Человека)',
-    externalKey: null,
+    description:
+      'БЛОК 1A: ГЕНЕТИЧЕСКАЯ МАТРИЦА (Дизайн Человека — тип, профиль, определённые каналы, центры).',
+    requiresExternal: false,
   },
   {
     id: '1B',
     title: 'Цифровая психоматрица и нумерология',
-    externalKey: null,
+    description:
+      'БЛОК 1B: ЦИФРОВАЯ ПСИХОМАТРИЦА И НУМЕРОЛОГИЯ (Квадрат Пифагора — расчёт рабочих чисел X1–X4, заполнение матрицы 3×3).',
+    requiresExternal: false,
   },
   {
     id: '1C',
     title: 'Архетипическая матрица судьбы и чакральный контур',
-    externalKey: null,
+    description:
+      'БЛОК 1C: АРХЕТИПИЧЕСКАЯ МАТРИЦА СУДЬБЫ И ЧАКРАЛЬНЫЙ КОНТУР (модульное сложение по 22 Старшим Арканам, узлы A, B, C, D, E).',
+    requiresExternal: false,
   },
   {
     id: '1D',
-    title: 'Матрица Цолькин (коридор Кин-1 / Кин / Кин+1)',
-    externalKey: null,
+    title: 'Матрица Цолькин',
+    description:
+      'БЛОК 1D: МАТРИЦА ЦОЛЬКИН (Кин, Печать, Тон, радиальная плазма). Коридор Кин−1 / текущий Кин / Кин+1.',
+    requiresExternal: false,
   },
   {
     id: '2',
     title: 'Архитектура Бацзы и У-Син',
-    externalKey: 'bazi_dump',
-    photoKey: 'bazi_photo_ids',
+    description:
+      'БЛОК 2: АРХИТЕКТУРА БАЦЗЫ И У-СИН (4 Столпа, скрытые НС, фазы Ци, трение стихий — по прикреплённым файлам).',
+    requiresExternal: true,
   },
   {
     id: '3',
     title: 'Геоцентрическая натальная астро-геометрия',
-    externalKey: 'astro_dump',
-    photoKey: 'astro_photo_ids',
+    description:
+      'БЛОК 3: ГЕОЦЕНТРИЧЕСКАЯ НАТАЛЬНАЯ АСТРО-ГЕОМЕТРИЯ (координаты планет, куспиды Placidus, аспекты — по файлам).',
+    requiresExternal: true,
   },
   {
     id: '3B',
     title: 'Динамический транзитный контур',
-    externalKey: 'astro_dump',
-    photoKey: 'astro_photo_ids',
+    description:
+      'БЛОК 3B: ДИНАМИЧЕСКИЙ ТРАНЗИТНЫЙ КОНТУР (транзиты, ретроградности, Сатурн на дату запроса — по файлам).',
+    requiresExternal: true,
   },
   {
     id: '4',
     title: 'Квантово-кибернетический синтез',
-    externalKey: null,
+    description:
+      'БЛОК 4: КВАНТОВО-КИБЕРНЕТИЧЕСКИЙ СИНТЕЗ (кросс-анализ всех систем, аттракторы, нелокальные связи).',
+    requiresExternal: false,
   },
   {
     id: '4B',
     title: 'Гностическая деконструкция',
-    externalKey: null,
+    description:
+      'БЛОК 4B: ГНОСТИЧЕСКАЯ ДЕКОНСТРУКЦИЯ (Искра, Кенома, архонтические зажимы, шифр Плеромического побега).',
+    requiresExternal: false,
   },
   {
     id: '5',
     title: 'Абсолютный реестр сухого пути',
-    externalKey: null,
+    description:
+      'БЛОК 5: АБСОЛЮТНЫЙ РЕЕСТР СУХОГО ПУТИ (стратегические протоколы, сомато-инструкции Дао).',
+    requiresExternal: false,
   },
 ];
 
@@ -75,15 +91,17 @@ export const BLOCK_IDS = BLOCK_STACK.map((b) => b.id);
 
 export const CALLBACK_PREFIX = 'lv';
 
+/** Только анкета: дата, время, город */
 export const TEXT_INPUT_STEPS = new Set([
   STEPS.BIRTH_DATE,
   STEPS.BIRTH_TIME,
   STEPS.BIRTH_PLACE,
-  STEPS.BAZI_UPLOAD,
-  STEPS.ASTRO_UPLOAD,
 ]);
 
+/** На экране блока — только файлы, без текста */
+export const FILE_ONLY_STEPS = new Set([STEPS.BLOCK_PREP]);
+
 export const REJECT_TEXT =
-  'Используй кнопки меню. Свободные сообщения не принимаются на этом шаге.';
+  'На этом шаге текст не принимается. Используй кнопки или прикрепи файл.';
 
 export const TELEGRAM_MAX_MESSAGE = 4096;

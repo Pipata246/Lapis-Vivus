@@ -33,10 +33,16 @@ export function confirmKeyboard() {
   return {
     inline_keyboard: [
       [
-        { text: '✅ Всё верно — запустить блоки', callback_data: cb('confirm_yes') },
+        { text: '✅ Всё верно — к первому блоку', callback_data: cb('confirm_yes') },
         { text: '✏️ Изменить данные', callback_data: cb('confirm_edit') },
       ],
     ],
+  };
+}
+
+export function blockPrepKeyboard() {
+  return {
+    inline_keyboard: [[{ text: '▶️ Запустить блок', callback_data: cb('run_block') }]],
   };
 }
 
@@ -52,12 +58,6 @@ export function blockFailedKeyboard() {
       [{ text: '🔄 Повторить блок', callback_data: cb('retry_block') }],
       [{ text: '📋 Меню', callback_data: cb('menu') }],
     ],
-  };
-}
-
-export function uploadDoneKeyboard() {
-  return {
-    inline_keyboard: [[{ text: '✅ Данные загружены — запустить блок', callback_data: cb('upload_done') }]],
   };
 }
 

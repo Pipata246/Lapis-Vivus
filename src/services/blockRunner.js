@@ -5,6 +5,7 @@ import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
 import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
 import { saveChatMessages } from '../db/chats.js';
 import { BLOCK_STACK } from '../scenario/constants.js';
+import { getBlockAttachments, getBlockFilesForRun } from '../scenario/validators.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
@@ -14,23 +15,14 @@ function remainingBlocksAfter(blockIndex) {
   return Math.max(0, BLOCK_STACK.length - blockIndex - 1);
 }
 
-function getPhotoFileIds(block, data) {
-  if (block.id === '2') {
-    return data.bazi_photo_ids ?? [];
-  }
-  if (block.id === '3' || block.id === '3B') {
-    return data.astro_photo_ids ?? [];
-  }
-  return [];
-}
-
 function buildOperatorPayload(session, blockIndex, completedBlocks) {
   const block = BLOCK_STACK[blockIndex];
   const data = session.collected_data ?? {};
+  const files = getBlockFilesForRun(data, block);
 
   return {
     режим: 'lapis_vivus_telegram_operator',
-    протокол: 'v21.0',
+    протокол: 'v21.5',
     текущий_блок: block.id,
     название_блока: block.title,
     осталось_блоков_в_стеке: remainingBlocksAfter(blockIndex),
@@ -42,16 +34,15 @@ function buildOperatorPayload(session, blockIndex, completedBlocks) {
       место_рождения: data.birth_place ?? null,
     },
     внешняя_фактура: {
-      бацзы_дамп: data.bazi_dump ?? null,
-      астро_дамп: data.astro_dump ?? null,
-      скриншоты_бацзы: (data.bazi_photo_ids ?? []).length,
-      скриншоты_астро: (data.astro_photo_ids ?? []).length,
+      блок: block.id,
+      файлов_прикреплено: files.length,
+      идентификаторы_файлов: files,
     },
     завершённые_блоки: completedBlocks,
     инструкция_исполнения:
       `Выполни СТРОГО И ИСКЛЮЧИТЕЛЬНО БЛОК ${block.id} за этот один answer. ` +
-      'Соблюдай hardware_gate, HERMETIC_METALOG_CHANNELS (пятиуровневый синтез, v21.0) и OUTPUT_SYNTAX. ' +
-      'Обязательно: ```json ... ``` как блок_[X]_инвариантСтрогийЗапуск_v21.0.json (кириллица, "осталось_блоков_в_стеке"), ' +
+      'Соблюдай hardware_gate, HERMETIC_METALOG_CHANNELS (пятиуровневый синтез, v21.5) и OUTPUT_SYNTAX. ' +
+      'Обязательно: ```json ... ``` как блок_[X]_инвариантСтрогийЗапуск_v21.5.json (кириллица, "осталось_блоков_в_стеке"), ' +
       'затем ## Метакомментарии_Блока (Уровень_1…Уровень_5, включая ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР). ' +
       'JSON — для сервера; оператору в интерфейсе показываются только метакомментарии. ' +
       'Не переходи к другим блокам.',
@@ -89,7 +80,7 @@ async function callModelWithValidation(operatorPayload, photoFileIds) {
       {
         role: 'user',
         content:
-          'Ответ не соответствует OUTPUT_SYNTAX v21.0. Перегенерируй блок: ```json``` (инвариантСтрогийЗапуск_v21.0.json), "осталось_блоков_в_стеке", ## Метакомментарии_Блока с Уровень_1…Уровень_5 (включая ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР). Один блок.',
+          'Ответ не соответствует OUTPUT_SYNTAX v21.5. Перегенерируй блок: ```json``` (инвариантСтрогийЗапуск_v21.5.json), "осталось_блоков_в_стеке", ## Метакомментарии_Блока с Уровень_1…Уровень_5 (включая ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР). Один блок.',
       },
     ];
     answer = await askGpt(retryMessages);
@@ -114,18 +105,14 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   }
 
   const data = session.collected_data ?? {};
+  const photoFileIds = getBlockFilesForRun(data, block);
 
-  if (block.externalKey) {
-    const dump = data[block.externalKey];
-    const photos = getPhotoFileIds(block, data);
-    if (!dump && photos.length === 0) {
-      throw new Error(`Не загружена внешняя фактура для блока ${block.id}.`);
-    }
+  if (block.requiresExternal && photoFileIds.length === 0) {
+    throw new Error(`Для блока ${block.id} нужен хотя бы один прикреплённый файл.`);
   }
 
   const completedBlocks = await getCompletedBlocks(chatId);
   const operatorPayload = buildOperatorPayload(session, blockIndex, completedBlocks);
-  const photoFileIds = getPhotoFileIds(block, data);
 
   const answer = await callModelWithValidation(operatorPayload, photoFileIds);
   const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);

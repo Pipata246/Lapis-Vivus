@@ -4,7 +4,7 @@ import {
   initUser,
   handleCallback,
   handleText,
-  handlePhoto,
+  handleFile,
   sendScenarioReply,
 } from './services/scenario.js';
 
@@ -64,14 +64,13 @@ function registerHandlers(bot) {
   bot.on('photo', async (ctx) => {
     if (!ctx.from?.id) return;
 
-    const caption = ctx.message.caption ?? '';
     const photos = ctx.message.photo ?? [];
     const largest = photos[photos.length - 1];
     if (!largest?.file_id) return;
 
     try {
       await ctx.sendChatAction('typing');
-      const payload = await handlePhoto(ctx.from, caption, largest.file_id);
+      const payload = await handleFile(ctx.from, largest.file_id);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка photo:', err.message);
@@ -79,11 +78,29 @@ function registerHandlers(bot) {
     }
   });
 
-  bot.on('message', async (ctx) => {
-    if (ctx.message.text || ctx.message.photo) return;
+  bot.on('document', async (ctx) => {
     if (!ctx.from?.id) return;
 
-    await ctx.reply('Этот тип сообщения не поддерживается. Используй кнопки или текст на текущем шаге.');
+    const fileId = ctx.message.document?.file_id;
+    if (!fileId) return;
+
+    try {
+      await ctx.sendChatAction('typing');
+      const payload = await handleFile(ctx.from, fileId);
+      await sendScenarioReply(ctx, payload);
+    } catch (err) {
+      console.error('Ошибка document:', err.message);
+      await ctx.reply('Документ не принят на этом шаге.');
+    }
+  });
+
+  bot.on('message', async (ctx) => {
+    if (ctx.message.text || ctx.message.photo || ctx.message.document) return;
+    if (!ctx.from?.id) return;
+
+    await ctx.reply(
+      'Этот тип сообщения не поддерживается. Используй кнопки, текст анкеты или файл на экране блока.',
+    );
   });
 
   bot.catch((err) => {
