@@ -1,0 +1,174 @@
+/**
+ * Внешние калькуляторы для оператора («для ленивых»).
+ * Geocult: GET-параметры с формы (fd, fm, fy, fh, fmn, c1, ttz, hs, sb).
+ */
+
+const GEOCULT = {
+  natal: 'https://geocult.ru/natalnaya-karta-onlayn-raschet',
+  transits: 'https://geocult.ru/tranzityi-onlayn-raschet',
+};
+
+const CALCULATORS = {
+  humanDesign: {
+    label: '🧬 Дизайн Человека',
+    baseUrl: 'https://human-design.space/dizajn-cheloveka-raschet-karty/#/bodygraph',
+  },
+  pythagoras: {
+    label: '🔢 Квадрат Пифагора',
+    baseUrl: 'https://in-contri.ru/kvadrat-pifagora/',
+  },
+  destinyMatrix: {
+    label: '🔮 Матрица судьбы',
+    baseUrl: 'https://www.matricasudbi-kalkulator.ru/',
+  },
+  jyotish: {
+    label: '🕉 Джйотиш (вед.)',
+    baseUrl:
+      'https://gems-brokers.ru/astrologiya-i-kamni/rasshifrovka-natalnoj-kartyi/vedicheskaya-natalnaya-karta-dzhjotish/',
+    note: 'Отдельная система, не матрица судьбы',
+  },
+  tzolkin: {
+    label: '🌞 Цолькин / Кин',
+    baseUrl: 'http://tsolkin.ru/?tab=calculator',
+  },
+  bazi: {
+    label: '🏯 Бацзы',
+    baseUrl: 'https://www.mingli.ru/',
+  },
+  natal: {
+    label: '⭐ Натальная карта',
+    buildUrl: (data) => buildGeocultUrl(GEOCULT.natal, data),
+  },
+  transits: {
+    label: '🔄 Транзиты',
+    buildUrl: (data) => buildGeocultUrl(GEOCULT.transits, data),
+  },
+};
+
+/** Калькуляторы по block_id */
+const BLOCK_CALCULATORS = {
+  '1A': ['humanDesign'],
+  '1B': ['pythagoras'],
+  '1C': ['destinyMatrix', 'jyotish'],
+  '1D': ['tzolkin'],
+  '2': ['bazi'],
+  '3': ['natal'],
+  '3B': ['transits', 'natal'],
+  '4': ['natal', 'bazi', 'destinyMatrix'],
+  '4B': ['destinyMatrix', 'humanDesign'],
+  '5': ['transits'],
+};
+
+function parseBirthDate(dateStr) {
+  if (!dateStr || !/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
+    return null;
+  }
+  const [day, month, year] = dateStr.split('.').map(Number);
+  return { day, month: month - 1, year };
+}
+
+function parseBirthTime(timeStr) {
+  if (!timeStr || timeStr === 'неизвестно') {
+    return { hour: 12, minute: 0 };
+  }
+  const m = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) {
+    return { hour: 12, minute: 0 };
+  }
+  let hour = Number(m[1]);
+  let minute = Number(m[2]);
+  if (hour === 12 && minute === 0) {
+    minute = 1;
+  }
+  return { hour, minute };
+}
+
+function buildGeocultUrl(base, data) {
+  const params = new URLSearchParams();
+  params.set('fn', 'Оператор');
+  params.set('sb', '1');
+  params.set('ttz', '20');
+  params.set('hs', 'P');
+
+  const birth = parseBirthDate(data?.birth_date);
+  if (birth) {
+    params.set('fd', String(birth.day));
+    params.set('fm', String(birth.month));
+    params.set('fy', String(birth.year));
+  }
+
+  const time = parseBirthTime(data?.birth_time);
+  params.set('fh', String(time.hour));
+  params.set('fmn', String(time.minute));
+
+  if (data?.birth_place) {
+    params.set('c1', data.birth_place);
+  }
+
+  return `${base}?${params.toString()}`;
+}
+
+function resolveCalculatorUrl(key, data) {
+  const calc = CALCULATORS[key];
+  if (!calc) return null;
+
+  if (typeof calc.buildUrl === 'function') {
+    return calc.buildUrl(data);
+  }
+  return calc.baseUrl;
+}
+
+/**
+ * @returns {{ label: string, url: string, note?: string }[]}
+ */
+export function getBlockCalculatorLinks(blockId, collectedData = {}) {
+  const keys = BLOCK_CALCULATORS[blockId] ?? [];
+  const links = [];
+
+  for (const key of keys) {
+    const calc = CALCULATORS[key];
+    if (!calc) continue;
+
+    const url = resolveCalculatorUrl(key, collectedData);
+    if (!url) continue;
+
+    links.push({
+      label: calc.label,
+      url,
+      note: calc.note,
+    });
+  }
+
+  return links;
+}
+
+export function formatCalculatorLinksText(blockId, collectedData = {}) {
+  const links = getBlockCalculatorLinks(blockId, collectedData);
+  if (links.length === 0) {
+    return '';
+  }
+
+  const lines = ['🧮 Калькуляторы (откроются в браузере):'];
+  for (const link of links) {
+    lines.push(`• ${link.label}${link.note ? ` — ${link.note}` : ''}`);
+  }
+  lines.push('');
+  lines.push('Сделай скрин/сохрани результат и прикрепи файлом, где блок требует фактуру.');
+
+  const hasGeocult = links.some((l) => l.url.includes('geocult.ru'));
+  if (hasGeocult && collectedData?.birth_date) {
+    lines.push('(Geocult: дата/время/город из анкеты подставлены в ссылку; город уточни на сайте.)');
+  } else if (collectedData?.birth_date) {
+    lines.push('(Дата рождения из анкеты — введи на сайте, если поля не заполнились.)');
+  }
+
+  return lines.join('\n');
+}
+
+/** Кнопки для inline_keyboard Telegram (url). */
+export function calculatorUrlButtons(blockId, collectedData = {}) {
+  return getBlockCalculatorLinks(blockId, collectedData).map((link) => ({
+    text: link.label.slice(0, 64),
+    url: link.url,
+  }));
+}

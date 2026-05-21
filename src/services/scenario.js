@@ -31,6 +31,7 @@ import {
   mergeCollectedData,
 } from '../db/sessions.js';
 import { runAnalysisBlock } from './blockRunner.js';
+import { formatCalculatorLinksText } from '../scenario/calculatorLinks.js';
 
 function genderLabel(value) {
   return value === 'male' ? 'Мужской' : 'Женский';
@@ -73,19 +74,26 @@ function blockPrepText(session) {
     fileLine = '📎 Файл по желанию (необязательно). Текст на этом шаге не принимается.';
   }
 
+  const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
+
   return [
     block.description,
     '',
+    calcBlock || null,
+    calcBlock ? '' : null,
     fileLine,
     '',
     'Когда готов — нажми «Запустить блок».',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function showBlockPrep(session) {
+  const block = currentBlock(session);
   return {
     text: blockPrepText(session),
-    keyboard: blockPrepKeyboard(),
+    keyboard: blockPrepKeyboard(block?.id, session.collected_data),
   };
 }
 
@@ -234,7 +242,7 @@ export async function handleCallback(from, callbackData) {
       if (!hasRequiredFiles(session.collected_data, block)) {
         return {
           text: `${blockPrepText(session)}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин или документ).`,
-          keyboard: blockPrepKeyboard(),
+          keyboard: blockPrepKeyboard(block.id, session.collected_data),
         };
       }
       return runCurrentBlock(from, chat.id);
@@ -335,7 +343,7 @@ export async function handleText(from, rawText) {
     if (step === STEPS.BLOCK_PREP) {
       return {
         text: `${blockPrepText(session)}\n\nТекст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
-        keyboard: blockPrepKeyboard(),
+        keyboard: blockPrepKeyboard(block?.id, session.collected_data),
       };
     }
     return { text: REJECT_TEXT, keyboard: menuKeyboard() };

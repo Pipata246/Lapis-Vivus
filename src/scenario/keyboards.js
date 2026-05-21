@@ -1,4 +1,5 @@
 import { CALLBACK_PREFIX } from './constants.js';
+import { calculatorUrlButtons } from './calculatorLinks.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
@@ -40,10 +41,17 @@ export function confirmKeyboard() {
   };
 }
 
-export function blockPrepKeyboard() {
-  return {
-    inline_keyboard: [[{ text: '▶️ Запустить блок', callback_data: cb('run_block') }]],
-  };
+export function blockPrepKeyboard(blockId, collectedData = {}) {
+  const rows = [];
+  const calcButtons = calculatorUrlButtons(blockId, collectedData);
+
+  for (let i = 0; i < calcButtons.length; i += 2) {
+    rows.push(calcButtons.slice(i, i + 2));
+  }
+
+  rows.push([{ text: '▶️ Запустить блок', callback_data: cb('run_block') }]);
+
+  return { inline_keyboard: rows };
 }
 
 export function nextBlockKeyboard() {
