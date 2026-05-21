@@ -1,7 +1,7 @@
 {
   "name": "lapis-vivus-tg-bot",
   "version": "1.0.0",
-  "description": "Telegram bot with /start welcome message (Vercel)",
+  "description": "Lapis Vivus Telegram bot — secured scenario + astrology analysis blocks (Vercel)",
   "type": "module",
   "scripts": {
     "dev": "vercel dev",

@@ -1,50 +1,79 @@
 import { Telegraf } from 'telegraf';
-import { handleUserText } from './services/conversation.js';
-import { getOrCreateUserChat } from './db/chats.js';
-import { upsertUserFromTelegram } from './db/users.js';
 import { loadBotConfig } from './config.js';
-
-const TELEGRAM_MAX_MESSAGE = 4096;
-
-const WELCOME_TEXT = 'Привет как дела?';
+import {
+  initUser,
+  handleCallback,
+  handleText,
+  handlePhoto,
+  sendScenarioReply,
+} from './services/scenario.js';
 
 let botInstance = null;
 
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
-    if (!ctx.from?.id) {
-      return;
+    if (!ctx.from?.id) return;
+    try {
+      const payload = await initUser(ctx.from);
+      await sendScenarioReply(ctx, payload);
+    } catch (err) {
+      console.error('Ошибка /start:', err.message);
+      await ctx.reply('Не удалось запустить бота. Попробуй позже.');
     }
+  });
+
+  bot.on('callback_query', async (ctx) => {
+    if (!ctx.from?.id) return;
+
+    await ctx.answerCbQuery().catch(() => {});
+    await ctx.sendChatAction('typing').catch(() => {});
 
     try {
-      await upsertUserFromTelegram(ctx.from);
-      await getOrCreateUserChat(ctx.from.id);
+      const payload = await handleCallback(ctx.from, ctx.callbackQuery.data);
+      await sendScenarioReply(ctx, payload);
     } catch (err) {
-      console.error('Ошибка инициализации пользователя:', err.message);
+      console.error('Ошибка callback:', err.message);
+      await ctx.reply('Ошибка обработки. Используй меню.');
     }
-
-    await ctx.reply(WELCOME_TEXT);
   });
 
   bot.on('text', async (ctx) => {
-    if (!ctx.from?.id) {
-      return;
-    }
+    if (!ctx.from?.id) return;
 
     const text = ctx.message.text?.trim();
-    if (!text || text.startsWith('/')) {
-      return;
-    }
+    if (!text || text.startsWith('/')) return;
 
-    await ctx.sendChatAction('typing');
+    await ctx.sendChatAction('typing').catch(() => {});
 
     try {
-      const answer = await handleUserText(ctx.from, text);
-      await ctx.reply(answer.slice(0, TELEGRAM_MAX_MESSAGE));
+      const payload = await handleText(ctx.from, text);
+      await sendScenarioReply(ctx, payload);
     } catch (err) {
-      console.error('Ошибка ИИ:', err.message);
-      await ctx.reply('Сейчас не могу ответить. Попробуй позже.');
+      console.error('Ошибка text:', err.message);
+      await ctx.reply('Ошибка. Используй кнопки меню.');
     }
+  });
+
+  bot.on('photo', async (ctx) => {
+    if (!ctx.from?.id) return;
+
+    const caption = ctx.message.caption ?? '';
+
+    try {
+      await ctx.sendChatAction('typing');
+      const payload = await handlePhoto(ctx.from, caption);
+      await sendScenarioReply(ctx, payload);
+    } catch (err) {
+      console.error('Ошибка photo:', err.message);
+      await ctx.reply('Фото не принято на этом шаге.');
+    }
+  });
+
+  bot.on('message', async (ctx) => {
+    if (ctx.message.text || ctx.message.photo) return;
+    if (!ctx.from?.id) return;
+
+    await ctx.reply('Этот тип сообщения не поддерживается. Используй кнопки или текст на текущем шаге.');
   });
 
   bot.catch((err) => {
