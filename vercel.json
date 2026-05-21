@@ -3,6 +3,9 @@
   "functions": {
     "api/webhook.js": {
       "maxDuration": 60
+    },
+    "api/register-webhook.js": {
+      "maxDuration": 30
     }
   }
 }
