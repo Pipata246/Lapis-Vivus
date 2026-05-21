@@ -1,4 +1,5 @@
-import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT, TELEGRAM_MAX_MESSAGE } from '../scenario/constants.js';
+import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT } from '../scenario/constants.js';
+import { splitTelegramMessages } from '../ai/formatResponse.js';
 import {
   parseCallbackData,
   validateBirthDate,
@@ -41,11 +42,6 @@ function formatProfile(data) {
     `• Время: ${data.birth_time ?? '—'}`,
     `• Место: ${data.birth_place ?? '—'}`,
   ].join('\n');
-}
-
-function blockNeedsUpload(blockIndex) {
-  const block = BLOCK_STACK[blockIndex];
-  return block?.externalKey ?? null;
 }
 
 function getUploadStepForKey(key) {
@@ -100,7 +96,7 @@ function resumePrompt(session) {
       keyboard: uploadDoneKeyboard(),
     },
     [STEPS.ASTRO_UPLOAD]: {
-      text: 'БЛОК 3 (Астро): текстовый дамп натальной карты и/или скрин. Затем «Данные загружены».',
+      text: 'БЛОК 3 / 3B (Натал + транзиты): текстовый дамп карты и/или скрин. Затем «Данные загружены».',
       keyboard: uploadDoneKeyboard(),
     },
     [STEPS.BLOCK_FAILED]: {
@@ -224,21 +220,26 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
-      const uploadKey = blockNeedsUpload(nextIndex);
+      const nextBlock = BLOCK_STACK[nextIndex];
+      const uploadKey = nextBlock?.externalKey ?? null;
       if (uploadKey) {
-        const uploadStep = getUploadStepForKey(uploadKey);
-        await updateSession(from.id, {
-          step: uploadStep,
-          block_index: nextIndex,
-        });
-        const label =
-          uploadKey === 'bazi_dump'
-            ? 'Бацзы (текстовый дамп)'
-            : 'Натальная карта (текстовый дамп)';
-        return {
-          text: `Перед блоком ${BLOCK_STACK[nextIndex].id}: отправь ${label}.`,
-          keyboard: null,
-        };
+        const photoKey = nextBlock.photoKey ?? 'astro_photo_ids';
+        const collected = session.collected_data ?? {};
+        if (!hasExternalFaktura(collected, uploadKey, photoKey)) {
+          const uploadStep = getUploadStepForKey(uploadKey);
+          await updateSession(from.id, {
+            step: uploadStep,
+            block_index: nextIndex,
+          });
+          const label =
+            uploadKey === 'bazi_dump'
+              ? 'Бацзы (текстовый дамп)'
+              : 'Натальная карта / транзиты (текстовый дамп)';
+          return {
+            text: `Перед блоком ${nextBlock.id}: отправь ${label}.`,
+            keyboard: uploadKey === 'bazi_dump' ? null : uploadDoneKeyboard(),
+          };
+        }
       }
 
       await updateSession(from.id, { block_index: nextIndex });
@@ -264,7 +265,7 @@ async function runCurrentBlock(from, chatId) {
   await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
-    const { blockId, blockTitle, answer } = await runAnalysisBlock({
+    const { blockId, blockTitle, userMessage } = await runAnalysisBlock({
       session,
       chatId,
       userId,
@@ -275,8 +276,7 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
 
-    const header = `📦 Блок ${blockId}: ${blockTitle}\n\n`;
-    const chunks = splitMessage(header + answer);
+    const chunks = splitTelegramMessages(userMessage);
 
     return {
       text: chunks[0],
@@ -295,20 +295,6 @@ async function runCurrentBlock(from, chatId) {
       keyboard: blockFailedKeyboard(),
     };
   }
-}
-
-function splitMessage(text) {
-  if (text.length <= TELEGRAM_MAX_MESSAGE) {
-    return [text];
-  }
-
-  const parts = [];
-  let rest = text;
-  while (rest.length > 0) {
-    parts.push(rest.slice(0, TELEGRAM_MAX_MESSAGE));
-    rest = rest.slice(TELEGRAM_MAX_MESSAGE);
-  }
-  return parts;
 }
 
 export async function handleText(from, rawText) {

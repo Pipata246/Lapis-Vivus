@@ -1,9 +1,8 @@
 import { getSupabase } from './supabase.js';
+import { BLOCK_IDS } from '../scenario/constants.js';
 
-const ALLOWED_BLOCKS = new Set(['1A', '1B', '1C', '1D', '2', '3', '4', '5']);
-
-export async function saveBlockResult({ chatId, userId, blockId, responseText }) {
-  if (!ALLOWED_BLOCKS.has(blockId)) {
+export async function saveBlockResult({ chatId, userId, blockId, responseText, jsonPayload }) {
+  if (!BLOCK_IDS.includes(blockId)) {
     throw new Error('Некорректный block_id.');
   }
 
@@ -13,6 +12,7 @@ export async function saveBlockResult({ chatId, userId, blockId, responseText })
     user_id: userId,
     block_id: blockId,
     response_text: responseText.slice(0, 50000),
+    json_payload: jsonPayload ?? null,
   });
 
   if (error) {
@@ -20,15 +20,15 @@ export async function saveBlockResult({ chatId, userId, blockId, responseText })
   }
 }
 
-export async function getCompletedBlockSummaries(chatId, limit = 8) {
+/** Все завершённые блоки целиком (для контекста ИИ). */
+export async function getCompletedBlocks(chatId) {
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from('analysis_block_results')
-    .select('block_id, response_text, created_at')
+    .select('block_id, response_text, json_payload, created_at')
     .eq('chat_id', chatId)
-    .order('created_at', { ascending: true })
-    .limit(limit);
+    .order('created_at', { ascending: true });
 
   if (error) {
     throw new Error(`Не удалось загрузить блоки: ${error.message}`);
@@ -36,6 +36,7 @@ export async function getCompletedBlockSummaries(chatId, limit = 8) {
 
   return (data ?? []).map((row) => ({
     block_id: row.block_id,
-    excerpt: row.response_text.slice(0, 1500),
+    response_text: row.response_text,
+    json_payload: row.json_payload,
   }));
 }

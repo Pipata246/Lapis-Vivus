@@ -14,7 +14,7 @@ export const STEPS = {
   COMPLETED: 'completed',
 };
 
-/** Фиксированный стек итераций (0x04) */
+/** Фиксированный стек итераций (0x04) v21.0 */
 export const BLOCK_STACK = [
   {
     id: '1A',
@@ -33,22 +33,35 @@ export const BLOCK_STACK = [
   },
   {
     id: '1D',
-    title: 'Матрица Цолькин',
+    title: 'Матрица Цолькин (коридор Кин-1 / Кин / Кин+1)',
     externalKey: null,
   },
   {
     id: '2',
     title: 'Архитектура Бацзы и У-Син',
     externalKey: 'bazi_dump',
+    photoKey: 'bazi_photo_ids',
   },
   {
     id: '3',
-    title: 'Геоцентрическая астро-геометрия',
+    title: 'Геоцентрическая натальная астро-геометрия',
     externalKey: 'astro_dump',
+    photoKey: 'astro_photo_ids',
+  },
+  {
+    id: '3B',
+    title: 'Динамический транзитный контур',
+    externalKey: 'astro_dump',
+    photoKey: 'astro_photo_ids',
   },
   {
     id: '4',
     title: 'Квантово-кибернетический синтез',
+    externalKey: null,
+  },
+  {
+    id: '4B',
+    title: 'Гностическая деконструкция',
     externalKey: null,
   },
   {
@@ -57,6 +70,8 @@ export const BLOCK_STACK = [
     externalKey: null,
   },
 ];
+
+export const BLOCK_IDS = BLOCK_STACK.map((b) => b.id);
 
 export const CALLBACK_PREFIX = 'lv';
 

@@ -74,28 +74,6 @@ export async function getOrCreateUserChat(userId) {
   return created;
 }
 
-export async function getChatHistory(chatId, limit) {
-  if (!chatId) {
-    throw new Error('Не указан чат.');
-  }
-
-  const supabase = getSupabase();
-  const safeLimit = Math.min(Math.max(limit, 1), 100);
-
-  const { data, error } = await supabase
-    .from('user_chat_messages')
-    .select('role, content, created_at')
-    .eq('chat_id', chatId)
-    .order('created_at', { ascending: false })
-    .limit(safeLimit);
-
-  if (error) {
-    throw new Error(`Не удалось загрузить историю: ${error.message}`);
-  }
-
-  return (data ?? []).reverse().map(({ role, content }) => ({ role, content }));
-}
-
 export async function saveChatMessages(chatId, messages) {
   if (!chatId || !Array.isArray(messages) || messages.length === 0) {
     throw new Error('Нет сообщений для сохранения.');

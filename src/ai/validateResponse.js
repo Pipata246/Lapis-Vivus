@@ -1,5 +1,5 @@
 /**
- * Проверка ответа модели по 0x05_SATURN_CONVERGENCE и 0x02_HERMETIC_METALOG_CHANNELS.
+ * Проверка ответа модели по 0x05_SATURN_CONVERGENCE v21.0 и 0x02 (пять уровней).
  */
 export function validateBlockResponse(text) {
   const issues = [];
@@ -14,6 +14,14 @@ export function validateBlockResponse(text) {
 
   if (!/Метакомментарии_Блока/i.test(text)) {
     issues.push('нет раздела ## Метакомментарии_Блока');
+  }
+
+  if (!/Уровень_1/i.test(text) || !/Уровень_5/i.test(text)) {
+    issues.push('нет пятиуровневых метакомментариев (Уровень_1 … Уровень_5)');
+  }
+
+  if (!/ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР/i.test(text)) {
+    issues.push('нет Уровня_3: ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР');
   }
 
   return {
