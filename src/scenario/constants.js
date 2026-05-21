@@ -10,6 +10,7 @@ export const STEPS = {
   ASTRO_UPLOAD: 'astro_upload',
   BLOCK_RUNNING: 'block_running',
   BLOCK_REVIEW: 'block_review',
+  BLOCK_FAILED: 'block_failed',
   COMPLETED: 'completed',
 };
 

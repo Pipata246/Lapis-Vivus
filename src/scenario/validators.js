@@ -9,6 +9,8 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'confirm_yes',
   'confirm_edit',
   'next_block',
+  'retry_block',
+  'upload_done',
   'reset',
   'menu',
 ]);
@@ -81,16 +83,25 @@ export function validateBirthPlace(text) {
 
 export function validateExternalDump(text, label) {
   const trimmed = text?.trim();
-  if (!trimmed || trimmed.length < 50) {
+  if (!trimmed) {
+    return { ok: true, value: null };
+  }
+  if (trimmed.length < 50) {
     return {
       ok: false,
-      error: `${label}: отправь текстовый дамп минимум 50 символов (данные из программы расчёта).`,
+      error: `${label}: текстовый дамп минимум 50 символов или отправь скриншот.`,
     };
   }
   if (trimmed.length > 12000) {
     return { ok: false, error: `${label}: слишком длинный текст (макс. 12000 символов).` };
   }
   return { ok: true, value: trimmed };
+}
+
+export function hasExternalFaktura(data, dumpKey, photoKey) {
+  const dump = data?.[dumpKey];
+  const photos = data?.[photoKey] ?? [];
+  return Boolean(dump?.trim()) || photos.length > 0;
 }
 
 export function sanitizeTelegramUserId(id) {

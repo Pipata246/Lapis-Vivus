@@ -3,6 +3,25 @@ import { loadAiConfig } from '../config.js';
 const API_URL = 'https://gptunnel.ru/v1/chat/completions';
 const ALLOWED_ROLES = new Set(['user', 'assistant', 'system']);
 
+function normalizeContent(content) {
+  if (typeof content === 'string') {
+    const trimmed = content.trim();
+    if (!trimmed) {
+      throw new Error('Пустое сообщение в контексте.');
+    }
+    return trimmed;
+  }
+
+  if (Array.isArray(content)) {
+    if (content.length === 0) {
+      throw new Error('Пустой multimodal-контент.');
+    }
+    return content;
+  }
+
+  throw new Error('Некорректный формат content.');
+}
+
 function normalizeMessages(messages) {
   if (!Array.isArray(messages) || messages.length === 0) {
     throw new Error('Пустой контекст для ИИ.');
@@ -10,13 +29,10 @@ function normalizeMessages(messages) {
 
   return messages.map((msg) => {
     const role = msg?.role;
-    const content = msg?.content?.trim();
-
-    if (!ALLOWED_ROLES.has(role) || !content) {
-      throw new Error('Некорректное сообщение в контексте.');
+    if (!ALLOWED_ROLES.has(role)) {
+      throw new Error('Некорректная роль сообщения.');
     }
-
-    return { role, content };
+    return { role, content: normalizeContent(msg.content) };
   });
 }
 
@@ -33,6 +49,7 @@ export async function askGpt(messages) {
     body: JSON.stringify({
       model: gptunnelModel,
       messages: payloadMessages,
+      temperature: 0,
       useWalletBalance,
     }),
   });
@@ -52,9 +69,16 @@ export async function askGpt(messages) {
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
 
-  if (!content?.trim()) {
-    throw new Error('Пустой ответ от GPTunnel');
+  if (typeof content === 'string' && content.trim()) {
+    return content.trim();
   }
 
-  return content.trim();
+  if (Array.isArray(content)) {
+    const textPart = content.find((p) => p.type === 'text');
+    if (textPart?.text?.trim()) {
+      return textPart.text.trim();
+    }
+  }
+
+  throw new Error('Пустой ответ от GPTunnel');
 }

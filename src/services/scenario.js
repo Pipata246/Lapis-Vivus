@@ -14,7 +14,10 @@ import {
   nextBlockKeyboard,
   completedKeyboard,
   runningKeyboard,
+  blockFailedKeyboard,
+  uploadDoneKeyboard,
 } from '../scenario/keyboards.js';
+import { hasExternalFaktura } from '../scenario/validators.js';
 import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram } from '../db/users.js';
 import {
@@ -93,12 +96,16 @@ function resumePrompt(session) {
       keyboard: confirmKeyboard(),
     },
     [STEPS.BAZI_UPLOAD]: {
-      text: 'БЛОК 2 (Бацзы): отправь текстовый дамп расчёта (мин. 50 символов).',
-      keyboard: null,
+      text: 'БЛОК 2 (Бацзы): текстовый дамп (≥50 символов) и/или скриншот. Затем «Данные загружены».',
+      keyboard: uploadDoneKeyboard(),
     },
     [STEPS.ASTRO_UPLOAD]: {
-      text: 'БЛОК 3 (Астро): отправь текстовый дамп натальной карты (мин. 50 символов).',
-      keyboard: null,
+      text: 'БЛОК 3 (Астро): текстовый дамп натальной карты и/или скрин. Затем «Данные загружены».',
+      keyboard: uploadDoneKeyboard(),
+    },
+    [STEPS.BLOCK_FAILED]: {
+      text: `Блок ${session.last_block_id ?? ''} не выполнен. Повтори или вернись в меню.`,
+      keyboard: blockFailedKeyboard(),
     },
     [STEPS.BLOCK_RUNNING]: {
       text: '⏳ Выполняется блок анализа. Подожди…',
@@ -163,7 +170,12 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'confirm_edit':
-      await updateSession(from.id, { step: STEPS.GENDER });
+      await updateSession(from.id, {
+        step: STEPS.GENDER,
+        collected_data: {},
+        block_index: 0,
+        last_block_id: null,
+      });
       return { text: 'Начнём заново. Выбери пол:', keyboard: genderKeyboard() };
 
     case 'confirm_yes': {
@@ -171,10 +183,31 @@ export async function handleCallback(from, callbackData) {
         return resumePrompt(session);
       }
       await updateSession(from.id, {
-        step: STEPS.BLOCK_RUNNING,
         block_index: 0,
         last_block_id: null,
       });
+      return runCurrentBlock(from, chat.id);
+    }
+
+    case 'retry_block': {
+      if (session.step !== STEPS.BLOCK_FAILED) {
+        return resumePrompt(session);
+      }
+      return runCurrentBlock(from, chat.id);
+    }
+
+    case 'upload_done': {
+      if (session.step !== STEPS.BAZI_UPLOAD && session.step !== STEPS.ASTRO_UPLOAD) {
+        return resumePrompt(session);
+      }
+      const dumpKey = session.step === STEPS.BAZI_UPLOAD ? 'bazi_dump' : 'astro_dump';
+      const photoKey = session.step === STEPS.BAZI_UPLOAD ? 'bazi_photo_ids' : 'astro_photo_ids';
+      if (!hasExternalFaktura(session.collected_data, dumpKey, photoKey)) {
+        return {
+          text: 'Нужен текстовый дамп (≥50 символов) или хотя бы один скриншот.',
+          keyboard: uploadDoneKeyboard(),
+        };
+      }
       return runCurrentBlock(from, chat.id);
     }
 
@@ -208,10 +241,7 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
-      await updateSession(from.id, {
-        step: STEPS.BLOCK_RUNNING,
-        block_index: nextIndex,
-      });
+      await updateSession(from.id, { block_index: nextIndex });
       return runCurrentBlock(from, chat.id);
     }
 
@@ -223,6 +253,15 @@ export async function handleCallback(from, callbackData) {
 async function runCurrentBlock(from, chatId) {
   const userId = from.id;
   let session = await getSession(userId);
+
+  if (session.step === STEPS.BLOCK_RUNNING) {
+    return {
+      text: 'Блок уже выполняется. Подожди завершения.',
+      keyboard: runningKeyboard(),
+    };
+  }
+
+  await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
     const { blockId, blockTitle, answer } = await runAnalysisBlock({
@@ -246,10 +285,14 @@ async function runCurrentBlock(from, chatId) {
     };
   } catch (err) {
     console.error('Ошибка блока:', err.message);
-    await updateSession(userId, { step: STEPS.BLOCK_REVIEW });
+    const blockId = BLOCK_STACK[session.block_index]?.id ?? '?';
+    await updateSession(userId, {
+      step: STEPS.BLOCK_FAILED,
+      last_block_id: blockId,
+    });
     return {
-      text: 'Ошибка при выполнении блока. Попробуй «Следующий блок» или начни заново из меню.',
-      keyboard: completedKeyboard(),
+      text: `Ошибка блока ${blockId}: ${err.message}\n\nИндекс блока не изменён — нажми «Повторить блок».`,
+      keyboard: blockFailedKeyboard(),
     };
   }
 }
@@ -317,24 +360,32 @@ export async function handleText(from, rawText) {
 
     case STEPS.BAZI_UPLOAD: {
       const v = validateExternalDump(rawText, 'Бацзы');
-      if (!v.ok) return { text: v.error, keyboard: null };
-      const data = mergeCollectedData(session, { bazi_dump: v.value });
-      await updateSession(from.id, {
-        step: STEPS.BLOCK_RUNNING,
-        collected_data: data,
-      });
-      return runCurrentBlock(from, chat.id);
+      if (!v.ok) return { text: v.error, keyboard: uploadDoneKeyboard() };
+      const patch = v.value ? { bazi_dump: v.value } : {};
+      const data = mergeCollectedData(session, patch);
+      await updateSession(from.id, { collected_data: data });
+      if (hasExternalFaktura(data, 'bazi_dump', 'bazi_photo_ids')) {
+        return runCurrentBlock(from, chat.id);
+      }
+      return {
+        text: 'Текст сохранён. Добавь скрин или нажми «Данные загружены».',
+        keyboard: uploadDoneKeyboard(),
+      };
     }
 
     case STEPS.ASTRO_UPLOAD: {
       const v = validateExternalDump(rawText, 'Астро-геометрия');
-      if (!v.ok) return { text: v.error, keyboard: null };
-      const data = mergeCollectedData(session, { astro_dump: v.value });
-      await updateSession(from.id, {
-        step: STEPS.BLOCK_RUNNING,
-        collected_data: data,
-      });
-      return runCurrentBlock(from, chat.id);
+      if (!v.ok) return { text: v.error, keyboard: uploadDoneKeyboard() };
+      const patch = v.value ? { astro_dump: v.value } : {};
+      const data = mergeCollectedData(session, patch);
+      await updateSession(from.id, { collected_data: data });
+      if (hasExternalFaktura(data, 'astro_dump', 'astro_photo_ids')) {
+        return runCurrentBlock(from, chat.id);
+      }
+      return {
+        text: 'Текст сохранён. Добавь скрин или нажми «Данные загружены».',
+        keyboard: uploadDoneKeyboard(),
+      };
     }
 
     default:
@@ -342,21 +393,37 @@ export async function handleText(from, rawText) {
   }
 }
 
-export async function handlePhoto(from, caption) {
-  const { session } = await ensureSession(from);
+export async function handlePhoto(from, caption, photoFileId) {
+  const { session, chat } = await ensureSession(from);
   const step = session.step;
 
   if (step !== STEPS.BAZI_UPLOAD && step !== STEPS.ASTRO_UPLOAD) {
     return { text: REJECT_TEXT, keyboard: menuKeyboard() };
   }
 
+  const photoKey = step === STEPS.BAZI_UPLOAD ? 'bazi_photo_ids' : 'astro_photo_ids';
+  const dumpKey = step === STEPS.BAZI_UPLOAD ? 'bazi_dump' : 'astro_dump';
+  const existing = session.collected_data?.[photoKey] ?? [];
+  const data = mergeCollectedData(session, {
+    [photoKey]: [...existing, photoFileId].slice(-5),
+  });
+  await updateSession(from.id, { collected_data: data });
+
   if (caption?.trim()) {
-    return handleText(from, caption);
+    const textResult = await handleText(from, caption);
+    return textResult;
+  }
+
+  if (hasExternalFaktura(data, dumpKey, photoKey)) {
+    return {
+      text: 'Скрин сохранён. Нажми «Данные загружены — запустить блок».',
+      keyboard: uploadDoneKeyboard(),
+    };
   }
 
   return {
-    text: 'Скрин без подписи не принимается. Отправь текстовый дамп сообщением или подпись к фото.',
-    keyboard: null,
+    text: 'Скрин сохранён. Добавь текстовый дамп или нажми «Данные загружены».',
+    keyboard: uploadDoneKeyboard(),
   };
 }
 

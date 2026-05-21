@@ -41,7 +41,14 @@ function registerHandlers(bot) {
     if (!ctx.from?.id) return;
 
     const text = ctx.message.text?.trim();
-    if (!text || text.startsWith('/')) return;
+    if (!text) return;
+
+    if (text.startsWith('/')) {
+      await ctx.reply(
+        'Команды отключены. Используй /start и кнопки сценария Lapis Vivus.',
+      );
+      return;
+    }
 
     await ctx.sendChatAction('typing').catch(() => {});
 
@@ -58,10 +65,13 @@ function registerHandlers(bot) {
     if (!ctx.from?.id) return;
 
     const caption = ctx.message.caption ?? '';
+    const photos = ctx.message.photo ?? [];
+    const largest = photos[photos.length - 1];
+    if (!largest?.file_id) return;
 
     try {
       await ctx.sendChatAction('typing');
-      const payload = await handlePhoto(ctx.from, caption);
+      const payload = await handlePhoto(ctx.from, caption, largest.file_id);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка photo:', err.message);

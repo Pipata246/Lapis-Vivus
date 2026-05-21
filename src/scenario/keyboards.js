@@ -46,6 +46,21 @@ export function nextBlockKeyboard() {
   };
 }
 
+export function blockFailedKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '🔄 Повторить блок', callback_data: cb('retry_block') }],
+      [{ text: '📋 Меню', callback_data: cb('menu') }],
+    ],
+  };
+}
+
+export function uploadDoneKeyboard() {
+  return {
+    inline_keyboard: [[{ text: '✅ Данные загружены — запустить блок', callback_data: cb('upload_done') }]],
+  };
+}
+
 export function completedKeyboard() {
   return {
     inline_keyboard: [

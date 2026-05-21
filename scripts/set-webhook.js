@@ -13,6 +13,7 @@ function requireEnv(name) {
 async function main() {
   const botToken = requireEnv('BOT_TOKEN');
   const webhookUrl = requireEnv('WEBHOOK_URL');
+  const webhookSecret = requireEnv('WEBHOOK_SECRET');
 
   if (!TOKEN_PATTERN.test(botToken)) {
     throw new Error('BOT_TOKEN имеет неверный формат.');
@@ -27,7 +28,10 @@ async function main() {
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: webhookUrl }),
+      body: JSON.stringify({
+        url: webhookUrl,
+        secret_token: webhookSecret,
+      }),
     },
   );
 
@@ -38,6 +42,7 @@ async function main() {
   }
 
   console.log('Webhook установлен:', webhookUrl);
+  console.log('Secret token: задан (WEBHOOK_SECRET)');
 }
 
 main().catch((err) => {

@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS public.user_sessions (
 );
 
 COMMENT ON TABLE public.user_sessions IS 'Сценарий Lapis Vivus: шаг FSM и собранные данные оператора';
-COMMENT ON COLUMN public.user_sessions.step IS 'Текущий шаг: menu, gender, birth_date, birth_time, birth_place, confirm, bazi_upload, astro_upload, block_running, block_review, completed';
+COMMENT ON COLUMN public.user_sessions.step IS 'Текущий шаг: menu, gender, birth_date, birth_time, birth_place, confirm, bazi_upload, astro_upload, block_running, block_review, block_failed, completed';
 COMMENT ON COLUMN public.user_sessions.block_index IS 'Индекс текущего блока в стеке 1A..5';
 
 CREATE TABLE IF NOT EXISTS public.analysis_block_results (

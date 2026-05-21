@@ -1,4 +1,11 @@
 import { getBot } from '../src/bot.js';
+import { loadBotConfig } from '../src/config.js';
+
+function isAuthorized(req) {
+  const { webhookSecret } = loadBotConfig();
+  const header = req.headers['x-telegram-bot-api-secret-token'];
+  return header === webhookSecret;
+}
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
@@ -8,6 +15,11 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, error: 'Method not allowed' });
+    return;
+  }
+
+  if (!isAuthorized(req)) {
+    res.status(401).json({ ok: false, error: 'Unauthorized' });
     return;
   }
 

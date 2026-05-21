@@ -15,12 +15,19 @@ function requireEnv(name) {
 
 export function loadBotConfig() {
   const botToken = requireEnv('BOT_TOKEN');
+  const webhookSecret = requireEnv('WEBHOOK_SECRET');
 
   if (!TOKEN_PATTERN.test(botToken)) {
     throw new Error('BOT_TOKEN имеет неверный формат.');
   }
 
-  return { botToken };
+  if (!ASCII_ONLY.test(webhookSecret) || webhookSecret.length < 16) {
+    throw new Error(
+      'WEBHOOK_SECRET: минимум 16 символов, только латиница/цифры (openssl rand -hex 32).',
+    );
+  }
+
+  return { botToken, webhookSecret };
 }
 
 export function loadSupabaseConfig() {
