@@ -1,11 +1,16 @@
 import { askGpt } from '../ai/gptunnel.js';
 import { validateBlockResponse } from '../ai/validateResponse.js';
-import { extractJsonFromAnswer, formatBlockForUser } from '../ai/formatResponse.js';
+import { extractJsonFromAnswer, extractMetacomments, formatBlockForUser } from '../ai/formatResponse.js';
 import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
 import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
 import { saveChatMessages } from '../db/chats.js';
-import { BLOCK_STACK } from '../scenario/constants.js';
-import { getBlockAttachments, getBlockFilesForRun } from '../scenario/validators.js';
+import {
+  BLOCK_STACK,
+  BLOCK_IDS,
+  SYNTHESIS_BLOCK_INDEX,
+  jsonArtifactName,
+} from '../scenario/constants.js';
+import { getBlockFilesForRun } from '../scenario/validators.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
@@ -13,6 +18,52 @@ const lastAiCallByUser = new Map();
 
 function remainingBlocksAfter(blockIndex) {
   return Math.max(0, BLOCK_STACK.length - blockIndex - 1);
+}
+
+function buildBlockMandate(block, blockIndex) {
+  const step = blockIndex + 1;
+  const total = BLOCK_STACK.length;
+  const forbidden = BLOCK_IDS.filter((id) => id !== block.id);
+  const stackLines = BLOCK_STACK.map((b) => `* ${b.description}`).join('\n');
+
+  return [
+    '═══ КОМАНДА ОПЕРАТОРА (сервер фиксирует шаг) ═══',
+    `Шаг ${step} из ${total}. ЕДИНСТВЕННЫЙ активный блок: ${block.id}.`,
+    '',
+    block.description,
+    '',
+    `Имя JSON-артефакта в этом ответе: ${jsonArtifactName(block.id)}`,
+    `"осталось_блоков_в_стеке": ${remainingBlocksAfter(blockIndex)}`,
+    '',
+    `ЗАПРЕЩЕНО выполнять или разворачивать в этом answer: ${forbidden.join(', ')}.`,
+    'Не придумывай другие пункты стека. Не делай сводный синтез, пока не придёт команда на блок 4.',
+    '',
+    'Полный фиксированный стек (только для справки порядка; работа — только по строке «ЕДИНСТВЕННЫЙ активный блок»):',
+    stackLines,
+    '',
+    '---',
+    '',
+  ].join('\n');
+}
+
+function buildCompletedContext(completedBlocks, blockIndex) {
+  const ids = completedBlocks.map((b) => b.block_id);
+
+  if (blockIndex < SYNTHESIS_BLOCK_INDEX) {
+    return {
+      сданные_блоки: ids,
+      примечание:
+        'Полные тексты прошлых блоков намеренно не переданы. Не повторяй их и не переходи к блокам 4/4B/5.',
+    };
+  }
+
+  return {
+    сданные_блоки: completedBlocks.map((row) => ({
+      block_id: row.block_id,
+      метакомментарии: extractMetacomments(row.response_text, 3500),
+    })),
+    примечание: 'Используй только для кросс-синтеза текущего блока; не пересчитывай прошлые блоки с нуля.',
+  };
 }
 
 function buildOperatorPayload(session, blockIndex, completedBlocks) {
@@ -23,9 +74,14 @@ function buildOperatorPayload(session, blockIndex, completedBlocks) {
   return {
     режим: 'lapis_vivus_telegram_operator',
     протокол: 'v21.5',
+    сервер_назначил_блок: block.id,
+    шаг: `${blockIndex + 1}/${BLOCK_STACK.length}`,
+    фиксированный_стек_порядок: BLOCK_IDS,
     текущий_блок: block.id,
-    название_блока: block.title,
+    задание_блока: block.description,
+    json_артефакт: jsonArtifactName(block.id),
     осталось_блоков_в_стеке: remainingBlocksAfter(blockIndex),
+    запрещённые_блоки_в_этом_answer: BLOCK_IDS.filter((id) => id !== block.id),
     дата_запроса: new Date().toISOString().slice(0, 10),
     универсальные_входные_данные: {
       пол: data.gender_label ?? null,
@@ -36,17 +92,17 @@ function buildOperatorPayload(session, blockIndex, completedBlocks) {
     внешняя_фактура: {
       блок: block.id,
       файлов_прикреплено: files.length,
-      идентификаторы_файлов: files,
     },
-    завершённые_блоки: completedBlocks,
+    контекст_прошлых_блоков: buildCompletedContext(completedBlocks, blockIndex),
     инструкция_исполнения:
-      `Выполни СТРОГО И ИСКЛЮЧИТЕЛЬНО БЛОК ${block.id} за этот один answer. ` +
-      'Соблюдай hardware_gate, HERMETIC_METALOG_CHANNELS (пятиуровневый синтез, v21.5) и OUTPUT_SYNTAX. ' +
-      'Обязательно: ```json ... ``` как блок_[X]_инвариантСтрогийЗапуск_v21.5.json (кириллица, "осталось_блоков_в_стеке"), ' +
-      'затем ## Метакомментарии_Блока (Уровень_1…Уровень_5, включая ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР). ' +
-      'JSON — для сервера; оператору в интерфейсе показываются только метакомментарии. ' +
-      'Не переходи к другим блокам.',
+      `Выполни СТРОГО И ИСКЛЮЧИТЕЛЬНО ${block.description} ` +
+      `JSON: ${jsonArtifactName(block.id)}. ` +
+      'Затем ## Метакомментарии_Блока (Уровень_1…Уровень_5). Один блок за один answer.',
   };
+}
+
+function buildUserMessage(mandate, operatorPayload) {
+  return `${mandate}${JSON.stringify(operatorPayload, null, 2)}`;
 }
 
 function enforceRateLimit(userId) {
@@ -58,8 +114,11 @@ function enforceRateLimit(userId) {
   lastAiCallByUser.set(userId, now);
 }
 
-async function callModelWithValidation(operatorPayload, photoFileIds) {
-  const userText = JSON.stringify(operatorPayload, null, 2);
+async function callModelWithValidation(operatorPayload, photoFileIds, blockId) {
+  const blockIndex = BLOCK_STACK.findIndex((b) => b.id === blockId);
+  const mandate = buildBlockMandate(BLOCK_STACK[blockIndex], blockIndex);
+  const userText = buildUserMessage(mandate, operatorPayload);
+
   const useVision = photoFileIds.length > 0;
   const userContent = useVision
     ? await buildVisionContentParts(userText, photoFileIds)
@@ -71,7 +130,7 @@ async function callModelWithValidation(operatorPayload, photoFileIds) {
   ];
 
   let answer = await askGpt(baseMessages);
-  let validation = validateBlockResponse(answer);
+  let validation = validateBlockResponse(answer, blockId);
 
   if (!validation.ok) {
     const retryMessages = [
@@ -80,11 +139,14 @@ async function callModelWithValidation(operatorPayload, photoFileIds) {
       {
         role: 'user',
         content:
-          'Ответ не соответствует OUTPUT_SYNTAX v21.5. Перегенерируй блок: ```json``` (инвариантСтрогийЗапуск_v21.5.json), "осталось_блоков_в_стеке", ## Метакомментарии_Блока с Уровень_1…Уровень_5 (включая ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР). Один блок.',
+          `Ответ отклонён (${validation.issues.join('; ')}). ` +
+          `Перегенерируй ТОЛЬКО блок ${blockId}: ${BLOCK_STACK[blockIndex].description} ` +
+          `JSON: ${jsonArtifactName(blockId)}, "осталось_блоков_в_стеке", ## Метакомментарии_Блока. ` +
+          'Не используй заголовки других блоков.',
       },
     ];
     answer = await askGpt(retryMessages);
-    validation = validateBlockResponse(answer);
+    validation = validateBlockResponse(answer, blockId);
   }
 
   if (!validation.ok) {
@@ -114,7 +176,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   const completedBlocks = await getCompletedBlocks(chatId);
   const operatorPayload = buildOperatorPayload(session, blockIndex, completedBlocks);
 
-  const answer = await callModelWithValidation(operatorPayload, photoFileIds);
+  const answer = await callModelWithValidation(operatorPayload, photoFileIds, block.id);
   const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
 
   await saveBlockResult({

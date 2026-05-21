@@ -21,9 +21,8 @@ export function extractJsonFromAnswer(rawAnswer) {
   return { jsonRaw, jsonParsed };
 }
 
-export function formatBlockForUser(rawAnswer, blockId, blockTitle) {
+export function extractMetacomments(rawAnswer, maxLen = 4000) {
   let visible = rawAnswer.replace(JSON_FENCE_RE, '').trim();
-
   visible = visible
     .replace(/^```[a-z]*\s*$/gim, '')
     .replace(/^```\s*$/gim, '')
@@ -34,10 +33,22 @@ export function formatBlockForUser(rawAnswer, blockId, blockTitle) {
     visible = visible.slice(metaIdx);
   }
 
+  if (visible.length > maxLen) {
+    visible = `${visible.slice(0, maxLen)}\n…[усечено]`;
+  }
+
+  return visible;
+}
+
+export function formatBlockForUser(rawAnswer, blockId, blockTitle) {
+  const visible = extractMetacomments(rawAnswer, 50000);
+
   if (!visible) {
-    visible =
+    return (
+      `📦 Блок ${blockId}: ${blockTitle}\n\n` +
       'Анализ блока выполнен. Структурированные данные (JSON) сохранены в системе.\n\n' +
-      'Нажми «Следующий блок», чтобы продолжить.';
+      'Нажми «Следующий блок», чтобы продолжить.'
+    );
   }
 
   return `📦 Блок ${blockId}: ${blockTitle}\n\n${visible}`;

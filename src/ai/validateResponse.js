@@ -1,7 +1,9 @@
+import { jsonArtifactName } from '../scenario/constants.js';
+
 /**
- * Проверка ответа модели по 0x05_SATURN_CONVERGENCE v21.5 и 0x02 (пять уровней).
+ * Проверка ответа по 0x05 v21.5 и привязке к ожидаемому block_id (серверный стек).
  */
-export function validateBlockResponse(text) {
+export function validateBlockResponse(text, expectedBlockId) {
   const issues = [];
 
   if (!/```json/i.test(text)) {
@@ -24,8 +26,44 @@ export function validateBlockResponse(text) {
     issues.push('нет Уровня_3: ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР');
   }
 
+  if (expectedBlockId) {
+    const artifact = jsonArtifactName(expectedBlockId);
+    const idPattern = expectedBlockId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mentionsBlock =
+      new RegExp(artifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(text) ||
+      new RegExp(`блок[_\\s]*${idPattern}`, 'i').test(text) ||
+      new RegExp(`"текущий_блок"\\s*:\\s*"${idPattern}"`, 'i').test(text) ||
+      new RegExp(`БЛОК\\s*${idPattern}\\b`, 'i').test(text);
+
+    if (!mentionsBlock) {
+      issues.push(`ответ не привязан к блоку ${expectedBlockId} (ожидался ${artifact})`);
+    }
+
+    const wrongBlockHints = detectWrongBlockHeaders(text, expectedBlockId);
+    for (const hint of wrongBlockHints) {
+      issues.push(hint);
+    }
+  }
+
   return {
     ok: issues.length === 0,
     issues,
   };
+}
+
+/** Заголовки чужих блоков в теле ответа (не в JSON-имени файла). */
+function detectWrongBlockHeaders(text, expectedBlockId) {
+  const issues = [];
+  const bodyWithoutJson = text.replace(/```json[\s\S]*?```/gi, '');
+
+  for (const id of ['1A', '1B', '1C', '1D', '2', '3', '3B', '4', '4B', '5']) {
+    if (id === expectedBlockId) continue;
+
+    const re = new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?БЛОК\\s*${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'im');
+    if (re.test(bodyWithoutJson)) {
+      issues.push(`в ответе обнаружен заголовок чужого блока ${id}`);
+    }
+  }
+
+  return issues;
 }
