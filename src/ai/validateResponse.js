@@ -36,12 +36,7 @@ export function validateBlockResponse(text, expectedBlockId) {
       new RegExp(`БЛОК\\s*${idPattern}\\b`, 'i').test(text);
 
     if (!mentionsBlock) {
-      issues.push(`ответ не привязан к блоку ${expectedBlockId} (ожидался ${artifact})`);
-    }
-
-    const wrongBlockHints = detectWrongBlockHeaders(text, expectedBlockId);
-    for (const hint of wrongBlockHints) {
-      issues.push(hint);
+      issues.push(`ответ не привязан к блоку ${expectedBlockId}`);
     }
   }
 
@@ -49,21 +44,4 @@ export function validateBlockResponse(text, expectedBlockId) {
     ok: issues.length === 0,
     issues,
   };
-}
-
-/** Заголовки чужих блоков в теле ответа (не в JSON-имени файла). */
-function detectWrongBlockHeaders(text, expectedBlockId) {
-  const issues = [];
-  const bodyWithoutJson = text.replace(/```json[\s\S]*?```/gi, '');
-
-  for (const id of ['1A', '1B', '1C', '1D', '2', '3', '3B', '4', '4B', '5']) {
-    if (id === expectedBlockId) continue;
-
-    const re = new RegExp(`(?:^|\\n)\\s*(?:#{1,3}\\s*)?БЛОК\\s*${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'im');
-    if (re.test(bodyWithoutJson)) {
-      issues.push(`в ответе обнаружен заголовок чужого блока ${id}`);
-    }
-  }
-
-  return issues;
 }

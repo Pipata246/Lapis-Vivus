@@ -9,6 +9,7 @@ import {
   getBlockFilesForRun,
   saveBlockAttachment,
   hasRequiredFiles,
+  hasAnalysisProgress,
 } from '../scenario/validators.js';
 import {
   menuKeyboard,
@@ -25,10 +26,11 @@ import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram } from '../db/users.js';
 import {
   getSession,
-  upsertSession,
+  createSessionIfMissing,
   resetSession,
   updateSession,
   mergeCollectedData,
+  recoverStaleBlockRunning,
 } from '../db/sessions.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText } from '../scenario/calculatorLinks.js';
@@ -103,10 +105,26 @@ async function ensureSession(from) {
   let session = await getSession(from.id);
 
   if (!session) {
-    session = await resetSession(from.id, chat.id);
+    session = await createSessionIfMissing(from.id, chat.id);
+  }
+
+  const recovered = recoverStaleBlockRunning(session);
+  if (recovered.step !== session.step) {
+    session = await updateSession(from.id, { step: recovered.step });
   }
 
   return { chat, session };
+}
+
+function rejectWrongInput(session, hint) {
+  if (hasAnalysisProgress(session) && session.step !== STEPS.MENU) {
+    const payload = resumePrompt(session);
+    return {
+      text: `${hint}\n\n${payload.text}`,
+      keyboard: payload.keyboard,
+    };
+  }
+  return { text: hint, keyboard: menuKeyboard() };
 }
 
 export async function initUser(from) {
@@ -125,6 +143,7 @@ function showMenu() {
 }
 
 function resumePrompt(session) {
+  session = recoverStaleBlockRunning(session);
   const step = session.step;
   const messages = {
     [STEPS.GENDER]: { text: 'Выбери пол:', keyboard: genderKeyboard() },
@@ -133,7 +152,10 @@ function resumePrompt(session) {
       text: 'Введи время рождения ЧЧ:ММ или нажми кнопку.',
       keyboard: birthTimeKeyboard(),
     },
-    [STEPS.BIRTH_PLACE]: { text: 'Введи город рождения:', keyboard: null },
+    [STEPS.BIRTH_PLACE]: {
+      text: 'Введи город или населённый пункт рождения (например: Москва, Санкт-Петербург):',
+      keyboard: null,
+    },
     [STEPS.CONFIRM]: {
       text: formatProfile(session.collected_data),
       keyboard: confirmKeyboard(),
@@ -161,12 +183,11 @@ function resumePrompt(session) {
 }
 
 export async function handleCallback(from, callbackData) {
+  let { chat, session } = await ensureSession(from);
   const parsed = parseCallbackData(callbackData);
   if (!parsed) {
-    return { text: REJECT_TEXT, keyboard: menuKeyboard() };
+    return rejectWrongInput(session, REJECT_TEXT);
   }
-
-  let { chat, session } = await ensureSession(from);
 
   switch (parsed.action) {
     case 'menu':
@@ -180,9 +201,22 @@ export async function handleCallback(from, callbackData) {
         keyboard: menuKeyboard(),
       };
 
-    case 'start':
-      await updateSession(from.id, { step: STEPS.GENDER, collected_data: {} });
+    case 'start': {
+      if (hasAnalysisProgress(session) && session.step !== STEPS.MENU) {
+        const payload = resumePrompt(session);
+        return {
+          text: `У тебя уже есть незавершённый анализ.\n\n${payload.text}`,
+          keyboard: payload.keyboard,
+        };
+      }
+      await updateSession(from.id, {
+        step: STEPS.GENDER,
+        collected_data: {},
+        block_index: 0,
+        last_block_id: null,
+      });
       return { text: 'Шаг 1/4. Выбери пол:', keyboard: genderKeyboard() };
+    }
 
     case 'gender': {
       if (session.step !== STEPS.GENDER) {
@@ -279,7 +313,7 @@ export async function handleCallback(from, callbackData) {
     }
 
     default:
-      return { text: REJECT_TEXT, keyboard: menuKeyboard() };
+      return rejectWrongInput(session, REJECT_TEXT);
   }
 }
 
@@ -294,7 +328,7 @@ async function runCurrentBlock(from, chatId) {
     };
   }
 
-  await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
+  session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
     const { blockId, userMessage } = await runAnalysisBlock({
@@ -336,17 +370,24 @@ export async function handleText(from, rawText) {
   if (!TEXT_INPUT_STEPS.has(step)) {
     if (step === STEPS.BLOCK_RUNNING) {
       return {
-        text: 'Идёт расчёт блока. Подожди завершения.',
+        text: 'Идёт расчёт блока. Подожди завершения (до 2 минут).',
         keyboard: runningKeyboard(),
       };
     }
     if (step === STEPS.BLOCK_PREP) {
+      const block = currentBlock(session);
       return {
         text: `${blockPrepText(session)}\n\nТекст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
         keyboard: blockPrepKeyboard(block?.id, session.collected_data),
       };
     }
-    return { text: REJECT_TEXT, keyboard: menuKeyboard() };
+    const hints = {
+      [STEPS.GENDER]: 'На этом шаге выбери пол кнопкой.',
+      [STEPS.CONFIRM]: 'Подтверди данные кнопкой ниже.',
+      [STEPS.BLOCK_REVIEW]: 'Нажми «Следующий блок».',
+      [STEPS.BLOCK_FAILED]: 'Нажми «Повторить блок» или вернись в меню.',
+    };
+    return rejectWrongInput(session, hints[step] ?? REJECT_TEXT);
   }
 
   switch (step) {
@@ -381,7 +422,7 @@ export async function handleText(from, rawText) {
     }
 
     default:
-      return { text: REJECT_TEXT, keyboard: menuKeyboard() };
+      return rejectWrongInput(session, REJECT_TEXT);
   }
 }
 
@@ -389,7 +430,10 @@ export async function handleFile(from, fileId) {
   const { session } = await ensureSession(from);
 
   if (session.step !== STEPS.BLOCK_PREP) {
-    return { text: REJECT_TEXT, keyboard: menuKeyboard() };
+    return rejectWrongInput(
+      session,
+      'Фото принимается на экране блока (перед кнопкой «Запустить блок»), не в анкете.',
+    );
   }
 
   const block = currentBlock(session);
@@ -412,7 +456,9 @@ export async function sendScenarioReply(ctx, payload) {
 
   if (extraMessages?.length) {
     for (const part of extraMessages) {
-      await ctx.reply(part);
+      const partText = typeof part === 'string' ? part : part.text;
+      const partKb = typeof part === 'string' ? undefined : part.keyboard;
+      await ctx.reply(partText, partKb ? { reply_markup: partKb } : undefined);
     }
   }
 }

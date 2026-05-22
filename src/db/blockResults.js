@@ -7,28 +7,53 @@ export async function saveBlockResult({ chatId, userId, blockId, responseText, j
   }
 
   const supabase = getSupabase();
-  const { error } = await supabase.from('analysis_block_results').insert({
+  const baseRow = {
     chat_id: chatId,
     user_id: userId,
     block_id: blockId,
     response_text: responseText.slice(0, 50000),
+  };
+
+  let { error } = await supabase.from('analysis_block_results').insert({
+    ...baseRow,
     json_payload: jsonPayload ?? null,
   });
 
+  if (error && /json_payload|column/i.test(error.message)) {
+    ({ error } = await supabase.from('analysis_block_results').insert(baseRow));
+    if (!error) {
+      console.warn(
+        'Сохранён блок без json_payload — выполни миграцию 004_block_results_v21.sql в Supabase.',
+      );
+    }
+  }
+
   if (error) {
+    if (/block_id_check|check constraint/i.test(error.message)) {
+      throw new Error(
+        `Не удалось сохранить результат блока: ${error.message}. Примени миграцию 004_block_results_v21.sql в Supabase.`,
+      );
+    }
     throw new Error(`Не удалось сохранить результат блока: ${error.message}`);
   }
 }
 
-/** Все завершённые блоки целиком (для контекста ИИ). */
 export async function getCompletedBlocks(chatId) {
   const supabase = getSupabase();
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('analysis_block_results')
     .select('block_id, response_text, json_payload, created_at')
     .eq('chat_id', chatId)
     .order('created_at', { ascending: true });
+
+  if (error && /json_payload/i.test(error.message)) {
+    ({ data, error } = await supabase
+      .from('analysis_block_results')
+      .select('block_id, response_text, created_at')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true }));
+  }
 
   if (error) {
     throw new Error(`Не удалось загрузить блоки: ${error.message}`);
@@ -37,6 +62,6 @@ export async function getCompletedBlocks(chatId) {
   return (data ?? []).map((row) => ({
     block_id: row.block_id,
     response_text: row.response_text,
-    json_payload: row.json_payload,
+    json_payload: row.json_payload ?? null,
   }));
 }

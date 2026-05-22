@@ -1,6 +1,8 @@
 import { getSupabase } from './supabase.js';
 import { STEPS } from '../scenario/constants.js';
 
+const BLOCK_RUNNING_STALE_MS = 12 * 60 * 1000;
+
 function assertUserId(userId) {
   if (!Number.isInteger(userId) || userId <= 0) {
     throw new Error('Некорректный user_id.');
@@ -57,8 +59,26 @@ export async function resetSession(userId, chatId) {
   });
 }
 
+export async function createSessionIfMissing(userId, chatId) {
+  const existing = await getSession(userId);
+  if (existing) {
+    return existing;
+  }
+  return upsertSession(userId, chatId, {
+    step: STEPS.MENU,
+    block_index: 0,
+    collected_data: {},
+    last_block_id: null,
+  });
+}
+
 export async function updateSession(userId, patch) {
   assertUserId(userId);
+  const existing = await getSession(userId);
+  if (!existing) {
+    throw new Error('Сессия не найдена. Нажми /start.');
+  }
+
   const supabase = getSupabase();
 
   const { data, error } = await supabase
@@ -79,5 +99,22 @@ export function mergeCollectedData(session, additions) {
   return {
     ...(session?.collected_data ?? {}),
     ...additions,
+  };
+}
+
+/** Сброс «зависшего» block_running после таймаута Vercel. */
+export function recoverStaleBlockRunning(session) {
+  if (!session || session.step !== STEPS.BLOCK_RUNNING) {
+    return session;
+  }
+
+  const updatedAt = session.updated_at ? new Date(session.updated_at).getTime() : 0;
+  if (Date.now() - updatedAt < BLOCK_RUNNING_STALE_MS) {
+    return session;
+  }
+
+  return {
+    ...session,
+    step: STEPS.BLOCK_PREP,
   };
 }
