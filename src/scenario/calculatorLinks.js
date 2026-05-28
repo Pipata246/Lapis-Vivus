@@ -17,23 +17,29 @@ const CALCULATORS = {
     label: '🔢 Квадрат Пифагора',
     baseUrl: 'https://in-contri.ru/kvadrat-pifagora/',
   },
-  destinyMatrix: {
-    label: '🔮 Матрица судьбы',
-    baseUrl: 'https://www.matricasudbi-kalkulator.ru/',
+  chakraAnalysis: {
+    label: '🔮 Чакроанализ (ХВД)',
+    baseUrl: 'https://numeria.ru/calculators/chakroanaliz/',
   },
-  jyotish: {
-    label: '🕉 Джйотиш (вед.)',
-    baseUrl:
-      'https://gems-brokers.ru/astrologiya-i-kamni/rasshifrovka-natalnoj-kartyi/vedicheskaya-natalnaya-karta-dzhjotish/',
-    note: 'Отдельная система, не матрица судьбы',
+  destinyMatrix: {
+    label: '🎯 Матрица судьбы',
+    baseUrl: 'https://human-design.space/rasschitat-matriczu-sudby/',
+  },
+  taroPortrait: {
+    label: '🃏 Кармический портрет Таро',
+    baseUrl: 'https://olvia-center.ru/article/psihologicheskiy-portret-po-kartam-taro',
   },
   tzolkin: {
     label: '🌞 Цолькин / Кин',
-    baseUrl: 'http://tsolkin.ru/?tab=calculator',
+    baseUrl: 'https://yamaya.ru/maya/kin-orakul/',
   },
   bazi: {
-    label: '🏯 Бацзы',
-    baseUrl: 'https://www.mingli.ru/',
+    label: '🏯 Бацзы (У-Син)',
+    baseUrl: 'https://www.mingli.ru/card/739951',
+  },
+  jyotish: {
+    label: '🕉 Джйотиш',
+    baseUrl: 'https://vedic-horo.ru/#',
   },
   natal: {
     label: '⭐ Натальная карта',
@@ -49,11 +55,11 @@ const CALCULATORS = {
 const BLOCK_CALCULATORS = {
   '1A': ['humanDesign'],
   '1B': ['pythagoras'],
-  '1C': ['destinyMatrix', 'jyotish'],
+  '1C': ['chakraAnalysis', 'destinyMatrix', 'taroPortrait'],
   '1D': ['tzolkin'],
-  '2': ['bazi'],
+  '2': ['bazi', 'jyotish'],
   '3': ['natal'],
-  '3B': ['transits', 'natal'],
+  '3B': ['transits'],
   '4': ['natal', 'bazi', 'destinyMatrix'],
   '4B': ['destinyMatrix', 'humanDesign'],
   '5': ['transits'],
