@@ -23,7 +23,7 @@ import {
   blockPrepKeyboard,
 } from '../scenario/keyboards.js';
 import { getOrCreateUserChat } from '../db/chats.js';
-import { upsertUserFromTelegram } from '../db/users.js';
+import { upsertUserFromTelegram, saveUserProfile } from '../db/users.js';
 import {
   getSession,
   createSessionIfMissing,
@@ -34,6 +34,7 @@ import {
 } from '../db/sessions.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText } from '../scenario/calculatorLinks.js';
+import { getCompletedBlocks } from '../db/blockResults.js';
 
 function genderLabel(value) {
   return value === 'male' ? 'Мужской' : 'Женский';
@@ -214,6 +215,7 @@ export async function handleCallback(from, callbackData) {
         collected_data: {},
         block_index: 0,
         last_block_id: null,
+        session_start_at: new Date().toISOString(),
       });
       return { text: 'Шаг 1/4. Выбери пол:', keyboard: genderKeyboard() };
     }
@@ -298,6 +300,24 @@ export async function handleCallback(from, callbackData) {
       const nextIndex = session.block_index + 1;
       if (nextIndex >= BLOCK_STACK.length) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
+        
+        // Сохраняем итоговый профиль пользователя
+        try {
+          const completedBlocks = await getCompletedBlocks(chat.id);
+          const profile = {
+            completed_at: new Date().toISOString(),
+            user_data: session.collected_data,
+            blocks: completedBlocks.map((block) => ({
+              block_id: block.block_id,
+              json_payload: block.json_payload,
+              completed_at: block.created_at,
+            })),
+          };
+          await saveUserProfile(from.id, profile);
+        } catch (err) {
+          console.error('Ошибка сохранения профиля:', err.message);
+        }
+        
         return {
           text: '✅ Анализ по всем блокам завершён.',
           keyboard: completedKeyboard(),

@@ -100,3 +100,32 @@ export async function saveChatMessages(chatId, messages) {
     .update({ updated_at: new Date().toISOString() })
     .eq('id', chatId);
 }
+
+export async function getChatMessagesForAI(chatId, sessionStartAt) {
+  if (!chatId) {
+    throw new Error('Не указан chat_id.');
+  }
+
+  const supabase = getSupabase();
+
+  let query = supabase
+    .from('user_chat_messages')
+    .select('role, content, created_at')
+    .eq('chat_id', chatId)
+    .order('created_at', { ascending: true });
+
+  if (sessionStartAt) {
+    query = query.gte('created_at', sessionStartAt);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Не удалось загрузить сообщения: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    role: row.role,
+    content: row.content,
+  }));
+}

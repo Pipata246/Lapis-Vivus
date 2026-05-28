@@ -28,3 +28,24 @@ export async function upsertUserFromTelegram(from) {
 
   return data;
 }
+
+export async function saveUserProfile(userId, profileData) {
+  if (!Number.isInteger(userId) || userId <= 0) {
+    throw new Error('Некорректный user_id.');
+  }
+
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('users')
+    .update({ profile: profileData })
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Не удалось сохранить профиль пользователя: ${error.message}`);
+  }
+
+  return data;
+}

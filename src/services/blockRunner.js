@@ -3,7 +3,7 @@ import { validateBlockResponse } from '../ai/validateResponse.js';
 import { extractJsonFromAnswer, extractMetacomments, formatBlockForUser } from '../ai/formatResponse.js';
 import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
 import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
-import { saveChatMessages } from '../db/chats.js';
+import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 import {
   BLOCK_STACK,
   BLOCK_IDS,
@@ -114,7 +114,7 @@ function enforceRateLimit(userId) {
   lastAiCallByUser.set(userId, now);
 }
 
-async function callModelWithValidation(operatorPayload, photoFileIds, blockId) {
+async function callModelWithValidation(operatorPayload, photoFileIds, blockId, chatId, sessionStartAt) {
   const blockIndex = BLOCK_STACK.findIndex((b) => b.id === blockId);
   const mandate = buildBlockMandate(BLOCK_STACK[blockIndex], blockIndex);
   const userText = buildUserMessage(mandate, operatorPayload);
@@ -124,8 +124,12 @@ async function callModelWithValidation(operatorPayload, photoFileIds, blockId) {
     ? await buildVisionContentParts(userText, photoFileIds)
     : userText;
 
+  // Получаем только сообщения текущей сессии для контекста ИИ
+  const sessionMessages = await getChatMessagesForAI(chatId, sessionStartAt);
+
   const baseMessages = [
     { role: 'system', content: getSystemPrompt() },
+    ...sessionMessages,
     { role: 'user', content: userContent },
   ];
 
@@ -176,7 +180,13 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   const completedBlocks = await getCompletedBlocks(chatId);
   const operatorPayload = buildOperatorPayload(session, blockIndex, completedBlocks);
 
-  const answer = await callModelWithValidation(operatorPayload, photoFileIds, block.id);
+  const answer = await callModelWithValidation(
+    operatorPayload,
+    photoFileIds,
+    block.id,
+    chatId,
+    session.session_start_at
+  );
   const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
 
   await saveBlockResult({
