@@ -15,9 +15,13 @@ function isImagePath(filePath) {
   return [...IMAGE_EXT].some((ext) => lower.endsWith(ext));
 }
 
-export async function fetchTelegramPhotoAsDataUrl(fileId) {
+/**
+ * Загружает файл из Telegram и возвращает его как data URL или текст
+ */
+export async function fetchTelegramFile(fileId, expectedType = 'auto') {
   const { botToken } = loadBotConfig();
 
+  // Получаем информацию о файле
   const metaRes = await fetch(
     `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`,
   );
@@ -28,43 +32,99 @@ export async function fetchTelegramPhotoAsDataUrl(fileId) {
   }
 
   const filePath = meta.result.file_path;
-  if (!isImagePath(filePath)) {
-    throw new Error('Файл не является изображением (нужен скрин JPG/PNG).');
-  }
-
   const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
-  const fileRes = await fetch(fileUrl);
 
+  // Скачиваем файл
+  const fileRes = await fetch(fileUrl);
   if (!fileRes.ok) {
-    throw new Error('Не удалось скачать фото из Telegram.');
+    throw new Error('Не удалось скачать файл из Telegram.');
   }
 
-  const buffer = Buffer.from(await fileRes.arrayBuffer());
-  const mime = mimeFromPath(filePath);
+  const lowerPath = filePath.toLowerCase();
 
-  return `data:${mime};base64,${buffer.toString('base64')}`;
+  // Изображения — конвертируем в base64 data URL для vision
+  if (isImagePath(lowerPath)) {
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    const mime = mimeFromPath(filePath);
+    return {
+      type: 'image',
+      dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
+    };
+  }
+
+  // PDF — конвертируем в base64
+  if (lowerPath.endsWith('.pdf')) {
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    return {
+      type: 'pdf',
+      dataUrl: `data:application/pdf;base64,${buffer.toString('base64')}`,
+      text: `[PDF файл прикреплён]`,
+    };
+  }
+
+  // Текстовые файлы — читаем как текст
+  if (
+    lowerPath.endsWith('.txt') ||
+    lowerPath.endsWith('.md') ||
+    lowerPath.endsWith('.json') ||
+    lowerPath.endsWith('.csv')
+  ) {
+    const text = await fileRes.text();
+    return {
+      type: 'text',
+      text: text.slice(0, 50000), // ограничение 50к символов
+    };
+  }
+
+  // Остальные файлы — binary base64
+  const buffer = Buffer.from(await fileRes.arrayBuffer());
+  const ext = lowerPath.split('.').pop() || 'bin';
+  return {
+    type: 'binary',
+    dataUrl: `data:application/octet-stream;base64,${buffer.toString('base64')}`,
+    extension: ext,
+    text: `[Файл .${ext} прикреплён]`,
+  };
 }
 
-export async function buildVisionContentParts(textPayload, photoFileIds, maxPhotos = 3) {
+/**
+ * Строит content parts для отправки в AI
+ */
+export async function buildVisionContentParts(textPayload, files, maxFiles = 5) {
   const parts = [{ type: 'text', text: textPayload }];
-  const ids = (photoFileIds ?? []).slice(0, maxPhotos);
+  const filesList = (files ?? []).slice(0, maxFiles);
   const skipped = [];
+  const textParts = [];
 
-  for (const fileId of ids) {
+  for (const fileInfo of filesList) {
     try {
-      const dataUrl = await fetchTelegramPhotoAsDataUrl(fileId);
-      parts.push({
-        type: 'image_url',
-        image_url: { url: dataUrl },
-      });
+      // Поддержка старого формата (строка file_id) и нового (объект)
+      const fileId = typeof fileInfo === 'string' ? fileInfo : fileInfo.file_id;
+      const loaded = await fetchTelegramFile(fileId);
+
+      if (loaded.type === 'image') {
+        parts.push({
+          type: 'image_url',
+          image_url: { url: loaded.dataUrl },
+        });
+      } else if (loaded.type === 'text') {
+        textParts.push(loaded.text);
+      } else if (loaded.text) {
+        textParts.push(loaded.text);
+      }
     } catch (err) {
       console.warn('Пропуск вложения для ИИ:', err.message);
       skipped.push(err.message);
     }
   }
 
+  // Добавляем текст из файлов к основному сообщению
+  if (textParts.length > 0) {
+    parts[0].text += '\n\n📎 Содержимое прикреплённых файлов:\n\n' + textParts.join('\n\n---\n\n');
+  }
+
   if (skipped.length > 0 && parts.length === 1) {
-    parts[0].text += `\n\n[Вложения не переданы в vision: ${skipped.join('; ')}. Анализ по данным анкеты.]`;
+    parts[0].text += `\n\n[Вложения не переданы: ${skipped.join('; ')}. Анализ по данным анкеты.]`;
   } else if (skipped.length > 0) {
     parts[0].text += `\n\n[Часть вложений пропущена: ${skipped.join('; ')}]`;
   }

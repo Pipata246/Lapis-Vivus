@@ -68,29 +68,31 @@ function registerHandlers(bot) {
     const largest = photos[photos.length - 1];
     if (!largest?.file_id) return;
 
+    await ctx.sendChatAction('typing').catch(() => {});
+    
     try {
-      await ctx.sendChatAction('typing');
-      const payload = await handleFile(ctx.from, largest.file_id);
+      const payload = await handleFile(ctx.from, largest.file_id, 'photo');
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка photo:', err.message);
-      await ctx.reply('Фото не принято на этом шаге.');
+      await ctx.reply('Ошибка обработки фото. Попробуй ещё раз.');
     }
   });
 
   bot.on('document', async (ctx) => {
     if (!ctx.from?.id) return;
 
-    const fileId = ctx.message.document?.file_id;
-    if (!fileId) return;
+    const document = ctx.message.document;
+    if (!document?.file_id) return;
 
+    await ctx.sendChatAction('typing').catch(() => {});
+    
     try {
-      await ctx.sendChatAction('typing');
-      const payload = await handleFile(ctx.from, fileId);
+      const payload = await handleFile(ctx.from, document.file_id, 'document', document.file_name, document.mime_type);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка document:', err.message);
-      await ctx.reply('Документ не принят на этом шаге.');
+      await ctx.reply('Ошибка обработки документа. Попробуй ещё раз.');
     }
   });
 

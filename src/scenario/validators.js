@@ -217,9 +217,13 @@ export function getBlockFilesForRun(data, block) {
   return own;
 }
 
-export function saveBlockAttachment(data, blockId, fileId) {
+export function saveBlockAttachment(data, blockId, fileInfo) {
   const attachments = { ...(data.block_attachments ?? {}) };
-  const list = [...(attachments[blockId] ?? []), fileId].slice(-5);
+  // fileInfo может быть строкой (старый формат) или объектом
+  const fileObj = typeof fileInfo === 'string' 
+    ? { file_id: fileInfo, type: 'photo' } 
+    : fileInfo;
+  const list = [...(attachments[blockId] ?? []), fileObj].slice(-5);
   attachments[blockId] = list;
   return { block_attachments: attachments };
 }

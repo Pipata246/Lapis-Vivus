@@ -68,20 +68,26 @@ function blockPrepText(session) {
   }
 
   const files = getBlockFilesForRun(session.collected_data, block);
-  const ownCount = getBlockAttachments(session.collected_data, block.id).length;
+  const ownFiles = getBlockAttachments(session.collected_data, block.id);
+  
   let fileLine;
-  if (files.length > 0) {
-    fileLine =
-      ownCount > 0
-        ? `📎 Прикреплено файлов: ${ownCount}`
-        : `📎 Используются файлы блока 3 (${files.length}). Можно добавить свои.`;
+  if (ownFiles.length > 0) {
+    // Показываем информацию о прикреплённых файлах
+    const fileNames = ownFiles.map(f => {
+      if (typeof f === 'string') return '📷 Фото';
+      if (f.type === 'document') return `📄 ${f.name || 'Документ'}`;
+      return `📷 ${f.name || 'Фото'}`;
+    }).join(', ');
+    fileLine = `📎 Прикреплено файлов: ${ownFiles.length} (${fileNames})`;
+  } else if (files.length > 0) {
+    fileLine = `📎 Используются файлы блока 3 (${files.length}). Можно добавить свои.`;
   } else if (block.requiresExternal) {
     fileLine =
       block.id === '3B'
         ? '📎 Нужен файл (скрин/документ) или данные блока 3. Текст не принимается.'
-        : '📎 Файл обязателен (скрин/документ). Текст на этом шаге не принимается.';
+        : '📎 Файл обязателен (скрин/документ/PDF). Текст на этом шаге не принимается.';
   } else {
-    fileLine = '📎 Файл по желанию (необязательно). Текст на этом шаге не принимается.';
+    fileLine = '📎 Файл по желанию (скрин/документ/PDF). Текст на этом шаге не принимается.';
   }
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
@@ -483,13 +489,13 @@ export async function handleText(from, rawText) {
   }
 }
 
-export async function handleFile(from, fileId) {
+export async function handleFile(from, fileId, fileType = 'photo', fileName = null, mimeType = null) {
   const { session } = await ensureSession(from);
 
   if (session.step !== STEPS.BLOCK_PREP) {
     return rejectWrongInput(
       session,
-      'Фото принимается на экране блока (перед кнопкой «Запустить блок»), не в анкете.',
+      '📎 Файлы принимаются только на экране блока (после подтверждения данных). Нажми «Начать анализ» в меню.',
     );
   }
 
@@ -498,7 +504,15 @@ export async function handleFile(from, fileId) {
     return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
   }
 
-  const patch = saveBlockAttachment(session.collected_data, block.id, fileId);
+  // Сохраняем информацию о файле
+  const fileInfo = {
+    file_id: fileId,
+    type: fileType,
+    name: fileName,
+    mime: mimeType,
+  };
+  
+  const patch = saveBlockAttachment(session.collected_data, block.id, fileInfo);
   const data = mergeCollectedData(session, patch);
   await updateSession(from.id, { collected_data: data });
 

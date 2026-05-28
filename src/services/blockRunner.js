@@ -171,9 +171,9 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   }
 
   const data = session.collected_data ?? {};
-  const photoFileIds = getBlockFilesForRun(data, block);
+  const files = getBlockFilesForRun(data, block);
 
-  if (block.requiresExternal && photoFileIds.length === 0) {
+  if (block.requiresExternal && files.length === 0) {
     throw new Error(`Для блока ${block.id} нужен хотя бы один прикреплённый файл.`);
   }
 
@@ -182,7 +182,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
 
   const answer = await callModelWithValidation(
     operatorPayload,
-    photoFileIds,
+    files,
     block.id,
     chatId,
     session.session_start_at
