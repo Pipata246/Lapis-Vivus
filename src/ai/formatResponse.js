@@ -28,10 +28,8 @@ export function extractMetacomments(rawAnswer, maxLen = 4000) {
     .replace(/^```\s*$/gim, '')
     .trim();
 
-  const metaIdx = visible.search(/##\s*Метакомментарии_Блока/i);
-  if (metaIdx >= 0) {
-    visible = visible.slice(metaIdx);
-  }
+  // НЕ обрезаем начало — оставляем весь текст кроме JSON
+  // Метакомментарии будут в конце, но и остальной контент сохранится
 
   if (visible.length > maxLen) {
     visible = `${visible.slice(0, maxLen)}\n…[усечено]`;

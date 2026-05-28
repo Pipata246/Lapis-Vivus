@@ -64,6 +64,9 @@ export async function buildVisionContentParts(textPayload, files) {
       if (file.file_type === 'image' && file.public_url) {
         // Для vision нужен base64, скачиваем из Storage
         const res = await fetch(file.public_url);
+        if (!res.ok) {
+          throw new Error(`Не удалось скачать изображение: ${res.status}`);
+        }
         const buffer = Buffer.from(await res.arrayBuffer());
         const mime = file.mime_type || 'image/jpeg';
         const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
@@ -76,6 +79,18 @@ export async function buildVisionContentParts(textPayload, files) {
       // Для файлов с извлечённым текстом
       else if (file.extracted_text) {
         textParts.push(`📄 ${file.file_name || 'Файл'}:\n${file.extracted_text}`);
+      }
+      // Для изображений без public_url (fallback)
+      else if (file.file_type === 'image' && file.telegram_file_id) {
+        // Пробуем загрузить напрямую из Telegram
+        const { buffer, mimeType } = await fetchTelegramFile(file.telegram_file_id);
+        const mime = mimeType || file.mime_type || 'image/jpeg';
+        const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
+        
+        parts.push({
+          type: 'image_url',
+          image_url: { url: dataUrl },
+        });
       }
     } catch (err) {
       console.warn('Пропуск файла для ИИ:', err.message);

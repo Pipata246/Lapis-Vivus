@@ -28,15 +28,52 @@ export function validateBlockResponse(text, expectedBlockId) {
 
   if (expectedBlockId) {
     const artifact = jsonArtifactName(expectedBlockId);
-    const idPattern = expectedBlockId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const mentionsBlock =
-      new RegExp(artifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(text) ||
-      new RegExp(`блок[_\\s]*${idPattern}`, 'i').test(text) ||
-      new RegExp(`"текущий_блок"\\s*:\\s*"${idPattern}"`, 'i').test(text) ||
-      new RegExp(`БЛОК\\s*${idPattern}\\b`, 'i').test(text);
+    
+    // Проверяем наличие JSON-артефакта с правильным именем
+    const artifactRegex = new RegExp(artifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    if (!artifactRegex.test(text)) {
+      issues.push(`нет JSON-артефакта ${artifact}`);
+    }
 
-    if (!mentionsBlock) {
+    // Экранируем ID блока для regex
+    const escapedId = expectedBlockId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Проверяем привязку к блоку разными способами
+    const blockPatterns = [
+      new RegExp(`"текущий_блок"\\s*:\\s*"${escapedId}"`, 'i'),
+      new RegExp(`"сервер_назначил_блок"\\s*:\\s*"${escapedId}"`, 'i'),
+      new RegExp(`БЛОК\\s*${escapedId}\\b`, 'i'),
+      new RegExp(`блок[_\\s]*${escapedId}`, 'i'),
+    ];
+
+    const mentionsCorrectBlock = blockPatterns.some(pattern => pattern.test(text));
+    
+    if (!mentionsCorrectBlock) {
       issues.push(`ответ не привязан к блоку ${expectedBlockId}`);
+    }
+
+    // Проверяем, что в ответе НЕТ других блоков (кроме текущего)
+    const allBlockIds = ['1A', '1B', '1C', '1D', '2', '2B', '3', '3B', '4', '4B', '5'];
+    const forbiddenBlocks = allBlockIds.filter(id => id !== expectedBlockId);
+    
+    for (const forbiddenId of forbiddenBlocks) {
+      // Проверяем наличие JSON-артефакта другого блока
+      const forbiddenArtifact = jsonArtifactName(forbiddenId);
+      const forbiddenArtifactRegex = new RegExp(forbiddenArtifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      
+      if (forbiddenArtifactRegex.test(text)) {
+        issues.push(`обнаружен артефакт чужого блока ${forbiddenId}`);
+        break;
+      }
+      
+      // Проверяем заголовки других блоков (строго)
+      const escapedForbidden = forbiddenId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const headerRegex = new RegExp(`##\\s*БЛОК\\s*${escapedForbidden}\\b`, 'i');
+      
+      if (headerRegex.test(text)) {
+        issues.push(`обнаружен заголовок чужого блока ${forbiddenId}`);
+        break;
+      }
     }
   }
 

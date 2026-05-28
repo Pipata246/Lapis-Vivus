@@ -11,7 +11,13 @@ export function detectFileType(mimeType, fileName) {
   const lowerMime = (mimeType || '').toLowerCase();
   const lowerName = (fileName || '').toLowerCase();
 
+  // Проверяем изображение по MIME
   if (lowerMime.startsWith('image/')) return 'image';
+  
+  // Проверяем изображение по расширению (для документов, отправленных как файл)
+  const imageExts = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.heic', '.heif'];
+  if (imageExts.some(ext => lowerName.endsWith(ext))) return 'image';
+  
   if (lowerMime === 'application/pdf' || lowerName.endsWith('.pdf')) return 'pdf';
   if (
     lowerMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -65,7 +71,9 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
   const buffer = Buffer.from(arrayBuffer);
 
   // 3. Определяем тип файла
-  const fileType = detectFileType(mimeType, fileName || filePath);
+  // Для фото из Telegram (не документы) — всегда image
+  const isPhoto = filePath.startsWith('photos/') || filePath.startsWith('photo/');
+  const fileType = isPhoto ? 'image' : detectFileType(mimeType, fileName || filePath);
 
   // 4. Генерируем путь в Storage
   const ext = (fileName || filePath).split('.').pop() || 'bin';
