@@ -1,4 +1,4 @@
-import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT } from '../scenario/constants.js';
+import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT, CALLBACK_PREFIX } from '../scenario/constants.js';
 import { splitTelegramMessages } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
@@ -22,6 +22,7 @@ import {
   runningKeyboard,
   blockFailedKeyboard,
   blockPrepKeyboard,
+  linksKeyboard,
 } from '../scenario/keyboards.js';
 import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram, saveUserProfile } from '../db/users.js';
@@ -34,8 +35,12 @@ import {
   recoverStaleBlockRunning,
 } from '../db/sessions.js';
 import { runAnalysisBlock } from './blockRunner.js';
-import { formatCalculatorLinksText } from '../scenario/calculatorLinks.js';
+import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
 import { getCompletedBlocks } from '../db/blockResults.js';
+
+function cb(action, value = null) {
+  return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
+}
 
 function genderLabel(value) {
   return value === 'male' ? 'Мужской' : 'Женский';
@@ -195,6 +200,29 @@ export async function handleCallback(from, callbackData) {
     case 'menu':
       await resetSession(from.id, chat.id);
       return showMenu();
+
+    case 'links': {
+      const linksText = [
+        '🔗 **Полезные ссылки на калькуляторы:**',
+        '',
+        'Нажми на кнопку ниже, чтобы перейти к калькулятору.',
+      ].join('\n');
+      
+      const links = getAllCalculatorLinks();
+      const urlButtons = [];
+      for (let i = 0; i < links.length; i += 2) {
+        urlButtons.push(links.slice(i, i + 2).map((l) => ({
+          text: l.label,
+          url: l.url,
+        })));
+      }
+      urlButtons.push([{ text: '📋 Меню', callback_data: cb('menu') }]);
+      
+      return { 
+        text: linksText, 
+        keyboard: { inline_keyboard: urlButtons } 
+      };
+    }
 
     case 'reset':
       await resetSession(from.id, chat.id);

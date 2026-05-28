@@ -178,3 +178,34 @@ export function calculatorUrlButtons(blockId, collectedData = {}) {
     url: link.url,
   }));
 }
+
+/** Все калькуляторы для раздела «Полезные ссылки» */
+export function getAllCalculatorLinks() {
+  return [
+    { label: '🧬 Дизайн Человека', url: 'https://human-design.space/dizajn-cheloveka-raschet-karty/#/bodygraph' },
+    { label: '🔢 Квадрат Пифагора', url: 'https://in-contri.ru/kvadrat-pifagora/' },
+    { label: '🔮 Чакроанализ (ХВД)', url: 'https://numeria.ru/calculators/chakroanaliz/' },
+    { label: '🎯 Матрица судьбы', url: 'https://human-design.space/rasschitat-matriczu-sudby/' },
+    { label: '🃏 Кармический портрет Таро', url: 'https://olvia-center.ru/article/psihologicheskiy-portret-po-kartam-taro' },
+    { label: '🌞 Цолькин / Кин', url: 'https://yamaya.ru/maya/kin-orakul/' },
+    { label: '🏯 Бацзы (У-Син)', url: 'https://www.mingli.ru/card/739951' },
+    { label: '🕉 Джйотиш', url: 'https://vedic-horo.ru/#' },
+    { label: '⭐ Натальная карта', url: 'https://geocult.ru/natalnaya-karta-onlayn-raschet' },
+    { label: '🔄 Транзиты', url: 'https://geocult.ru/tranzityi-onlayn-raschet' },
+  ];
+}
+
+/** Кнопки для раздела «Полезные ссылки» */
+export function allLinksButtons() {
+  const links = getAllCalculatorLinks();
+  const rows = [];
+  
+  for (let i = 0; i < links.length; i += 2) {
+    rows.push(links.slice(i, i + 2).map((link) => ({
+      text: link.label,
+      url: link.url,
+    })));
+  }
+  
+  return rows;
+}

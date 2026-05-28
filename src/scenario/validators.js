@@ -54,6 +54,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'retry_block',
   'reset',
   'menu',
+  'links',
 ]);
 
 function parseDateParts(dateStr) {

@@ -7,7 +7,10 @@ function cb(action, value = null) {
 
 export function menuKeyboard() {
   return {
-    inline_keyboard: [[{ text: '🔮 Начать анализ Lapis Vivus', callback_data: cb('start') }]],
+    inline_keyboard: [
+      [{ text: '🔮 Начать анализ Lapis Vivus', callback_data: cb('start') }],
+      [{ text: '🔗 Полезные ссылки', callback_data: cb('links') }],
+    ],
   };
 }
 
@@ -73,6 +76,15 @@ export function completedKeyboard() {
   return {
     inline_keyboard: [
       [{ text: '🔄 Новый анализ', callback_data: cb('reset') }],
+      [{ text: '🔗 Полезные ссылки', callback_data: cb('links') }],
+      [{ text: '📋 Меню', callback_data: cb('menu') }],
+    ],
+  };
+}
+
+export function linksKeyboard() {
+  return {
+    inline_keyboard: [
       [{ text: '📋 Меню', callback_data: cb('menu') }],
     ],
   };
