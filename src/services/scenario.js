@@ -1,5 +1,6 @@
 import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT } from '../scenario/constants.js';
 import { splitTelegramMessages } from '../ai/formatResponse.js';
+import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
   parseCallbackData,
   validateBirthDate,
@@ -302,6 +303,7 @@ export async function handleCallback(from, callbackData) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
         
         // Сохраняем итоговый профиль пользователя
+        let profileSummary = '';
         try {
           const completedBlocks = await getCompletedBlocks(chat.id);
           const profile = {
@@ -314,12 +316,22 @@ export async function handleCallback(from, callbackData) {
             })),
           };
           await saveUserProfile(from.id, profile);
+          
+          // Форматируем профиль для вывода пользователю
+          profileSummary = formatProfileSummary(profile);
         } catch (err) {
           console.error('Ошибка сохранения профиля:', err.message);
+          profileSummary = '⚠️ Профиль сохранён, но не удалось сформировать резюме.';
         }
         
+        const completionMessage = `✅ Анализ по всем блокам завершён.\n\n${profileSummary}`;
+        
+        // Разбиваем на части если сообщение слишком длинное
+        const messageParts = splitTelegramMessages(completionMessage);
+        
         return {
-          text: '✅ Анализ по всем блокам завершён.',
+          text: messageParts[0],
+          extraMessages: messageParts.slice(1),
           keyboard: completedKeyboard(),
         };
       }
