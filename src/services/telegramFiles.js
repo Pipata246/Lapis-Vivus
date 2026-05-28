@@ -1,4 +1,5 @@
 import { loadBotConfig } from '../config.js';
+import { getSupabase } from '../db/supabase.js';
 
 const IMAGE_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
 
@@ -16,12 +17,11 @@ function isImagePath(filePath) {
 }
 
 /**
- * Загружает файл из Telegram и возвращает его как data URL или текст
+ * Загружает файл из Telegram и возвращает буфер
  */
-export async function fetchTelegramFile(fileId, expectedType = 'auto') {
+export async function fetchTelegramFile(fileId) {
   const { botToken } = loadBotConfig();
 
-  // Получаем информацию о файле
   const metaRes = await fetch(
     `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`,
   );
@@ -34,86 +34,51 @@ export async function fetchTelegramFile(fileId, expectedType = 'auto') {
   const filePath = meta.result.file_path;
   const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
 
-  // Скачиваем файл
   const fileRes = await fetch(fileUrl);
   if (!fileRes.ok) {
     throw new Error('Не удалось скачать файл из Telegram.');
   }
 
+  const buffer = Buffer.from(await fileRes.arrayBuffer());
   const lowerPath = filePath.toLowerCase();
 
-  // Изображения — конвертируем в base64 data URL для vision
-  if (isImagePath(lowerPath)) {
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
-    const mime = mimeFromPath(filePath);
-    return {
-      type: 'image',
-      dataUrl: `data:${mime};base64,${buffer.toString('base64')}`,
-    };
-  }
-
-  // PDF — конвертируем в base64
-  if (lowerPath.endsWith('.pdf')) {
-    const buffer = Buffer.from(await fileRes.arrayBuffer());
-    return {
-      type: 'pdf',
-      dataUrl: `data:application/pdf;base64,${buffer.toString('base64')}`,
-      text: `[PDF файл прикреплён]`,
-    };
-  }
-
-  // Текстовые файлы — читаем как текст
-  if (
-    lowerPath.endsWith('.txt') ||
-    lowerPath.endsWith('.md') ||
-    lowerPath.endsWith('.json') ||
-    lowerPath.endsWith('.csv')
-  ) {
-    const text = await fileRes.text();
-    return {
-      type: 'text',
-      text: text.slice(0, 50000), // ограничение 50к символов
-    };
-  }
-
-  // Остальные файлы — binary base64
-  const buffer = Buffer.from(await fileRes.arrayBuffer());
-  const ext = lowerPath.split('.').pop() || 'bin';
   return {
-    type: 'binary',
-    dataUrl: `data:application/octet-stream;base64,${buffer.toString('base64')}`,
-    extension: ext,
-    text: `[Файл .${ext} прикреплён]`,
+    buffer,
+    filePath,
+    mimeType: mimeFromPath(filePath),
+    isImage: isImagePath(lowerPath),
   };
 }
 
 /**
- * Строит content parts для отправки в AI
+ * Строит content parts для отправки в AI из сохранённых файлов в БД
  */
-export async function buildVisionContentParts(textPayload, files, maxFiles = 5) {
+export async function buildVisionContentParts(textPayload, files) {
   const parts = [{ type: 'text', text: textPayload }];
-  const filesList = (files ?? []).slice(0, maxFiles);
-  const skipped = [];
   const textParts = [];
+  const skipped = [];
 
-  for (const fileInfo of filesList) {
+  for (const file of files ?? []) {
     try {
-      // Поддержка старого формата (строка file_id) и нового (объект)
-      const fileId = typeof fileInfo === 'string' ? fileInfo : fileInfo.file_id;
-      const loaded = await fetchTelegramFile(fileId);
+      // Изображения — загружаем из Storage и отправляем как vision
+      if (file.file_type === 'image' && file.public_url) {
+        // Для vision нужен base64, скачиваем из Storage
+        const res = await fetch(file.public_url);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const mime = file.mime_type || 'image/jpeg';
+        const dataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
 
-      if (loaded.type === 'image') {
         parts.push({
           type: 'image_url',
-          image_url: { url: loaded.dataUrl },
+          image_url: { url: dataUrl },
         });
-      } else if (loaded.type === 'text') {
-        textParts.push(loaded.text);
-      } else if (loaded.text) {
-        textParts.push(loaded.text);
+      }
+      // Для файлов с извлечённым текстом
+      else if (file.extracted_text) {
+        textParts.push(`📄 ${file.file_name || 'Файл'}:\n${file.extracted_text}`);
       }
     } catch (err) {
-      console.warn('Пропуск вложения для ИИ:', err.message);
+      console.warn('Пропуск файла для ИИ:', err.message);
       skipped.push(err.message);
     }
   }
@@ -123,10 +88,8 @@ export async function buildVisionContentParts(textPayload, files, maxFiles = 5) 
     parts[0].text += '\n\n📎 Содержимое прикреплённых файлов:\n\n' + textParts.join('\n\n---\n\n');
   }
 
-  if (skipped.length > 0 && parts.length === 1) {
-    parts[0].text += `\n\n[Вложения не переданы: ${skipped.join('; ')}. Анализ по данным анкеты.]`;
-  } else if (skipped.length > 0) {
-    parts[0].text += `\n\n[Часть вложений пропущена: ${skipped.join('; ')}]`;
+  if (skipped.length > 0) {
+    parts[0].text += `\n\n[Часть файлов не передана: ${skipped.join('; ')}]`;
   }
 
   return parts;

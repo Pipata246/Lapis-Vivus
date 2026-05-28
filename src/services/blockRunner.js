@@ -4,13 +4,13 @@ import { extractJsonFromAnswer, extractMetacomments, formatBlockForUser } from '
 import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
 import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
+import { getBlockFiles } from '../db/files.js';
 import {
   BLOCK_STACK,
   BLOCK_IDS,
   SYNTHESIS_BLOCK_INDEX,
   jsonArtifactName,
 } from '../scenario/constants.js';
-import { getBlockFilesForRun } from '../scenario/validators.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
@@ -66,10 +66,9 @@ function buildCompletedContext(completedBlocks, blockIndex) {
   };
 }
 
-function buildOperatorPayload(session, blockIndex, completedBlocks) {
+function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) {
   const block = BLOCK_STACK[blockIndex];
   const data = session.collected_data ?? {};
-  const files = getBlockFilesForRun(data, block);
 
   return {
     режим: 'lapis_vivus_telegram_operator',
@@ -91,7 +90,7 @@ function buildOperatorPayload(session, blockIndex, completedBlocks) {
     },
     внешняя_фактура: {
       блок: block.id,
-      файлов_прикреплено: files.length,
+      файлов_прикреплено: filesCount,
     },
     контекст_прошлых_блоков: buildCompletedContext(completedBlocks, blockIndex),
     инструкция_исполнения:
@@ -114,14 +113,14 @@ function enforceRateLimit(userId) {
   lastAiCallByUser.set(userId, now);
 }
 
-async function callModelWithValidation(operatorPayload, photoFileIds, blockId, chatId, sessionStartAt) {
+async function callModelWithValidation(operatorPayload, files, blockId, chatId, sessionStartAt) {
   const blockIndex = BLOCK_STACK.findIndex((b) => b.id === blockId);
   const mandate = buildBlockMandate(BLOCK_STACK[blockIndex], blockIndex);
   const userText = buildUserMessage(mandate, operatorPayload);
 
-  const useVision = photoFileIds.length > 0;
+  const useVision = files.length > 0;
   const userContent = useVision
-    ? await buildVisionContentParts(userText, photoFileIds)
+    ? await buildVisionContentParts(userText, files)
     : userText;
 
   // Получаем только сообщения текущей сессии для контекста ИИ
@@ -170,19 +169,25 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     throw new Error('Стек блоков завершён.');
   }
 
-  const data = session.collected_data ?? {};
-  const files = getBlockFilesForRun(data, block);
+  // Получаем файлы из БД
+  const files = await getBlockFiles(chatId, block.id);
 
-  if (block.requiresExternal && files.length === 0) {
+  // Для блока 3B можно использовать файлы блока 3
+  let effectiveFiles = files;
+  if (files.length === 0 && block.id === '3B') {
+    effectiveFiles = await getBlockFiles(chatId, '3');
+  }
+
+  if (block.requiresExternal && effectiveFiles.length === 0) {
     throw new Error(`Для блока ${block.id} нужен хотя бы один прикреплённый файл.`);
   }
 
   const completedBlocks = await getCompletedBlocks(chatId);
-  const operatorPayload = buildOperatorPayload(session, blockIndex, completedBlocks);
+  const operatorPayload = buildOperatorPayload(session, blockIndex, completedBlocks, effectiveFiles.length);
 
   const answer = await callModelWithValidation(
     operatorPayload,
-    files,
+    effectiveFiles,
     block.id,
     chatId,
     session.session_start_at

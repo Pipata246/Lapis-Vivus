@@ -35,6 +35,8 @@ import {
   mergeCollectedData,
   recoverStaleBlockRunning,
 } from '../db/sessions.js';
+import { saveUserFile, getBlockFiles } from '../db/files.js';
+import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
 import { getCompletedBlocks } from '../db/blockResults.js';
@@ -61,26 +63,39 @@ function currentBlock(session) {
   return BLOCK_STACK[session.block_index];
 }
 
-function blockPrepText(session) {
+async function blockPrepText(session, chatId) {
   const block = currentBlock(session);
   if (!block) {
     return 'Стек блоков завершён.';
   }
 
-  const files = getBlockFilesForRun(session.collected_data, block);
-  const ownFiles = getBlockAttachments(session.collected_data, block.id);
-  
+  // Получаем файлы из БД
+  let ownFiles = [];
+  try {
+    ownFiles = await getBlockFiles(chatId, block.id);
+  } catch (err) {
+    console.error('Ошибка получения файлов:', err.message);
+  }
+
+  // Для блока 3B проверяем также файлы блока 3
+  let block3Files = [];
+  if (block.id === '3B' && ownFiles.length === 0) {
+    try {
+      block3Files = await getBlockFiles(chatId, '3');
+    } catch (err) {
+      console.error('Ошибка получения файлов блока 3:', err.message);
+    }
+  }
+
   let fileLine;
   if (ownFiles.length > 0) {
-    // Показываем информацию о прикреплённых файлах
     const fileNames = ownFiles.map(f => {
-      if (typeof f === 'string') return '📷 Фото';
-      if (f.type === 'document') return `📄 ${f.name || 'Документ'}`;
-      return `📷 ${f.name || 'Фото'}`;
+      const icon = f.file_type === 'image' ? '📷' : '📄';
+      return `${icon} ${f.file_name || 'Файл'}`;
     }).join(', ');
     fileLine = `📎 Прикреплено файлов: ${ownFiles.length} (${fileNames})`;
-  } else if (files.length > 0) {
-    fileLine = `📎 Используются файлы блока 3 (${files.length}). Можно добавить свои.`;
+  } else if (block3Files.length > 0) {
+    fileLine = `📎 Используются файлы блока 3 (${block3Files.length}). Можно добавить свои.`;
   } else if (block.requiresExternal) {
     fileLine =
       block.id === '3B'
@@ -105,10 +120,11 @@ function blockPrepText(session) {
     .join('\n');
 }
 
-function showBlockPrep(session) {
+async function showBlockPrep(session, chatId) {
   const block = currentBlock(session);
+  const text = await blockPrepText(session, chatId);
   return {
-    text: blockPrepText(session),
+    text,
     keyboard: blockPrepKeyboard(block?.id, session.collected_data),
   };
 }
@@ -175,7 +191,7 @@ function resumePrompt(session) {
       text: formatProfile(session.collected_data),
       keyboard: confirmKeyboard(),
     },
-    [STEPS.BLOCK_PREP]: showBlockPrep(session),
+    [STEPS.BLOCK_PREP]: { text: 'Подготовка блока...', keyboard: null },
     [STEPS.BLOCK_FAILED]: {
       text: `Блок ${session.last_block_id ?? ''} не выполнен. Повтори или вернись в меню.`,
       keyboard: blockFailedKeyboard(),
@@ -292,7 +308,7 @@ export async function handleCallback(from, callbackData) {
         step: STEPS.BLOCK_PREP,
       });
       session = await getSession(from.id);
-      return showBlockPrep(session);
+      return await showBlockPrep(session, chat.id);
     }
 
     case 'run_block': {
@@ -307,9 +323,13 @@ export async function handleCallback(from, callbackData) {
           keyboard: completedKeyboard(),
         };
       }
-      if (!hasRequiredFiles(session.collected_data, block)) {
+      
+      // Проверяем файлы в БД
+      const files = await getBlockFiles(chat.id, block.id);
+      if (block.requiresExternal && files.length === 0) {
+        const text = await blockPrepText(session, chat.id);
         return {
-          text: `${blockPrepText(session)}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин или документ).`,
+          text: `${text}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин или документ).`,
           keyboard: blockPrepKeyboard(block.id, session.collected_data),
         };
       }
@@ -322,7 +342,7 @@ export async function handleCallback(from, callbackData) {
       }
       await updateSession(from.id, { step: STEPS.BLOCK_PREP });
       session = await getSession(from.id);
-      return showBlockPrep(session);
+      return await showBlockPrep(session, chat.id);
     }
 
     case 'next_block': {
@@ -372,7 +392,7 @@ export async function handleCallback(from, callbackData) {
         step: STEPS.BLOCK_PREP,
       });
       session = await getSession(from.id);
-      return showBlockPrep(session);
+      return await showBlockPrep(session, chat.id);
     }
 
     default:
@@ -440,7 +460,7 @@ export async function handleText(from, rawText) {
     if (step === STEPS.BLOCK_PREP) {
       const block = currentBlock(session);
       return {
-        text: `${blockPrepText(session)}\n\nТекст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
+        text: `Текст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
         keyboard: blockPrepKeyboard(block?.id, session.collected_data),
       };
     }
@@ -490,7 +510,7 @@ export async function handleText(from, rawText) {
 }
 
 export async function handleFile(from, fileId, fileType = 'photo', fileName = null, mimeType = null) {
-  const { session } = await ensureSession(from);
+  const { chat, session } = await ensureSession(from);
 
   if (session.step !== STEPS.BLOCK_PREP) {
     return rejectWrongInput(
@@ -504,20 +524,61 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
     return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
   }
 
-  // Сохраняем информацию о файле
-  const fileInfo = {
-    file_id: fileId,
-    type: fileType,
-    name: fileName,
-    mime: mimeType,
-  };
-  
-  const patch = saveBlockAttachment(session.collected_data, block.id, fileInfo);
-  const data = mergeCollectedData(session, patch);
-  await updateSession(from.id, { collected_data: data });
+  try {
+    // 1. Загружаем файл в Supabase Storage
+    const uploadResult = await uploadTelegramFileToStorage(
+      fileId,
+      from.id,
+      block.id,
+      fileName,
+      mimeType
+    );
 
-  session = await getSession(from.id);
-  return showBlockPrep(session);
+    // 2. Извлекаем текст для ИИ
+    const extractedText = await extractTextFromFile(
+      uploadResult.buffer,
+      uploadResult.fileType,
+      mimeType
+    );
+
+    // 3. Сохраняем информацию о файле в БД
+    await saveUserFile({
+      userId: from.id,
+      chatId: chat.id,
+      blockId: block.id,
+      fileName: fileName || `file_${Date.now()}`,
+      fileType: uploadResult.fileType,
+      mimeType: mimeType,
+      fileSize: uploadResult.fileSize,
+      storagePath: uploadResult.storagePath,
+      publicUrl: uploadResult.publicUrl,
+      extractedText: extractedText,
+      telegramFileId: fileId,
+    });
+
+    // 4. Обновляем сессию с информацией о файлах (для UI)
+    const existingFiles = await getBlockFiles(chat.id, block.id);
+    const fileInfo = {
+      file_id: fileId,
+      type: uploadResult.fileType,
+      name: fileName,
+      mime: mimeType,
+      count: existingFiles.length,
+    };
+
+    const patch = saveBlockAttachment(session.collected_data, block.id, fileInfo);
+    const data = mergeCollectedData(session, patch);
+    await updateSession(from.id, { collected_data: data });
+
+    session = await getSession(from.id);
+    return await showBlockPrep(session, chat.id);
+  } catch (err) {
+    console.error('Ошибка загрузки файла:', err.message);
+    return {
+      text: `❌ Ошибка: ${err.message}\n\nПопробуй загрузить файл заново.`,
+      keyboard: blockPrepKeyboard(block.id, session.collected_data),
+    };
+  }
 }
 
 export async function sendScenarioReply(ctx, payload) {
