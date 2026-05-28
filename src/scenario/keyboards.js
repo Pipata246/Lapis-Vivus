@@ -21,6 +21,7 @@ export function genderKeyboard() {
         { text: 'Мужской', callback_data: cb('gender', 'male') },
         { text: 'Женский', callback_data: cb('gender', 'female') },
       ],
+      [{ text: '❌ Отмена', callback_data: cb('menu') }],
     ],
   };
 }
@@ -29,6 +30,7 @@ export function birthTimeKeyboard() {
   return {
     inline_keyboard: [
       [{ text: '⏳ Время неизвестно', callback_data: cb('time_unknown') }],
+      [{ text: '❌ Отмена', callback_data: cb('menu') }],
     ],
   };
 }
@@ -40,6 +42,7 @@ export function confirmKeyboard() {
         { text: '✅ Всё верно — к первому блоку', callback_data: cb('confirm_yes') },
         { text: '✏️ Изменить данные', callback_data: cb('confirm_edit') },
       ],
+      [{ text: '❌ Отмена', callback_data: cb('menu') }],
     ],
   };
 }
@@ -53,6 +56,7 @@ export function blockPrepKeyboard(blockId, collectedData = {}) {
   }
 
   rows.push([{ text: '▶️ Запустить блок', callback_data: cb('run_block') }]);
+  rows.push([{ text: '❌ Отмена', callback_data: cb('menu') }]);
 
   return { inline_keyboard: rows };
 }
@@ -63,11 +67,19 @@ export function nextBlockKeyboard() {
   };
 }
 
+export function textInputKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '❌ Отмена', callback_data: cb('menu') }],
+    ],
+  };
+}
+
 export function blockFailedKeyboard() {
   return {
     inline_keyboard: [
       [{ text: '🔄 Повторить блок', callback_data: cb('retry_block') }],
-      [{ text: '📋 Меню', callback_data: cb('menu') }],
+      [{ text: '❌ Отмена', callback_data: cb('menu') }],
     ],
   };
 }

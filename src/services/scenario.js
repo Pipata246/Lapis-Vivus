@@ -23,6 +23,7 @@ import {
   blockFailedKeyboard,
   blockPrepKeyboard,
   linksKeyboard,
+  textInputKeyboard,
 } from '../scenario/keyboards.js';
 import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram, saveUserProfile } from '../db/users.js';
@@ -135,11 +136,12 @@ function rejectWrongInput(session, hint) {
 }
 
 export async function initUser(from) {
-  const { session } = await ensureSession(from);
-  if (session.step === STEPS.MENU) {
-    return showMenu();
-  }
-  return resumePrompt(session);
+  const { chat, session } = await ensureSession(from);
+  
+  // При /start всегда сбрасываем сессию и контекст ИИ
+  await resetSession(from.id, chat.id);
+  
+  return showMenu();
 }
 
 function showMenu() {
@@ -154,14 +156,14 @@ function resumePrompt(session) {
   const step = session.step;
   const messages = {
     [STEPS.GENDER]: { text: 'Выбери пол:', keyboard: genderKeyboard() },
-    [STEPS.BIRTH_DATE]: { text: 'Введи дату рождения: ДД.ММ.ГГГГ', keyboard: null },
+    [STEPS.BIRTH_DATE]: { text: 'Введи дату рождения: ДД.ММ.ГГГГ', keyboard: textInputKeyboard() },
     [STEPS.BIRTH_TIME]: {
       text: 'Введи время рождения ЧЧ:ММ или нажми кнопку.',
       keyboard: birthTimeKeyboard(),
     },
     [STEPS.BIRTH_PLACE]: {
       text: 'Введи город или населённый пункт рождения (например: Москва, Санкт-Петербург):',
-      keyboard: null,
+      keyboard: textInputKeyboard(),
     },
     [STEPS.CONFIRM]: {
       text: formatProfile(session.collected_data),
@@ -232,13 +234,8 @@ export async function handleCallback(from, callbackData) {
       };
 
     case 'start': {
-      if (hasAnalysisProgress(session) && session.step !== STEPS.MENU) {
-        const payload = resumePrompt(session);
-        return {
-          text: `У тебя уже есть незавершённый анализ.\n\n${payload.text}`,
-          keyboard: payload.keyboard,
-        };
-      }
+      // При нажатии "Начать анализ" всегда сбрасываем сессию и контекст ИИ
+      await resetSession(from.id, chat.id);
       await updateSession(from.id, {
         step: STEPS.GENDER,
         collected_data: {},
@@ -453,7 +450,7 @@ export async function handleText(from, rawText) {
   switch (step) {
     case STEPS.BIRTH_DATE: {
       const v = validateBirthDate(rawText);
-      if (!v.ok) return { text: v.error, keyboard: null };
+      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard() };
       const data = mergeCollectedData(session, { birth_date: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_TIME, collected_data: data });
       return {
@@ -467,12 +464,12 @@ export async function handleText(from, rawText) {
       if (!v.ok) return { text: v.error, keyboard: birthTimeKeyboard() };
       const data = mergeCollectedData(session, { birth_time: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
-      return { text: 'Шаг 4/4. Город рождения:', keyboard: null };
+      return { text: 'Шаг 4/4. Город рождения:', keyboard: textInputKeyboard() };
     }
 
     case STEPS.BIRTH_PLACE: {
       const v = validateBirthPlace(rawText);
-      if (!v.ok) return { text: v.error, keyboard: null };
+      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard() };
       const data = mergeCollectedData(session, { birth_place: v.value });
       await updateSession(from.id, { step: STEPS.CONFIRM, collected_data: data });
       return {
