@@ -78,12 +78,15 @@ function buildCompletedContext(completedBlocks, blockIndex) {
 
 function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) {
   const block = BLOCK_STACK[blockIndex];
+  const nextBlock = BLOCK_STACK[blockIndex + 1];
   const data = session.collected_data ?? {};
 
   return {
     режим: 'lapis_vivus_telegram_operator',
-    протокол: 'v21.5',
+    протокол: 'v26.9',
     сервер_назначил_блок: block.id,
+    следующий_блок: nextBlock ? nextBlock.id : 'ЗАВЕРШЕНИЕ_СТЕКА',
+    следующий_блок_описание: nextBlock ? nextBlock.description : 'Все блоки завершены',
     шаг: `${blockIndex + 1}/${BLOCK_STACK.length}`,
     фиксированный_стек_порядок: BLOCK_IDS,
     текущий_блок: block.id,
@@ -104,9 +107,11 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
     },
     контекст_прошлых_блоков: buildCompletedContext(completedBlocks, blockIndex),
     инструкция_исполнения:
-      `Выполни СТРОГО И ИСКЛЮЧИТЕЛЬНО ${block.description} ` +
+      `⚠️ СТРОГО: Выполни ТОЛЬКО ${block.description}. ` +
       `JSON: ${jsonArtifactName(block.id)}. ` +
-      'Затем ## Метакомментарии_Блока (Уровень_1…Уровень_5). Один блок за один answer.',
+      `Затем ## Метакомментарии_Блока (Уровень_1…Уровень_5). ` +
+      `ЗАПРЕЩЕНО выполнять ${nextBlock ? nextBlock.id : 'другие блоки'} в этом answer. ` +
+      'Один блок за один answer.',
   };
 }
 
