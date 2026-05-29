@@ -76,7 +76,7 @@ function extractJsonSummary(jsonPayload, blockId) {
 
   // Общие поля
   if (jsonPayload.осталось_блоков_в_стеке !== undefined) {
-    summaryFields.push(`Осталось блоков: ${jsonPayload.осталось_блоков_в_стеке}`);
+    summaryFields.push(`Осталось: ${jsonPayload.осталось_блоков_в_стеке}`);
   }
 
   // Специфичные поля для разных блоков
@@ -94,8 +94,8 @@ function extractJsonSummary(jsonPayload, blockId) {
       break;
     
     case '1C':
-      if (jsonPayload.ведущий_аркан) {
-        summaryFields.push(`Ведущий аркан: ${jsonPayload.ведущий_аркан}`);
+      if (jsonPayload.чакральный_баланс) {
+        summaryFields.push(`Баланс: ${jsonPayload.чакральный_баланс}`);
       }
       break;
     
@@ -105,21 +105,65 @@ function extractJsonSummary(jsonPayload, blockId) {
       if (jsonPayload.тон) summaryFields.push(`Тон: ${jsonPayload.тон}`);
       break;
     
-    case '2':
-      if (jsonPayload.элемент_личности) {
-        summaryFields.push(`Элемент личности: ${jsonPayload.элемент_личности}`);
+    case '1E':
+      if (jsonPayload.травматические_зоны) {
+        summaryFields.push(`Зоны: ${jsonPayload.травматические_зоны}`);
       }
       break;
     
-    case '3':
-      if (jsonPayload.солнце_знак) {
-        summaryFields.push(`Солнце: ${jsonPayload.солнце_знак}`);
+    case '2A':
+      if (jsonPayload.элемент_личности) {
+        summaryFields.push(`Элемент: ${jsonPayload.элемент_личности}`);
       }
-      if (jsonPayload.луна_знак) {
-        summaryFields.push(`Луна: ${jsonPayload.луна_знак}`);
+      break;
+    
+    case '2B':
+      if (jsonPayload.лагна) summaryFields.push(`Лагна: ${jsonPayload.лагна}`);
+      if (jsonPayload.атмакарака) summaryFields.push(`Атмакарака: ${jsonPayload.атмакарака}`);
+      break;
+    
+    case '2C':
+      if (jsonPayload.солнце_гексаграмма) {
+        summaryFields.push(`Солнце: ${jsonPayload.солнце_гексаграмма}`);
       }
-      if (jsonPayload.асцендент) {
-        summaryFields.push(`ASC: ${jsonPayload.асцендент}`);
+      break;
+    
+    case '2D':
+      if (jsonPayload.инкарнационный_крест) {
+        summaryFields.push(`Крест: ${jsonPayload.инкарнационный_крест}`);
+      }
+      break;
+    
+    case '2E':
+      if (jsonPayload.тип_питания) {
+        summaryFields.push(`Питание: ${jsonPayload.тип_питания}`);
+      }
+      break;
+    
+    case '2F':
+      if (jsonPayload.лилит_позиция) {
+        summaryFields.push(`Лилит: ${jsonPayload.лилит_позиция}`);
+      }
+      break;
+    
+    // Зодиакальные реторты
+    case '3_ARES':
+    case '3_TAURUS':
+    case '3_GEMINI':
+    case '3_CANCER':
+    case '3_LEO':
+    case '3_VIRGO':
+    case '3_LIBRA':
+    case '3_SCORPIO':
+    case '3_SAGITTARIUS':
+    case '3_CAPRICORN':
+    case '3_AQUARIUS':
+    case '3_PISCES':
+      if (jsonPayload.планеты_в_знаке) {
+        summaryFields.push(`Планеты: ${jsonPayload.планеты_в_знаке}`);
+      }
+      if (jsonPayload.алхимическая_фаза) {
+        summaryFields.push(`Фаза: ${jsonPayload.алхимическая_фаза}`);
       }
       break;
     
@@ -129,21 +173,51 @@ function extractJsonSummary(jsonPayload, blockId) {
       }
       break;
     
+    case '3C':
+      if (jsonPayload.ключевые_мидпоинты) {
+        summaryFields.push(`Мидпоинты: ${jsonPayload.ключевые_мидпоинты}`);
+      }
+      break;
+    
     case '4':
       if (jsonPayload.синтез_статус) {
         summaryFields.push(`Статус: ${jsonPayload.синтез_статус}`);
       }
       break;
     
-    case '4B':
-      if (jsonPayload.индекс_рабства) {
-        summaryFields.push(`Индекс рабства: ${jsonPayload.индекс_рабства}`);
+    case '4A':
+      if (jsonPayload.интеграция_уровень) {
+        summaryFields.push(`Уровень: ${jsonPayload.интеграция_уровень}`);
       }
       break;
     
-    case '5':
+    case '4B':
+      if (jsonPayload.индекс_рабства) {
+        summaryFields.push(`Индекс: ${jsonPayload.индекс_рабства}`);
+      }
+      break;
+    
+    case '4C':
+      if (jsonPayload.точка_катализации) {
+        summaryFields.push(`Точка: ${jsonPayload.точка_катализации}`);
+      }
+      break;
+    
+    case '4D':
+      if (jsonPayload.сверхманифест_статус) {
+        summaryFields.push(`Статус: ${jsonPayload.сверхманифест_статус}`);
+      }
+      break;
+    
+    case '5A':
       if (jsonPayload.протокол_статус) {
         summaryFields.push(`Протокол: ${jsonPayload.протокол_статус}`);
+      }
+      break;
+    
+    case '5B':
+      if (jsonPayload.практики_назначены) {
+        summaryFields.push(`Практики: ${jsonPayload.практики_назначены}`);
       }
       break;
   }
