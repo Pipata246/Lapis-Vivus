@@ -55,6 +55,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'reset',
   'menu',
   'links',
+  'suggested_prompt',
 ]);
 
 function parseDateParts(dateStr) {
@@ -92,7 +93,16 @@ export function parseCallbackData(data) {
     return null;
   }
 
-  if (action !== 'gender' && value !== null) {
+  // suggested_prompt может иметь value (индекс промпта)
+  if (action === 'suggested_prompt') {
+    const promptIndex = parseInt(value, 10);
+    if (isNaN(promptIndex) || promptIndex < 0 || promptIndex > 2) {
+      return null;
+    }
+    return { action, value: promptIndex };
+  }
+
+  if (action !== 'gender' && action !== 'suggested_prompt' && value !== null) {
     return null;
   }
 

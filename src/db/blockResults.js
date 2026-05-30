@@ -1,7 +1,7 @@
 import { getSupabase } from './supabase.js';
 import { BLOCK_IDS } from '../scenario/constants.js';
 
-export async function saveBlockResult({ chatId, userId, blockId, responseText, jsonPayload }) {
+export async function saveBlockResult({ chatId, userId, blockId, responseText, jsonPayload, suggestedPrompts }) {
   if (!BLOCK_IDS.includes(blockId)) {
     throw new Error('Некорректный block_id.');
   }

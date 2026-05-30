@@ -34,12 +34,14 @@ import {
   updateSession,
   mergeCollectedData,
   recoverStaleBlockRunning,
+  saveSuggestedPrompts,
 } from '../db/sessions.js';
 import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js';
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
 import { getCompletedBlocks } from '../db/blockResults.js';
+import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
@@ -99,10 +101,10 @@ async function blockPrepText(session, chatId) {
   } else if (block.requiresExternal) {
     fileLine =
       block.id === '3B'
-        ? '📎 Нужен файл (скрин/документ) или текст. Можно написать ответ или прикрепить файл.'
-        : '📎 Файл обязателен (скрин/документ/PDF) или текст. Можно написать ответ или прикрепить файл.';
+        ? '📎 Нужен файл (скрин/документ) ИЛИ текст с описанием данных.'
+        : '📎 Файл (скрин/документ/PDF) ИЛИ текст с описанием — обязательно.';
   } else {
-    fileLine = '📎 Файл по желанию (скрин/документ/PDF). Можно написать текст или прикрепить файл.';
+    fileLine = '📎 Файл (скрин/документ/PDF) ИЛИ текст — по желанию.';
   }
 
   // Проверяем есть ли текст от пользователя
@@ -122,6 +124,11 @@ async function blockPrepText(session, chatId) {
     calcBlock ? '' : null,
     fileLine,
     textLine || null,
+    '',
+    '💡 Можешь:',
+    '• Написать текстом (описать данные, ответить на вопросы)',
+    '• Прикрепить файл (скрин калькулятора, документ)',
+    '• Или и то и другое',
     '',
     'Когда готов — нажми «Запустить блок».',
   ]
@@ -212,7 +219,7 @@ function resumePrompt(session) {
     },
     [STEPS.BLOCK_REVIEW]: {
       text: `Блок ${session.last_block_id ?? ''} завершён. Нажми «Следующий блок».`,
-      keyboard: nextBlockKeyboard(),
+      keyboard: nextBlockKeyboard(session.collected_data?.suggested_prompts?.[session.last_block_id] || []),
     },
     [STEPS.COMPLETED]: {
       text: '✅ Полный стек блоков завершён.',
@@ -361,6 +368,68 @@ export async function handleCallback(from, callbackData) {
       return await showBlockPrep(session, chat.id);
     }
 
+    case 'suggested_prompt': {
+      if (session.step !== STEPS.BLOCK_REVIEW) {
+        return resumePrompt(session);
+      }
+
+      const promptIndex = parsed.value;
+      const blockId = session.last_block_id;
+      
+      if (!blockId) {
+        return rejectWrongInput(session, 'Блок не найден.');
+      }
+
+      // Получаем suggested prompts из сессии
+      const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
+      const selectedPrompt = prompts[promptIndex];
+
+      if (!selectedPrompt) {
+        return rejectWrongInput(session, 'Вопрос не найден.');
+      }
+
+      // Отправляем выбранный промпт как сообщение пользователя в ИИ
+      await saveChatMessages(chat.id, [
+        { role: 'user', content: selectedPrompt },
+      ]);
+
+      // Получаем ответ от ИИ
+      const { askGpt } = await import('../ai/gptunnel.js');
+      const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
+      const { getChatMessagesForAI } = await import('../db/chats.js');
+
+      const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
+      const messages = [
+        { role: 'system', content: getSystemPrompt() },
+        ...sessionMessages,
+      ];
+
+      let aiResponse;
+      try {
+        aiResponse = await askGpt(messages);
+      } catch (err) {
+        console.error('Ошибка ИИ на suggested prompt:', err.message);
+        return {
+          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
+          keyboard: nextBlockKeyboard(prompts),
+        };
+      }
+
+      // Сохраняем ответ ИИ
+      await saveChatMessages(chat.id, [
+        { role: 'assistant', content: aiResponse },
+      ]);
+
+      // Форматируем ответ для пользователя
+      const chunks = splitTelegramMessages(aiResponse);
+
+      return {
+        text: chunks[0],
+        extraMessages: chunks.slice(1),
+        keyboard: nextBlockKeyboard(prompts),
+      };
+    }
+
     case 'next_block': {
       if (session.step !== STEPS.BLOCK_REVIEW) {
         return resumePrompt(session);
@@ -430,11 +499,16 @@ async function runCurrentBlock(from, chatId) {
   session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
-    const { blockId, userMessage } = await runAnalysisBlock({
+    const { blockId, userMessage, suggestedPrompts } = await runAnalysisBlock({
       session,
       chatId,
       userId,
     });
+
+    // Сохраняем suggested prompts в сессии
+    if (suggestedPrompts && suggestedPrompts.length > 0) {
+      await saveSuggestedPrompts(userId, blockId, suggestedPrompts);
+    }
 
     session = await updateSession(userId, {
       step: STEPS.BLOCK_REVIEW,
@@ -446,7 +520,7 @@ async function runCurrentBlock(from, chatId) {
     return {
       text: chunks[0],
       extraMessages: chunks.slice(1),
-      keyboard: nextBlockKeyboard(),
+      keyboard: nextBlockKeyboard(suggestedPrompts),
     };
   } catch (err) {
     console.error('Ошибка блока:', err.message);

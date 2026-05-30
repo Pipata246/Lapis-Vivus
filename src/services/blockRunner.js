@@ -212,7 +212,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     chatId,
     session.session_start_at
   );
-  const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
+  const { jsonRaw, jsonParsed, suggestedPrompts } = extractJsonFromAnswer(answer);
 
   await saveBlockResult({
     chatId,
@@ -220,6 +220,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     blockId: block.id,
     responseText: answer,
     jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
+    suggestedPrompts,
   });
 
   await saveChatMessages(chatId, [
@@ -229,5 +230,5 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
 
   const userMessage = formatBlockForUser(answer, block.id, block.title);
 
-  return { blockId: block.id, blockTitle: block.title, userMessage };
+  return { blockId: block.id, blockTitle: block.title, userMessage, suggestedPrompts };
 }

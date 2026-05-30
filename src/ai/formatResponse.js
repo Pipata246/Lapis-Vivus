@@ -7,18 +7,28 @@ const JSON_FENCE_RE = /```json\s*([\s\S]*?)```/i;
 export function extractJsonFromAnswer(rawAnswer) {
   const match = rawAnswer.match(JSON_FENCE_RE);
   if (!match) {
-    return { jsonRaw: null, jsonParsed: null };
+    return { jsonRaw: null, jsonParsed: null, suggestedPrompts: [] };
   }
 
   const jsonRaw = match[1].trim();
   let jsonParsed = null;
+  let suggestedPrompts = [];
+  
   try {
     jsonParsed = JSON.parse(jsonRaw);
+    
+    // Извлекаем suggested_prompts из JSON
+    if (jsonParsed?.suggested_prompts && Array.isArray(jsonParsed.suggested_prompts)) {
+      suggestedPrompts = jsonParsed.suggested_prompts
+        .filter(p => typeof p === 'string' && p.trim().length > 0)
+        .map(p => p.trim().slice(0, 40)) // Ограничиваем длину
+        .slice(0, 3); // Максимум 3 промпта
+    }
   } catch {
     jsonParsed = { _parse_error: true, raw: jsonRaw };
   }
 
-  return { jsonRaw, jsonParsed };
+  return { jsonRaw, jsonParsed, suggestedPrompts };
 }
 
 export function extractMetacomments(rawAnswer, maxLen = 4000) {
