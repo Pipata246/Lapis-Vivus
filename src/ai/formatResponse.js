@@ -25,8 +25,9 @@ export function extractJsonFromAnswer(rawAnswer) {
         .slice(0, 3); // Максимум 3 промпта
     }
     
-    // FALLBACK: Если ИИ не добавил промпты — создаём дефолтные
-    if (suggestedPrompts.length === 0) {
+    // ТОЛЬКО если ИИ вообще не добавил поле — используем fallback
+    // Но НЕ заменяем пустой массив на fallback (ИИ может намеренно не давать вопросы)
+    if (!jsonParsed?.suggested_prompts) {
       console.warn('⚠️ ИИ не сгенерировал suggested_prompts, используем fallback');
       suggestedPrompts = [
         'Как применить это в жизни?',
@@ -36,7 +37,7 @@ export function extractJsonFromAnswer(rawAnswer) {
     }
   } catch {
     jsonParsed = { _parse_error: true, raw: jsonRaw };
-    // Даже при ошибке парсинга добавляем fallback промпты
+    // При ошибке парсинга добавляем fallback промпты
     suggestedPrompts = [
       'Как применить это в жизни?',
       'Расскажи подробнее',
@@ -48,14 +49,14 @@ export function extractJsonFromAnswer(rawAnswer) {
 }
 
 export function extractMetacomments(rawAnswer, maxLen = 4000) {
+  // Удаляем JSON блок полностью
   let visible = rawAnswer.replace(JSON_FENCE_RE, '').trim();
+  
+  // Удаляем все code fences
   visible = visible
     .replace(/^```[a-z]*\s*$/gim, '')
     .replace(/^```\s*$/gim, '')
     .trim();
-
-  // НЕ обрезаем начало — оставляем весь текст кроме JSON
-  // Метакомментарии будут в конце, но и остальной контент сохранится
 
   if (visible.length > maxLen) {
     visible = `${visible.slice(0, maxLen)}\n…[усечено]`;
