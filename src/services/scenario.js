@@ -693,13 +693,20 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 export async function sendScenarioReply(ctx, payload) {
   const { text, keyboard, extraMessages } = payload;
 
-  await ctx.reply(text, keyboard ? { reply_markup: keyboard } : undefined);
+  // Отправляем с Markdown форматированием
+  await ctx.reply(text, {
+    parse_mode: 'Markdown',
+    reply_markup: keyboard,
+  });
 
   if (extraMessages?.length) {
     for (const part of extraMessages) {
       const partText = typeof part === 'string' ? part : part.text;
       const partKb = typeof part === 'string' ? undefined : part.keyboard;
-      await ctx.reply(partText, partKb ? { reply_markup: partKb } : undefined);
+      await ctx.reply(partText, {
+        parse_mode: 'Markdown',
+        reply_markup: partKb,
+      });
     }
   }
 }

@@ -4,6 +4,27 @@
 
 const JSON_FENCE_RE = /```json\s*([\s\S]*?)```/i;
 
+/**
+ * Конвертирует markdown в Telegram MarkdownV2 формат
+ */
+function convertToTelegramMarkdown(text) {
+  let result = text;
+
+  // Заменяем ## заголовки на жирный текст с переносом
+  result = result.replace(/^##\s+(.+)$/gm, '\n*$1*\n');
+  
+  // Заменяем **текст** на *текст* (жирный в Telegram)
+  result = result.replace(/\*\*([^*]+)\*\*/g, '*$1*');
+  
+  // Убираем лишние пустые строки (больше 2 подряд)
+  result = result.replace(/\n{3,}/g, '\n\n');
+  
+  // Убираем пробелы в начале и конце
+  result = result.trim();
+  
+  return result;
+}
+
 export function extractJsonFromAnswer(rawAnswer) {
   const match = rawAnswer.match(JSON_FENCE_RE);
   if (!match) {
@@ -58,6 +79,9 @@ export function extractMetacomments(rawAnswer, maxLen = 4000) {
     .replace(/^```\s*$/gim, '')
     .trim();
 
+  // Конвертируем в Telegram Markdown
+  visible = convertToTelegramMarkdown(visible);
+
   if (visible.length > maxLen) {
     visible = `${visible.slice(0, maxLen)}\n…[усечено]`;
   }
@@ -70,13 +94,13 @@ export function formatBlockForUser(rawAnswer, blockId, blockTitle) {
 
   if (!visible) {
     return (
-      `📦 Блок ${blockId}: ${blockTitle}\n\n` +
-      'Анализ блока выполнен. Структурированные данные (JSON) сохранены в системе.\n\n' +
+      `📦 *Блок ${blockId}: ${blockTitle}*\n\n` +
+      'Анализ блока выполнен. Структурированные данные сохранены в системе.\n\n' +
       'Нажми «Следующий блок», чтобы продолжить.'
     );
   }
 
-  return `📦 Блок ${blockId}: ${blockTitle}\n\n${visible}`;
+  return `📦 *Блок ${blockId}: ${blockTitle}*\n\n${visible}`;
 }
 
 export function splitTelegramMessages(text, maxLen = 4096) {
