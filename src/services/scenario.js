@@ -525,7 +525,10 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
   }
 
   try {
+    console.log('[handleFile] Начало загрузки файла:', { fileId, fileType, fileName, blockId: block.id });
+    
     // 1. Загружаем файл в Supabase Storage
+    console.log('[handleFile] Шаг 1: uploadTelegramFileToStorage');
     const uploadResult = await uploadTelegramFileToStorage(
       fileId,
       from.id,
@@ -533,15 +536,19 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
       fileName,
       mimeType
     );
+    console.log('[handleFile] Шаг 1 завершён:', { fileType: uploadResult.fileType, fileSize: uploadResult.fileSize });
 
     // 2. Извлекаем текст для ИИ
+    console.log('[handleFile] Шаг 2: extractTextFromFile');
     const extractedText = await extractTextFromFile(
       uploadResult.buffer,
       uploadResult.fileType,
       mimeType
     );
+    console.log('[handleFile] Шаг 2 завершён, текст извлечён:', extractedText ? 'да' : 'нет');
 
     // 3. Сохраняем информацию о файле в БД
+    console.log('[handleFile] Шаг 3: saveUserFile');
     await saveUserFile({
       userId: from.id,
       chatId: chat.id,
@@ -555,9 +562,13 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
       extractedText: extractedText,
       telegramFileId: fileId,
     });
+    console.log('[handleFile] Шаг 3 завершён');
 
     // 4. Обновляем сессию с информацией о файлах (для UI)
+    console.log('[handleFile] Шаг 4: getBlockFiles');
     const existingFiles = await getBlockFiles(chat.id, block.id);
+    console.log('[handleFile] Файлов в блоке:', existingFiles.length);
+    
     const fileInfo = {
       file_id: fileId,
       type: uploadResult.fileType,
@@ -566,14 +577,20 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
       count: existingFiles.length,
     };
 
+    console.log('[handleFile] Шаг 5: updateSession');
     const patch = saveBlockAttachment(session.collected_data, block.id, fileInfo);
     const data = mergeCollectedData(session, patch);
     await updateSession(from.id, { collected_data: data });
+    console.log('[handleFile] Шаг 5 завершён');
 
+    console.log('[handleFile] Шаг 6: showBlockPrep');
     session = await getSession(from.id);
-    return await showBlockPrep(session, chat.id);
+    const result = await showBlockPrep(session, chat.id);
+    console.log('[handleFile] Успешно завершено');
+    return result;
   } catch (err) {
-    console.error('Ошибка загрузки файла:', err.message);
+    console.error('[handleFile] ОШИБКА:', err);
+    console.error('[handleFile] Stack:', err.stack);
     return {
       text: `❌ Ошибка: ${err.message}\n\nПопробуй загрузить файл заново.`,
       keyboard: blockPrepKeyboard(block.id, session.collected_data),
