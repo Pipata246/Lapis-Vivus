@@ -41,17 +41,13 @@ export function detectFileType(mimeType, fileName) {
  * Загружает файл из Telegram и сохраняет в Supabase Storage
  */
 export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileName, mimeType) {
-  console.log('[uploadTelegramFileToStorage] Начало:', { fileId, userId, blockId, fileName, mimeType });
-  
   const { botToken } = loadBotConfig();
 
   // 1. Получаем информацию о файле из Telegram
-  console.log('[uploadTelegramFileToStorage] Запрос getFile к Telegram API');
   const metaRes = await fetch(
     `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`
   );
   const meta = await metaRes.json();
-  console.log('[uploadTelegramFileToStorage] Ответ getFile:', meta);
 
   if (!meta.ok || !meta.result?.file_path) {
     throw new Error('Не удалось получить файл из Telegram.');
@@ -59,14 +55,12 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
 
   const filePath = meta.result.file_path;
   const fileSize = meta.result.file_size || 0;
-  console.log('[uploadTelegramFileToStorage] Файл найден:', { filePath, fileSize });
 
   if (fileSize > MAX_FILE_SIZE) {
     throw new Error(`Файл слишком большой (макс. ${MAX_FILE_SIZE / 1024 / 1024} MB).`);
   }
 
   // 2. Скачиваем файл
-  console.log('[uploadTelegramFileToStorage] Скачивание файла из Telegram');
   const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
   const fileRes = await fetch(fileUrl);
 
@@ -76,20 +70,16 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
 
   const arrayBuffer = await fileRes.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  console.log('[uploadTelegramFileToStorage] Файл скачан, размер буфера:', buffer.length);
 
   // 3. Определяем тип файла
   const isPhoto = filePath.startsWith('photos/') || filePath.startsWith('photo/');
   const fileType = isPhoto ? 'image' : detectFileType(mimeType, fileName || filePath);
-  console.log('[uploadTelegramFileToStorage] Тип файла:', fileType, 'isPhoto:', isPhoto);
 
   // 4. Генерируем путь в Storage
   const ext = (fileName || filePath).split('.').pop() || 'bin';
   const storagePath = `${userId}/${blockId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-  console.log('[uploadTelegramFileToStorage] Путь в Storage:', storagePath);
 
   // 5. Загружаем в Supabase Storage
-  console.log('[uploadTelegramFileToStorage] Загрузка в Supabase Storage');
   const supabase = getSupabase();
   const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
@@ -99,24 +89,19 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
     });
 
   if (uploadError) {
-    console.error('[uploadTelegramFileToStorage] Ошибка загрузки в Storage:', uploadError);
     throw new Error(`Не удалось загрузить файл в Storage: ${uploadError.message}`);
   }
-  console.log('[uploadTelegramFileToStorage] Файл загружен в Storage');
 
   // 6. Получаем публичный URL
   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-  console.log('[uploadTelegramFileToStorage] Публичный URL:', urlData?.publicUrl);
 
-  const result = {
+  return {
     storagePath,
     publicUrl: urlData?.publicUrl || null,
     fileSize,
     fileType,
     buffer,
   };
-  console.log('[uploadTelegramFileToStorage] Завершено успешно');
-  return result;
 }
 
 /**
