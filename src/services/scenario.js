@@ -372,7 +372,10 @@ export async function handleCallback(from, callbackData) {
       // Обновляем сессию из БД на случай если она изменилась
       session = await getSession(from.id);
       
+      console.log('🔍 quick_question: session.step =', session.step, 'expected:', STEPS.BLOCK_REVIEW);
+      
       if (session.step !== STEPS.BLOCK_REVIEW) {
+        console.log('❌ Шаг не BLOCK_REVIEW, возвращаем resumePrompt');
         return resumePrompt(session);
       }
 
@@ -512,6 +515,8 @@ async function runCurrentBlock(from, chatId) {
       step: STEPS.BLOCK_REVIEW,
       last_block_id: blockId,
     });
+    
+    console.log('✅ Блок завершён, сессия обновлена на BLOCK_REVIEW:', session.step);
 
     const chunks = splitTelegramMessages(userMessage);
     
