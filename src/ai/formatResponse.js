@@ -24,8 +24,24 @@ export function extractJsonFromAnswer(rawAnswer) {
         .map(p => p.trim().slice(0, 40)) // Ограничиваем длину
         .slice(0, 3); // Максимум 3 промпта
     }
+    
+    // FALLBACK: Если ИИ не добавил промпты — создаём дефолтные
+    if (suggestedPrompts.length === 0) {
+      console.warn('⚠️ ИИ не сгенерировал suggested_prompts, используем fallback');
+      suggestedPrompts = [
+        'Как применить это в жизни?',
+        'Расскажи подробнее',
+        'Что делать с этой информацией?',
+      ];
+    }
   } catch {
     jsonParsed = { _parse_error: true, raw: jsonRaw };
+    // Даже при ошибке парсинга добавляем fallback промпты
+    suggestedPrompts = [
+      'Как применить это в жизни?',
+      'Расскажи подробнее',
+      'Что делать с этой информацией?',
+    ];
   }
 
   return { jsonRaw, jsonParsed, suggestedPrompts };

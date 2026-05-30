@@ -172,10 +172,15 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
       {
         role: 'user',
         content:
-          `Ответ отклонён (${validation.issues.join('; ')}). ` +
-          `Перегенерируй ТОЛЬКО блок ${blockId}: ${BLOCK_STACK[blockIndex].description} ` +
-          `JSON: ${jsonArtifactName(blockId)}, "осталось_блоков_в_стеке", ## Метакомментарии_Блока. ` +
-          'Не используй заголовки других блоков.',
+          `⛔️ ОТВЕТ ОТКЛОНЁН: ${validation.issues.join('; ')}\n\n` +
+          `Перегенерируй ТОЛЬКО блок ${blockId}: ${BLOCK_STACK[blockIndex].description}\n\n` +
+          `ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ:\n` +
+          `1. JSON-артефакт: ${jsonArtifactName(blockId)}\n` +
+          `2. Поле "осталось_блоков_в_стеке": ${remainingBlocksAfter(blockIndex)}\n` +
+          `3. Поле "suggested_prompts": массив из 2-3 вопросов (до 40 символов)\n` +
+          `   Примеры: ["Как применить?", "Расскажи подробнее", "Что делать?"]\n` +
+          `4. Раздел ## Метакомментарии_Блока (Уровень_1…Уровень_5)\n\n` +
+          `⚠️ БЕЗ suggested_prompts JSON БУДЕТ СНОВА ОТКЛОНЁН!`,
       },
     ];
     answer = await askGpt(retryMessages);
