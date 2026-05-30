@@ -2,7 +2,10 @@
  * JSON уходит в БД; в Telegram — только метакомментарии (без ```json).
  */
 
-const JSON_FENCE_RE = /```json\s*([\s\S]*?)```/i;
+// Более агрессивные regex для удаления JSON
+const JSON_FENCE_RE = /```json[\s\S]*?```/gi;
+const JSON_INLINE_RE = /```json\{[\s\S]*?\}```/gi;
+const JSON_RAW_RE = /\{[\s\n]*"блок_[^}]+\}[\s\n]*\}/gi;
 
 /**
  * Конвертирует markdown в Telegram MarkdownV2 формат
@@ -26,7 +29,14 @@ function convertToTelegramMarkdown(text) {
 }
 
 export function extractJsonFromAnswer(rawAnswer) {
-  const match = rawAnswer.match(JSON_FENCE_RE);
+  // Ищем JSON в разных форматах
+  let match = rawAnswer.match(/```json\s*([\s\S]*?)```/i);
+  
+  if (!match) {
+    // Пробуем найти JSON без fence
+    match = rawAnswer.match(/(\{[\s\S]*?"блок_[^}]+\}[\s\S]*?\})/i);
+  }
+  
   if (!match) {
     return { jsonRaw: null, jsonParsed: null, suggestedPrompts: [] };
   }
@@ -38,17 +48,26 @@ export function extractJsonFromAnswer(rawAnswer) {
   try {
     jsonParsed = JSON.parse(jsonRaw);
     
-    // Извлекаем suggested_prompts из JSON
-    if (jsonParsed?.suggested_prompts && Array.isArray(jsonParsed.suggested_prompts)) {
-      suggestedPrompts = jsonParsed.suggested_prompts
+    // Извлекаем suggested_prompts из JSON (может быть вложен)
+    let prompts = jsonParsed?.suggested_prompts;
+    
+    // Если JSON обёрнут в ключ с именем блока
+    if (!prompts) {
+      const blockKey = Object.keys(jsonParsed).find(k => k.includes('блок_'));
+      if (blockKey) {
+        prompts = jsonParsed[blockKey]?.suggested_prompts;
+      }
+    }
+    
+    if (prompts && Array.isArray(prompts)) {
+      suggestedPrompts = prompts
         .filter(p => typeof p === 'string' && p.trim().length > 0)
-        .map(p => p.trim().slice(0, 40)) // Ограничиваем длину
-        .slice(0, 3); // Максимум 3 промпта
+        .map(p => p.trim().slice(0, 40))
+        .slice(0, 3);
     }
     
     // ТОЛЬКО если ИИ вообще не добавил поле — используем fallback
-    // Но НЕ заменяем пустой массив на fallback (ИИ может намеренно не давать вопросы)
-    if (!jsonParsed?.suggested_prompts) {
+    if (!prompts) {
       console.warn('⚠️ ИИ не сгенерировал suggested_prompts, используем fallback');
       suggestedPrompts = [
         'Как применить это в жизни?',
@@ -56,9 +75,9 @@ export function extractJsonFromAnswer(rawAnswer) {
         'Что делать с этой информацией?',
       ];
     }
-  } catch {
+  } catch (err) {
+    console.error('Ошибка парсинга JSON:', err.message);
     jsonParsed = { _parse_error: true, raw: jsonRaw };
-    // При ошибке парсинга добавляем fallback промпты
     suggestedPrompts = [
       'Как применить это в жизни?',
       'Расскажи подробнее',
@@ -70,14 +89,21 @@ export function extractJsonFromAnswer(rawAnswer) {
 }
 
 export function extractMetacomments(rawAnswer, maxLen = 4000) {
-  // Удаляем JSON блок полностью
-  let visible = rawAnswer.replace(JSON_FENCE_RE, '').trim();
+  let visible = rawAnswer;
+  
+  // Удаляем JSON в разных форматах (агрессивно)
+  visible = visible.replace(JSON_FENCE_RE, '');
+  visible = visible.replace(JSON_INLINE_RE, '');
+  visible = visible.replace(JSON_RAW_RE, '');
+  
+  // Удаляем строки которые начинаются с { или }
+  visible = visible.replace(/^[\s]*[\{\}][\s]*$/gm, '');
   
   // Удаляем все code fences
-  visible = visible
-    .replace(/^```[a-z]*\s*$/gim, '')
-    .replace(/^```\s*$/gim, '')
-    .trim();
+  visible = visible.replace(/^```[a-z]*\s*$/gim, '');
+  visible = visible.replace(/^```\s*$/gim, '');
+  
+  visible = visible.trim();
 
   // Конвертируем в Telegram Markdown
   visible = convertToTelegramMarkdown(visible);
