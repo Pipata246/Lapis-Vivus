@@ -97,29 +97,6 @@ export async function updateSession(userId, patch) {
   return data;
 }
 
-/**
- * Сохраняет suggested prompts для текущего блока в сессии
- */
-export async function saveSuggestedPrompts(userId, blockId, prompts) {
-  assertUserId(userId);
-  const session = await getSession(userId);
-  if (!session) {
-    throw new Error('Сессия не найдена.');
-  }
-
-  const suggestedPrompts = {
-    ...(session.collected_data?.suggested_prompts || {}),
-    [blockId]: prompts,
-  };
-
-  return updateSession(userId, {
-    collected_data: {
-      ...session.collected_data,
-      suggested_prompts: suggestedPrompts,
-    },
-  });
-}
-
 export function mergeCollectedData(session, additions) {
   return {
     ...(session?.collected_data ?? {}),

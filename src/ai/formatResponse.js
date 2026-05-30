@@ -38,54 +38,20 @@ export function extractJsonFromAnswer(rawAnswer) {
   }
   
   if (!match) {
-    return { jsonRaw: null, jsonParsed: null, suggestedPrompts: [] };
+    return { jsonRaw: null, jsonParsed: null };
   }
 
   const jsonRaw = match[1].trim();
   let jsonParsed = null;
-  let suggestedPrompts = [];
   
   try {
     jsonParsed = JSON.parse(jsonRaw);
-    
-    // Извлекаем suggested_prompts из JSON (может быть вложен)
-    let prompts = jsonParsed?.suggested_prompts;
-    
-    // Если JSON обёрнут в ключ с именем блока
-    if (!prompts) {
-      const blockKey = Object.keys(jsonParsed).find(k => k.includes('блок_'));
-      if (blockKey) {
-        prompts = jsonParsed[blockKey]?.suggested_prompts;
-      }
-    }
-    
-    if (prompts && Array.isArray(prompts)) {
-      suggestedPrompts = prompts
-        .filter(p => typeof p === 'string' && p.trim().length > 0)
-        .map(p => p.trim().slice(0, 40))
-        .slice(0, 3);
-    }
-    
-    // ТОЛЬКО если ИИ вообще не добавил поле — используем fallback
-    if (!prompts) {
-      console.warn('⚠️ ИИ не сгенерировал suggested_prompts, используем fallback');
-      suggestedPrompts = [
-        'Как применить это в жизни?',
-        'Расскажи подробнее',
-        'Что делать с этой информацией?',
-      ];
-    }
   } catch (err) {
     console.error('Ошибка парсинга JSON:', err.message);
     jsonParsed = { _parse_error: true, raw: jsonRaw };
-    suggestedPrompts = [
-      'Как применить это в жизни?',
-      'Расскажи подробнее',
-      'Что делать с этой информацией?',
-    ];
   }
 
-  return { jsonRaw, jsonParsed, suggestedPrompts };
+  return { jsonRaw, jsonParsed };
 }
 
 export function extractMetacomments(rawAnswer, maxLen = 4000) {

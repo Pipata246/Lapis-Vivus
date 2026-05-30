@@ -61,24 +61,10 @@ export function blockPrepKeyboard(blockId, collectedData = {}) {
   return { inline_keyboard: rows };
 }
 
-export function nextBlockKeyboard(suggestedPrompts = []) {
-  const rows = [];
-
-  // Добавляем suggested prompts как кнопки (максимум 3)
-  if (suggestedPrompts && suggestedPrompts.length > 0) {
-    suggestedPrompts.slice(0, 3).forEach((prompt, index) => {
-      rows.push([{
-        text: `💬 ${prompt}`,
-        callback_data: cb('suggested_prompt', index),
-      }]);
-    });
-    rows.push([]); // Пустая строка для разделения
-  }
-
-  // Кнопка "Следующий блок"
-  rows.push([{ text: '▶️ Следующий блок', callback_data: cb('next_block') }]);
-
-  return { inline_keyboard: rows };
+export function nextBlockKeyboard() {
+  return {
+    inline_keyboard: [[{ text: '▶️ Следующий блок', callback_data: cb('next_block') }]],
+  };
 }
 
 export function textInputKeyboard() {

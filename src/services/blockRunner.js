@@ -43,18 +43,6 @@ function buildBlockMandate(block, blockIndex) {
     '',
     '⚠️ ОБЯЗАТЕЛЬНЫЕ ПОЛЯ В JSON:',
     '  • "осталось_блоков_в_стеке" — число',
-    '  • "suggested_prompts" — массив из 2-3 УНИКАЛЬНЫХ вопросов для ЭТОГО блока',
-    '',
-    '⚠️ ВАЖНО: Вопросы должны быть КОНКРЕТНЫМИ и связанными с содержанием блока!',
-    `Например для блока ${block.id}:`,
-    '  • Спроси про конкретные термины из блока',
-    '  • Спроси как применить конкретные аспекты',
-    '  • Спроси про практические действия',
-    '',
-    '❌ НЕ используй общие вопросы: "Расскажи подробнее", "Что делать?"',
-    '✅ Используй конкретные: "Как работать с типом Манифестор?", "Что означает профиль 3/5?"',
-    '',
-    '⛔️ БЕЗ suggested_prompts JSON БУДЕТ ОТКЛОНЁН!',
     '',
     '⛔️ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО В ЭТОМ ANSWER:',
     `  • Выполнять блоки: ${forbidden.join(', ')}`,
@@ -182,12 +170,7 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
           `ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ:\n` +
           `1. JSON-артефакт: ${jsonArtifactName(blockId)}\n` +
           `2. Поле "осталось_блоков_в_стеке": ${remainingBlocksAfter(blockIndex)}\n` +
-          `3. Поле "suggested_prompts": массив из 2-3 УНИКАЛЬНЫХ вопросов для блока ${blockId}\n` +
-          `   ⚠️ Вопросы должны быть КОНКРЕТНЫМИ и связанными с содержанием блока!\n` +
-          `   ❌ НЕ используй: "Расскажи подробнее", "Что делать?", "Как применить?"\n` +
-          `   ✅ Используй конкретные термины из блока ${blockId}\n` +
-          `4. Раздел ## Метакомментарии_Блока (Уровень_1…Уровень_5)\n\n` +
-          `⚠️ БЕЗ КОНКРЕТНЫХ suggested_prompts JSON БУДЕТ СНОВА ОТКЛОНЁН!`,
+          `3. Раздел ## Метакомментарии_Блока (Уровень_1…Уровень_5)`,
       },
     ];
     answer = await askGpt(retryMessages);
@@ -234,7 +217,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     chatId,
     session.session_start_at
   );
-  const { jsonRaw, jsonParsed, suggestedPrompts } = extractJsonFromAnswer(answer);
+  const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
 
   await saveBlockResult({
     chatId,
@@ -242,7 +225,6 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     blockId: block.id,
     responseText: answer,
     jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
-    suggestedPrompts,
   });
 
   await saveChatMessages(chatId, [
@@ -252,5 +234,5 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
 
   const userMessage = formatBlockForUser(answer, block.id, block.title);
 
-  return { blockId: block.id, blockTitle: block.title, userMessage, suggestedPrompts };
+  return { blockId: block.id, blockTitle: block.title, userMessage };
 }

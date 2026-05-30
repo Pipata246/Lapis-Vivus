@@ -14,11 +14,6 @@ export function validateBlockResponse(text, expectedBlockId) {
     issues.push('нет поля "осталось_блоков_в_стеке"');
   }
 
-  // Проверяем наличие suggested_prompts в JSON
-  if (!/suggested_prompts/i.test(text)) {
-    issues.push('нет обязательного поля "suggested_prompts"');
-  }
-
   if (!/Метакомментарии_Блока/i.test(text)) {
     issues.push('нет раздела ## Метакомментарии_Блока');
   }

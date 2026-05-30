@@ -34,7 +34,6 @@ import {
   updateSession,
   mergeCollectedData,
   recoverStaleBlockRunning,
-  saveSuggestedPrompts,
 } from '../db/sessions.js';
 import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js';
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
@@ -194,16 +193,6 @@ function resumePrompt(session) {
   session = recoverStaleBlockRunning(session);
   const step = session.step;
   
-  // Для BLOCK_REVIEW нужно фильтровать использованные промпты
-  let blockReviewKeyboard = null;
-  if (step === STEPS.BLOCK_REVIEW && session.last_block_id) {
-    const blockId = session.last_block_id;
-    const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
-    const usedPrompts = session.collected_data?.used_prompts?.[blockId] || [];
-    const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
-    blockReviewKeyboard = nextBlockKeyboard(remainingPrompts);
-  }
-  
   const messages = {
     [STEPS.GENDER]: { text: 'Выбери пол:', keyboard: genderKeyboard() },
     [STEPS.BIRTH_DATE]: { text: 'Введи дату рождения: ДД.ММ.ГГГГ', keyboard: textInputKeyboard() },
@@ -229,8 +218,8 @@ function resumePrompt(session) {
       keyboard: runningKeyboard(),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `Блок ${session.last_block_id ?? ''} завершён. Можешь задать вопросы или нажми «Следующий блок».`,
-      keyboard: blockReviewKeyboard,
+      text: `Блок ${session.last_block_id ?? ''} завершён. Нажми «Следующий блок».`,
+      keyboard: nextBlockKeyboard(),
     },
     [STEPS.COMPLETED]: {
       text: '✅ Полный стек блоков завершён.',
@@ -379,89 +368,6 @@ export async function handleCallback(from, callbackData) {
       return await showBlockPrep(session, chat.id);
     }
 
-    case 'suggested_prompt': {
-      if (session.step !== STEPS.BLOCK_REVIEW) {
-        return resumePrompt(session);
-      }
-
-      const promptIndex = parsed.value;
-      const blockId = session.last_block_id;
-      
-      if (!blockId) {
-        return rejectWrongInput(session, 'Блок не найден.');
-      }
-
-      // Получаем suggested prompts из сессии
-      const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
-      const selectedPrompt = prompts[promptIndex];
-
-      if (!selectedPrompt) {
-        return rejectWrongInput(session, 'Вопрос не найден.');
-      }
-
-      // Помечаем промпт как использованный
-      const usedPrompts = session.collected_data?.used_prompts?.[blockId] || [];
-      if (!usedPrompts.includes(promptIndex)) {
-        usedPrompts.push(promptIndex);
-        const data = mergeCollectedData(session, {
-          used_prompts: {
-            ...(session.collected_data?.used_prompts || {}),
-            [blockId]: usedPrompts,
-          },
-        });
-        await updateSession(from.id, { collected_data: data });
-      }
-
-      // Отправляем выбранный промпт как сообщение пользователя в ИИ
-      await saveChatMessages(chat.id, [
-        { role: 'user', content: selectedPrompt },
-      ]);
-
-      // Получаем ответ от ИИ
-      const { askGpt } = await import('../ai/gptunnel.js');
-      const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { extractMetacomments } = await import('../ai/formatResponse.js');
-
-      const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
-      const messages = [
-        { role: 'system', content: getSystemPrompt() },
-        ...sessionMessages,
-      ];
-
-      let aiResponse;
-      try {
-        aiResponse = await askGpt(messages);
-      } catch (err) {
-        console.error('Ошибка ИИ на suggested prompt:', err.message);
-        
-        // Фильтруем неиспользованные промпты
-        const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
-        
-        return {
-          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
-          keyboard: nextBlockKeyboard(remainingPrompts),
-        };
-      }
-
-      // Сохраняем ответ ИИ
-      await saveChatMessages(chat.id, [
-        { role: 'assistant', content: aiResponse },
-      ]);
-
-      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = extractMetacomments(aiResponse, 50000);
-      const chunks = splitTelegramMessages(formattedResponse);
-
-      // Фильтруем неиспользованные промпты для клавиатуры
-      const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
-
-      return {
-        text: chunks[0],
-        extraMessages: chunks.slice(1),
-        keyboard: nextBlockKeyboard(remainingPrompts),
-      };
-    }
-
     case 'next_block': {
       if (session.step !== STEPS.BLOCK_REVIEW) {
         return resumePrompt(session);
@@ -531,16 +437,11 @@ async function runCurrentBlock(from, chatId) {
   session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
 
   try {
-    const { blockId, userMessage, suggestedPrompts } = await runAnalysisBlock({
+    const { blockId, userMessage } = await runAnalysisBlock({
       session,
       chatId,
       userId,
     });
-
-    // Сохраняем suggested prompts в сессии
-    if (suggestedPrompts && suggestedPrompts.length > 0) {
-      await saveSuggestedPrompts(userId, blockId, suggestedPrompts);
-    }
 
     session = await updateSession(userId, {
       step: STEPS.BLOCK_REVIEW,
@@ -552,7 +453,7 @@ async function runCurrentBlock(from, chatId) {
     return {
       text: chunks[0],
       extraMessages: chunks.slice(1),
-      keyboard: nextBlockKeyboard(suggestedPrompts),
+      keyboard: nextBlockKeyboard(),
     };
   } catch (err) {
     console.error('Ошибка блока:', err.message);
@@ -642,67 +543,6 @@ export async function handleText(from, rawText) {
       return {
         text: '✅ Ответ сохранён.\n\nМожешь добавить ещё текст, прикрепить файл или запустить блок.',
         keyboard: blockPrepKeyboard(block.id, data),
-      };
-    }
-
-    case STEPS.BLOCK_REVIEW: {
-      // Пользователь задаёт свой вопрос (не из suggested prompts)
-      const blockId = session.last_block_id;
-      
-      if (!blockId) {
-        return rejectWrongInput(session, 'Блок не найден.');
-      }
-
-      // Отправляем вопрос пользователя в ИИ
-      await saveChatMessages(chat.id, [
-        { role: 'user', content: rawText },
-      ]);
-
-      // Получаем ответ от ИИ
-      const { askGpt } = await import('../ai/gptunnel.js');
-      const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { extractMetacomments } = await import('../ai/formatResponse.js');
-
-      const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
-      const messages = [
-        { role: 'system', content: getSystemPrompt() },
-        ...sessionMessages,
-      ];
-
-      let aiResponse;
-      try {
-        aiResponse = await askGpt(messages);
-      } catch (err) {
-        console.error('Ошибка ИИ на текстовый вопрос:', err.message);
-        
-        const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
-        const usedPrompts = session.collected_data?.used_prompts?.[blockId] || [];
-        const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
-        
-        return {
-          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
-          keyboard: nextBlockKeyboard(remainingPrompts),
-        };
-      }
-
-      // Сохраняем ответ ИИ
-      await saveChatMessages(chat.id, [
-        { role: 'assistant', content: aiResponse },
-      ]);
-
-      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = extractMetacomments(aiResponse, 50000);
-      const chunks = splitTelegramMessages(formattedResponse);
-
-      // Получаем оставшиеся промпты
-      const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
-      const usedPrompts = session.collected_data?.used_prompts?.[blockId] || [];
-      const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
-
-      return {
-        text: chunks[0],
-        extraMessages: chunks.slice(1),
-        keyboard: nextBlockKeyboard(remainingPrompts),
       };
     }
 

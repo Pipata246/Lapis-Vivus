@@ -229,7 +229,6 @@ export const TEXT_INPUT_STEPS = new Set([
   STEPS.BIRTH_TIME,
   STEPS.BIRTH_PLACE,
   STEPS.BLOCK_PREP,  // Пользователь может отвечать на вопросы ИИ на экране блока
-  STEPS.BLOCK_REVIEW, // Пользователь может задавать вопросы после блока
 ]);
 
 export const FILE_ONLY_STEPS = new Set([STEPS.BLOCK_PREP]);
