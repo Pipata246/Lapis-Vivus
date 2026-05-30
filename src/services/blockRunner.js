@@ -2,6 +2,7 @@ import { askGpt } from '../ai/gptunnel.js';
 import { validateBlockResponse } from '../ai/validateResponse.js';
 import { extractJsonFromAnswer, extractMetacomments, formatBlockForUser } from '../ai/formatResponse.js';
 import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
+import { sanitizeUserInput } from '../ai/sanitizeUserInput.js';
 import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 import { getBlockFiles } from '../db/files.js';

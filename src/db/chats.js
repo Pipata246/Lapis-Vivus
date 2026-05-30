@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase.js';
+import { sanitizeUserInput } from '../ai/sanitizeUserInput.js';
 
 const ALLOWED_ROLES = new Set(['user', 'assistant', 'system']);
 const MAX_USER_MESSAGE_LENGTH = 4000;
@@ -124,8 +125,15 @@ export async function getChatMessagesForAI(chatId, sessionStartAt) {
     throw new Error(`Не удалось загрузить сообщения: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => ({
-    role: row.role,
-    content: row.content,
-  }));
+  return (data ?? []).map((row) => {
+    // Санитизируем пользовательские сообщения перед отправкой в ИИ
+    const content = row.role === 'user' 
+      ? sanitizeUserInput(row.content)
+      : row.content;
+    
+    return {
+      role: row.role,
+      content: content,
+    };
+  });
 }

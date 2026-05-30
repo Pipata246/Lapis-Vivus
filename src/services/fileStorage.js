@@ -1,5 +1,6 @@
 import { getSupabase } from '../db/supabase.js';
 import { loadBotConfig } from '../config.js';
+import { sanitizeUserInput } from '../ai/sanitizeUserInput.js';
 
 const STORAGE_BUCKET = 'user-files';
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
@@ -106,6 +107,7 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
 
 /**
  * Извлекает текст из файла для ИИ
+ * ВАЖНО: Санитизирует извлечённый текст для защиты от prompt injection
  */
 export async function extractTextFromFile(buffer, fileType, mimeType) {
   // Для изображений возвращаем null (они обрабатываются через vision)
@@ -113,22 +115,27 @@ export async function extractTextFromFile(buffer, fileType, mimeType) {
     return null;
   }
 
+  let extractedText = null;
+
   // Для текстовых файлов
   if (fileType === 'text') {
     try {
-      return buffer.toString('utf-8').slice(0, 50000);
+      extractedText = buffer.toString('utf-8').slice(0, 50000);
     } catch {
-      return '[Не удалось декодировать текстовый файл]';
+      extractedText = '[Не удалось декодировать текстовый файл]';
     }
   }
-
   // Для PDF и DOCX нужна обработка библиотеками (будет добавлено позже)
-  if (fileType === 'pdf') {
-    return '[PDF файл — текст будет извлечён при наличии библиотеки pdf-parse]';
+  else if (fileType === 'pdf') {
+    extractedText = '[PDF файл — текст будет извлечён при наличии библиотеки pdf-parse]';
+  }
+  else if (fileType === 'docx') {
+    extractedText = '[DOCX файл — текст будет извлечён при наличии библиотеки mammoth]';
   }
 
-  if (fileType === 'docx') {
-    return '[DOCX файл — текст будет извлечён при наличии библиотеки mammoth]';
+  // Санитизируем извлечённый текст для защиты от prompt injection
+  if (extractedText) {
+    return sanitizeUserInput(extractedText);
   }
 
   return null;
