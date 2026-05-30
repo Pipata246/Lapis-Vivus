@@ -400,24 +400,28 @@ export async function handleCallback(from, callbackData) {
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
       const { extractMetacomments } = await import('../ai/formatResponse.js');
 
-      // Для quick_question используем ТОЛЬКО последние сообщения (без служебных данных блоков)
+      // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       
-      // Фильтруем служебные сообщения
-      const filteredMessages = sessionMessages.filter(msg => {
+      // Очищаем сообщения от служебной информации, но СОХРАНЯЕМ контекст
+      const cleanedMessages = sessionMessages.map(msg => {
+        // Убираем служебные сообщения "[служебно] запрос блока"
         if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return false;
+          return null;
         }
-        // Убираем JSON из ответов ассистента
+        // Из ответов ассистента убираем JSON, оставляем только метакомментарии
         if (msg.role === 'assistant') {
-          msg.content = extractMetacomments(msg.content, 50000);
+          return {
+            role: 'assistant',
+            content: extractMetacomments(msg.content, 50000),
+          };
         }
-        return true;
-      });
+        return msg;
+      }).filter(Boolean);
 
       const messages = [
         { role: 'system', content: getSystemPrompt() },
-        ...filteredMessages,
+        ...cleanedMessages,
       ];
 
       let aiResponse;
@@ -647,24 +651,28 @@ export async function handleText(from, rawText) {
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
       const { extractMetacomments } = await import('../ai/formatResponse.js');
 
-      // Для вопросов пользователя используем ТОЛЬКО последние сообщения (без служебных данных блоков)
+      // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       
-      // Фильтруем служебные сообщения
-      const filteredMessages = sessionMessages.filter(msg => {
+      // Очищаем сообщения от служебной информации, но СОХРАНЯЕМ контекст
+      const cleanedMessages = sessionMessages.map(msg => {
+        // Убираем служебные сообщения "[служебно] запрос блока"
         if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return false;
+          return null;
         }
-        // Убираем JSON из ответов ассистента
+        // Из ответов ассистента убираем JSON, оставляем только метакомментарии
         if (msg.role === 'assistant') {
-          msg.content = extractMetacomments(msg.content, 50000);
+          return {
+            role: 'assistant',
+            content: extractMetacomments(msg.content, 50000),
+          };
         }
-        return true;
-      });
+        return msg;
+      }).filter(Boolean);
 
       const messages = [
         { role: 'system', content: getSystemPrompt() },
-        ...filteredMessages,
+        ...cleanedMessages,
       ];
 
       let aiResponse;
