@@ -82,6 +82,9 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
   const nextBlock = BLOCK_STACK[blockIndex + 1];
   const data = session.collected_data ?? {};
 
+  // Получаем текст от пользователя для текущего блока
+  const userBlockText = data.block_user_text?.[block.id] || null;
+
   return {
     режим: 'lapis_vivus_telegram_operator',
     протокол: 'v26.9',
@@ -105,6 +108,7 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
     внешняя_фактура: {
       блок: block.id,
       файлов_прикреплено: filesCount,
+      текст_от_пользователя: userBlockText,
     },
     контекст_прошлых_блоков: buildCompletedContext(completedBlocks, blockIndex),
     инструкция_исполнения:

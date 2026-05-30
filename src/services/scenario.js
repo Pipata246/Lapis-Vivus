@@ -99,10 +99,18 @@ async function blockPrepText(session, chatId) {
   } else if (block.requiresExternal) {
     fileLine =
       block.id === '3B'
-        ? '📎 Нужен файл (скрин/документ) или данные блока 3. Текст не принимается.'
-        : '📎 Файл обязателен (скрин/документ/PDF). Текст на этом шаге не принимается.';
+        ? '📎 Нужен файл (скрин/документ) или текст. Можно написать ответ или прикрепить файл.'
+        : '📎 Файл обязателен (скрин/документ/PDF) или текст. Можно написать ответ или прикрепить файл.';
   } else {
-    fileLine = '📎 Файл по желанию (скрин/документ/PDF). Текст на этом шаге не принимается.';
+    fileLine = '📎 Файл по желанию (скрин/документ/PDF). Можно написать текст или прикрепить файл.';
+  }
+
+  // Проверяем есть ли текст от пользователя
+  const userText = session.collected_data?.block_user_text?.[block.id];
+  let textLine = null;
+  if (userText) {
+    const preview = userText.length > 100 ? userText.slice(0, 100) + '...' : userText;
+    textLine = `💬 Твой текст: "${preview}"`;
   }
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
@@ -113,6 +121,7 @@ async function blockPrepText(session, chatId) {
     calcBlock || null,
     calcBlock ? '' : null,
     fileLine,
+    textLine || null,
     '',
     'Когда готов — нажми «Запустить блок».',
   ]
@@ -330,10 +339,13 @@ export async function handleCallback(from, callbackData) {
       
       // Проверяем файлы в БД
       const files = await getBlockFiles(chat.id, block.id);
-      if (block.requiresExternal && files.length === 0) {
+      const userText = session.collected_data?.block_user_text?.[block.id];
+      
+      // Если блок требует внешние данные, нужен хотя бы файл ИЛИ текст
+      if (block.requiresExternal && files.length === 0 && !userText) {
         const text = await blockPrepText(session, chat.id);
         return {
-          text: `${text}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин или документ).`,
+          text: `${text}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин/документ) или текст с ответами.`,
           keyboard: blockPrepKeyboard(block.id, session.collected_data),
         };
       }
@@ -461,13 +473,6 @@ export async function handleText(from, rawText) {
         keyboard: runningKeyboard(),
       };
     }
-    if (step === STEPS.BLOCK_PREP) {
-      const block = currentBlock(session);
-      return {
-        text: `Текст на этом шаге не принимается. Прикрепи файл или нажми «Запустить блок».`,
-        keyboard: blockPrepKeyboard(block?.id, session.collected_data),
-      };
-    }
     const hints = {
       [STEPS.GENDER]: 'На этом шаге выбери пол кнопкой.',
       [STEPS.CONFIRM]: 'Подтверди данные кнопкой ниже.',
@@ -505,6 +510,32 @@ export async function handleText(from, rawText) {
       return {
         text: `${formatProfile(data)}\n\nПодтверди данные:`,
         keyboard: confirmKeyboard(),
+      };
+    }
+
+    case STEPS.BLOCK_PREP: {
+      // Пользователь отвечает на уточняющие вопросы ИИ
+      // Сохраняем текст как "дополнительную информацию" для блока
+      const block = currentBlock(session);
+      if (!block) {
+        return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
+      }
+
+      // Добавляем текст к collected_data для передачи в ИИ
+      const existingText = session.collected_data?.block_user_text?.[block.id] || '';
+      const newText = existingText ? `${existingText}\n\n${rawText}` : rawText;
+      
+      const blockTexts = {
+        ...(session.collected_data?.block_user_text || {}),
+        [block.id]: newText,
+      };
+
+      const data = mergeCollectedData(session, { block_user_text: blockTexts });
+      await updateSession(from.id, { collected_data: data });
+
+      return {
+        text: '✅ Ответ сохранён.\n\nМожешь добавить ещё текст, прикрепить файл или запустить блок.',
+        keyboard: blockPrepKeyboard(block.id, data),
       };
     }
 
