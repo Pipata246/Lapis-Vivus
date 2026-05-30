@@ -55,6 +55,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'reset',
   'menu',
   'links',
+  'quick_question',
 ]);
 
 function parseDateParts(dateStr) {
@@ -92,7 +93,12 @@ export function parseCallbackData(data) {
     return null;
   }
 
-  if (action !== 'gender' && value !== null) {
+  // quick_question может иметь value (индекс вопроса)
+  if (action === 'quick_question' && value === null) {
+    return null;
+  }
+
+  if (action !== 'gender' && action !== 'quick_question' && value !== null) {
     return null;
   }
 
