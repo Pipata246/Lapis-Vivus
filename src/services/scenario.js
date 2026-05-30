@@ -403,21 +403,19 @@ export async function handleCallback(from, callbackData) {
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       
-      // Очищаем сообщения от служебной информации, но СОХРАНЯЕМ контекст
-      const cleanedMessages = sessionMessages.map(msg => {
+      console.log('📊 [quick_question] Всего сообщений:', sessionMessages.length);
+      
+      // Убираем ТОЛЬКО служебные сообщения "[служебно] запрос блока"
+      // НО СОХРАНЯЕМ полные ответы ассистента (с JSON и метакомментариями)
+      const cleanedMessages = sessionMessages.filter(msg => {
         // Убираем служебные сообщения "[служебно] запрос блока"
         if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return null;
+          return false;
         }
-        // Из ответов ассистента убираем JSON, оставляем только метакомментарии
-        if (msg.role === 'assistant') {
-          return {
-            role: 'assistant',
-            content: extractMetacomments(msg.content, 50000),
-          };
-        }
-        return msg;
-      }).filter(Boolean);
+        return true;
+      });
+      
+      console.log('📊 После очистки:', cleanedMessages.length, 'сообщений');
 
       const messages = [
         { role: 'system', content: getSystemPrompt() },
@@ -654,21 +652,19 @@ export async function handleText(from, rawText) {
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       
-      // Очищаем сообщения от служебной информации, но СОХРАНЯЕМ контекст
-      const cleanedMessages = sessionMessages.map(msg => {
+      console.log('📊 [text_question] Всего сообщений:', sessionMessages.length);
+      
+      // Убираем ТОЛЬКО служебные сообщения "[служебно] запрос блока"
+      // НО СОХРАНЯЕМ полные ответы ассистента (с JSON и метакомментариями)
+      const cleanedMessages = sessionMessages.filter(msg => {
         // Убираем служебные сообщения "[служебно] запрос блока"
         if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return null;
+          return false;
         }
-        // Из ответов ассистента убираем JSON, оставляем только метакомментарии
-        if (msg.role === 'assistant') {
-          return {
-            role: 'assistant',
-            content: extractMetacomments(msg.content, 50000),
-          };
-        }
-        return msg;
-      }).filter(Boolean);
+        return true;
+      });
+      
+      console.log('📊 После очистки:', cleanedMessages.length, 'сообщений');
 
       const messages = [
         { role: 'system', content: getSystemPrompt() },
