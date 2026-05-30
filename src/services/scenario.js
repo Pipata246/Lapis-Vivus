@@ -193,6 +193,17 @@ function showMenu() {
 function resumePrompt(session) {
   session = recoverStaleBlockRunning(session);
   const step = session.step;
+  
+  // Для BLOCK_REVIEW нужно фильтровать использованные промпты
+  let blockReviewKeyboard = null;
+  if (step === STEPS.BLOCK_REVIEW && session.last_block_id) {
+    const blockId = session.last_block_id;
+    const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
+    const usedPrompts = session.collected_data?.used_prompts?.[blockId] || [];
+    const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
+    blockReviewKeyboard = nextBlockKeyboard(remainingPrompts);
+  }
+  
   const messages = {
     [STEPS.GENDER]: { text: 'Выбери пол:', keyboard: genderKeyboard() },
     [STEPS.BIRTH_DATE]: { text: 'Введи дату рождения: ДД.ММ.ГГГГ', keyboard: textInputKeyboard() },
@@ -218,8 +229,8 @@ function resumePrompt(session) {
       keyboard: runningKeyboard(),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `Блок ${session.last_block_id ?? ''} завершён. Нажми «Следующий блок».`,
-      keyboard: nextBlockKeyboard(session.collected_data?.suggested_prompts?.[session.last_block_id] || []),
+      text: `Блок ${session.last_block_id ?? ''} завершён. Можешь задать вопросы или нажми «Следующий блок».`,
+      keyboard: blockReviewKeyboard,
     },
     [STEPS.COMPLETED]: {
       text: '✅ Полный стек блоков завершён.',
@@ -409,6 +420,7 @@ export async function handleCallback(from, callbackData) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
+      const { extractMetacomments } = await import('../ai/formatResponse.js');
 
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       const messages = [
@@ -437,7 +449,6 @@ export async function handleCallback(from, callbackData) {
       ]);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const { extractMetacomments } = await import('../ai/formatResponse.js');
       const formattedResponse = extractMetacomments(aiResponse, 50000);
       const chunks = splitTelegramMessages(formattedResponse);
 
