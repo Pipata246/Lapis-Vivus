@@ -89,18 +89,42 @@ export async function getChatFiles(chatId) {
 }
 
 /**
- * Удаляет файлы блока
+ * Удаляет все файлы чата из БД и Storage
  */
-export async function deleteBlockFiles(chatId, blockId) {
+export async function deleteAllChatFiles(chatId) {
   const supabase = getSupabase();
 
-  const { error } = await supabase
+  // Получаем все файлы чата
+  const { data: files, error: selectError } = await supabase
+    .from('user_files')
+    .select('storage_path')
+    .eq('chat_id', chatId);
+
+  if (selectError) {
+    console.error('Ошибка получения файлов для удаления:', selectError.message);
+  }
+
+  // Удаляем файлы из Storage
+  if (files && files.length > 0) {
+    const paths = files.map(f => f.storage_path).filter(Boolean);
+    if (paths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('user-files')
+        .remove(paths);
+      
+      if (storageError) {
+        console.error('Ошибка удаления файлов из Storage:', storageError.message);
+      }
+    }
+  }
+
+  // Удаляем записи из БД
+  const { error: deleteError } = await supabase
     .from('user_files')
     .delete()
-    .eq('chat_id', chatId)
-    .eq('block_id', blockId);
+    .eq('chat_id', chatId);
 
-  if (error) {
-    throw new Error(`Не удалось удалить файлы: ${error.message}`);
+  if (deleteError) {
+    console.error('Ошибка удаления файлов из БД:', deleteError.message);
   }
 }

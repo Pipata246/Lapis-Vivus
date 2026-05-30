@@ -35,7 +35,7 @@ import {
   mergeCollectedData,
   recoverStaleBlockRunning,
 } from '../db/sessions.js';
-import { saveUserFile, getBlockFiles } from '../db/files.js';
+import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js';
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
@@ -160,8 +160,9 @@ function rejectWrongInput(session, hint) {
 export async function initUser(from) {
   const { chat, session } = await ensureSession(from);
   
-  // При /start всегда сбрасываем сессию и контекст ИИ
+  // При /start всегда сбрасываем сессию, контекст ИИ и удаляем все файлы
   await resetSession(from.id, chat.id);
+  await deleteAllChatFiles(chat.id);
   
   return showMenu();
 }
@@ -223,6 +224,7 @@ export async function handleCallback(from, callbackData) {
   switch (parsed.action) {
     case 'menu':
       await resetSession(from.id, chat.id);
+      await deleteAllChatFiles(chat.id);
       return showMenu();
 
     case 'links': {
@@ -250,14 +252,16 @@ export async function handleCallback(from, callbackData) {
 
     case 'reset':
       await resetSession(from.id, chat.id);
+      await deleteAllChatFiles(chat.id);
       return {
         text: 'Сессия сброшена. Можно начать новый анализ.',
         keyboard: menuKeyboard(),
       };
 
     case 'start': {
-      // При нажатии "Начать анализ" всегда сбрасываем сессию и контекст ИИ
+      // При нажатии "Начать анализ" всегда сбрасываем сессию, контекст ИИ и удаляем файлы
       await resetSession(from.id, chat.id);
+      await deleteAllChatFiles(chat.id);
       await updateSession(from.id, {
         step: STEPS.GENDER,
         collected_data: {},
