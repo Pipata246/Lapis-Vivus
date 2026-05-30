@@ -436,8 +436,10 @@ export async function handleCallback(from, callbackData) {
         { role: 'assistant', content: aiResponse },
       ]);
 
-      // Форматируем ответ для пользователя
-      const chunks = splitTelegramMessages(aiResponse);
+      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
+      const { extractMetacomments } = await import('../ai/formatResponse.js');
+      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const chunks = splitTelegramMessages(formattedResponse);
 
       // Фильтруем неиспользованные промпты для клавиатуры
       const remainingPrompts = prompts.filter((_, idx) => !usedPrompts.includes(idx));
@@ -556,7 +558,7 @@ async function runCurrentBlock(from, chatId) {
 }
 
 export async function handleText(from, rawText) {
-  const { session } = await ensureSession(from);
+  const { chat, session } = await ensureSession(from);
   const step = session.step;
 
   if (!TEXT_INPUT_STEPS.has(step)) {
@@ -566,10 +568,10 @@ export async function handleText(from, rawText) {
         keyboard: runningKeyboard(),
       };
     }
+    // Убираем хинты для BLOCK_REVIEW — там текст разрешён
     const hints = {
       [STEPS.GENDER]: 'На этом шаге выбери пол кнопкой.',
       [STEPS.CONFIRM]: 'Подтверди данные кнопкой ниже.',
-      [STEPS.BLOCK_REVIEW]: 'Нажми «Следующий блок».',
       [STEPS.BLOCK_FAILED]: 'Нажми «Повторить блок» или вернись в меню.',
     };
     return rejectWrongInput(session, hints[step] ?? REJECT_TEXT);
@@ -648,6 +650,7 @@ export async function handleText(from, rawText) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
+      const { extractMetacomments } = await import('../ai/formatResponse.js');
 
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
       const messages = [
@@ -676,8 +679,9 @@ export async function handleText(from, rawText) {
         { role: 'assistant', content: aiResponse },
       ]);
 
-      // Форматируем ответ для пользователя
-      const chunks = splitTelegramMessages(aiResponse);
+      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
+      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const chunks = splitTelegramMessages(formattedResponse);
 
       // Получаем оставшиеся промпты
       const prompts = session.collected_data?.suggested_prompts?.[blockId] || [];
