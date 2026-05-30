@@ -369,6 +369,9 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'quick_question': {
+      // Обновляем сессию из БД на случай если она изменилась
+      session = await getSession(from.id);
+      
       if (session.step !== STEPS.BLOCK_REVIEW) {
         return resumePrompt(session);
       }
