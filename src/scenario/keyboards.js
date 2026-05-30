@@ -63,7 +63,16 @@ export function blockPrepKeyboard(blockId, collectedData = {}) {
 
 export function nextBlockKeyboard() {
   return {
-    inline_keyboard: [[{ text: '▶️ Следующий блок', callback_data: cb('next_block') }]],
+    inline_keyboard: [
+      [
+        { text: '💡 Как применить?', callback_data: cb('quick_question', '0') },
+        { text: '📖 Расскажи подробнее', callback_data: cb('quick_question', '1') },
+      ],
+      [
+        { text: '🔍 Что это значит?', callback_data: cb('quick_question', '2') },
+      ],
+      [{ text: '▶️ Следующий блок', callback_data: cb('next_block') }],
+    ],
   };
 }
 

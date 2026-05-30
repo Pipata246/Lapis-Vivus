@@ -368,6 +368,68 @@ export async function handleCallback(from, callbackData) {
       return await showBlockPrep(session, chat.id);
     }
 
+    case 'quick_question': {
+      if (session.step !== STEPS.BLOCK_REVIEW) {
+        return resumePrompt(session);
+      }
+
+      // Статичные вопросы (не генерируются ИИ)
+      const quickQuestions = [
+        'Как мне применить эту информацию в жизни?',
+        'Расскажи подробнее об этом блоке',
+        'Что конкретно это значит для меня?',
+      ];
+
+      const questionIndex = parseInt(parsed.value, 10);
+      const selectedQuestion = quickQuestions[questionIndex];
+
+      if (!selectedQuestion) {
+        return rejectWrongInput(session, 'Вопрос не найден.');
+      }
+
+      // Отправляем вопрос в ИИ как обычное сообщение пользователя
+      await saveChatMessages(chat.id, [
+        { role: 'user', content: selectedQuestion },
+      ]);
+
+      // Получаем ответ от ИИ
+      const { askGpt } = await import('../ai/gptunnel.js');
+      const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
+      const { extractMetacomments } = await import('../ai/formatResponse.js');
+
+      const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
+      const messages = [
+        { role: 'system', content: getSystemPrompt() },
+        ...sessionMessages,
+      ];
+
+      let aiResponse;
+      try {
+        aiResponse = await askGpt(messages);
+      } catch (err) {
+        console.error('Ошибка ИИ на quick question:', err.message);
+        return {
+          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
+          keyboard: nextBlockKeyboard(),
+        };
+      }
+
+      // Сохраняем ответ ИИ
+      await saveChatMessages(chat.id, [
+        { role: 'assistant', content: aiResponse },
+      ]);
+
+      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
+      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const chunks = splitTelegramMessages(formattedResponse);
+
+      return {
+        text: chunks[0],
+        extraMessages: chunks.slice(1),
+        keyboard: nextBlockKeyboard(),
+      };
+    }
+
     case 'next_block': {
       if (session.step !== STEPS.BLOCK_REVIEW) {
         return resumePrompt(session);
@@ -449,9 +511,13 @@ async function runCurrentBlock(from, chatId) {
     });
 
     const chunks = splitTelegramMessages(userMessage);
+    
+    // Добавляем подсказку что можно задать вопросы
+    const hintText = '\n\n💬 Можешь задать вопросы по результату или нажать «Следующий блок»';
+    const firstChunk = chunks[0] + hintText;
 
     return {
-      text: chunks[0],
+      text: firstChunk,
       extraMessages: chunks.slice(1),
       keyboard: nextBlockKeyboard(),
     };
@@ -543,6 +609,57 @@ export async function handleText(from, rawText) {
       return {
         text: '✅ Ответ сохранён.\n\nМожешь добавить ещё текст, прикрепить файл или запустить блок.',
         keyboard: blockPrepKeyboard(block.id, data),
+      };
+    }
+
+    case STEPS.BLOCK_REVIEW: {
+      // Пользователь задаёт свой вопрос (свободный текст)
+      const blockId = session.last_block_id;
+      
+      if (!blockId) {
+        return rejectWrongInput(session, 'Блок не найден.');
+      }
+
+      // Отправляем вопрос пользователя в ИИ как обычное сообщение
+      await saveChatMessages(chat.id, [
+        { role: 'user', content: rawText },
+      ]);
+
+      // Получаем ответ от ИИ
+      const { askGpt } = await import('../ai/gptunnel.js');
+      const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
+      const { extractMetacomments } = await import('../ai/formatResponse.js');
+
+      const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
+      const messages = [
+        { role: 'system', content: getSystemPrompt() },
+        ...sessionMessages,
+      ];
+
+      let aiResponse;
+      try {
+        aiResponse = await askGpt(messages);
+      } catch (err) {
+        console.error('Ошибка ИИ на текстовый вопрос:', err.message);
+        return {
+          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
+          keyboard: nextBlockKeyboard(),
+        };
+      }
+
+      // Сохраняем ответ ИИ
+      await saveChatMessages(chat.id, [
+        { role: 'assistant', content: aiResponse },
+      ]);
+
+      // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
+      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const chunks = splitTelegramMessages(formattedResponse);
+
+      return {
+        text: chunks[0],
+        extraMessages: chunks.slice(1),
+        keyboard: nextBlockKeyboard(),
       };
     }
 
