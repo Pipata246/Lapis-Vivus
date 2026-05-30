@@ -82,7 +82,7 @@ export async function uploadTelegramFileToStorage(fileId, userId, blockId, fileN
 
   // 5. Загружаем в Supabase Storage
   const supabase = getSupabase();
-  const { data: uploadData, error: uploadError } = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from(STORAGE_BUCKET)
     .upload(storagePath, buffer, {
       contentType: mimeType || 'application/octet-stream',
