@@ -208,7 +208,10 @@ function resumePrompt(session) {
       text: formatProfile(session.collected_data),
       keyboard: confirmKeyboard(),
     },
-    [STEPS.BLOCK_PREP]: { text: 'Подготовка блока...', keyboard: null },
+    [STEPS.BLOCK_PREP]: { 
+      text: 'Подготовка блока...', 
+      keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data),
+    },
     [STEPS.BLOCK_FAILED]: {
       text: `Блок ${session.last_block_id ?? ''} не выполнен. Повтори или вернись в меню.`,
       keyboard: blockFailedKeyboard(),
@@ -350,6 +353,8 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
+      console.log(`[skip_block] Пропускаем блок ${block.id}`);
+
       // Сохраняем пустой JSON для блока (чтобы оператор знал что блок пропущен)
       const { saveBlockResult } = await import('../db/blockResults.js');
       const skippedJson = {
@@ -367,13 +372,16 @@ export async function handleCallback(from, callbackData) {
           responseText: `[ПРОПУЩЕНО] Блок ${block.id} пропущен оператором`,
           jsonPayload: skippedJson,
         });
+        console.log(`[skip_block] Блок ${block.id} сохранен в БД как пропущенный`);
       } catch (err) {
         console.error('Ошибка сохранения пропущенного блока:', err.message);
       }
 
       // Переход к следующему блоку
       const nextIndex = session.block_index + 1;
+      
       if (nextIndex >= BLOCK_STACK.length) {
+        console.log('[skip_block] Это был последний блок, завершаем');
         await updateSession(from.id, { step: STEPS.COMPLETED });
         
         // Сохраняем итоговый профиль пользователя
@@ -407,7 +415,8 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
-      // Обновляем индекс блока
+      // Обновляем индекс блока и переходим к следующему
+      console.log(`[skip_block] Переходим к блоку с индексом ${nextIndex}`);
       await updateSession(from.id, {
         block_index: nextIndex,
         step: STEPS.BLOCK_PREP,
@@ -415,15 +424,20 @@ export async function handleCallback(from, callbackData) {
       });
       
       // Перечитываем обновленную сессию
-      const newSession = await getSession(from.id);
+      const updatedSession = await getSession(from.id);
+      console.log(`[skip_block] Обновленная сессия: block_index=${updatedSession.block_index}, step=${updatedSession.step}`);
       
-      // Получаем информацию о следующем блоке
+      // Получаем следующий блок
       const nextBlock = BLOCK_STACK[nextIndex];
-      const prepText = await blockPrepText(newSession, chat.id);
+      console.log(`[skip_block] Следующий блок: ${nextBlock.id}`);
+      
+      // ВАЖНО: Используем updatedSession для получения информации о следующем блоке
+      const nextBlockText = await blockPrepText(updatedSession, chat.id);
+      const nextBlockKeyboard = blockPrepKeyboard(nextBlock.id, updatedSession.collected_data);
       
       return {
-        text: `⏭ Блок ${block.id} пропущен (данные сохранены в БД).\n\n${prepText}`,
-        keyboard: blockPrepKeyboard(nextBlock?.id, newSession.collected_data),
+        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockText}`,
+        keyboard: nextBlockKeyboard,
       };
     }
 
