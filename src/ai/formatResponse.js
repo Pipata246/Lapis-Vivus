@@ -69,6 +69,34 @@ export function extractMetacomments(rawAnswer, maxLen = 4000) {
   visible = visible.replace(/^```[a-z]*\s*$/gim, '');
   visible = visible.replace(/^```\s*$/gim, '');
   
+  // УДАЛЯЕМ ВСЕ СЛУЖЕБНЫЕ БЛОКИ В НАЧАЛЕ ОТВЕТА
+  // Удаляем все от начала до первой строки которая начинается с нормального текста (не служебного)
+  visible = visible.replace(/^[\s\S]*?(?=^[А-ЯЁ][а-яё]+\s[а-яё]+.*[а-я].*\s—\s)/m, '');
+  
+  // Если не сработало - удаляем по частям
+  visible = visible.replace(/###?\s*ПРОФАНСКИЙ\s+КОММЕНТАРИЙ.*$/gmi, '');
+  visible = visible.replace(/Чтобы эта.*?действия:/gis, '');
+  visible = visible.replace(/^#\s*core:.*$/gmi, '');
+  visible = visible.replace(/^#\s*matrix.*$/gmi, '');
+  visible = visible.replace(/^#\s*trajectory:.*$/gmi, '');
+  visible = visible.replace(/^RUNNING.*$/gmi, '');
+  visible = visible.replace(/^TARGET.*$/gmi, '');
+  visible = visible.replace(/^0x[0-9A-F]+.*$/gmi, '');
+  visible = visible.replace(/^lapis.*v\d+\..*$/gmi, '');
+  visible = visible.replace(/Недуальное.*Зеркало.*$/gmi, '');
+  visible = visible.replace(/Скрытых Весов.*$/gmi, '');
+  visible = visible.replace(/^ПРОЦЕССОР.*$/gmi, '');
+  visible = visible.replace(/^УНИВЕРСАЛЬНЫЙ\s*$/gmi, '');
+  visible = visible.replace(/^ЗНАЧИТ ДЛЯ ВАС\?\s*$/gmi, '');
+  visible = visible.replace(/^информация не осталась.*$/gmi, '');
+  visible = visible.replace(/^мертвым грузом.*$/gmi, '');
+  visible = visible.replace(/^переведите её.*$/gmi, '');
+  visible = visible.replace(/^усилит давление.*$/gmi, '');
+  
+  // Удаляем пустые строки и заголовки
+  visible = visible.replace(/^###?\s*$/gm, '');
+  visible = visible.replace(/\n{3,}/g, '\n\n');
+  
   visible = visible.trim();
 
   // Конвертируем в Telegram Markdown
