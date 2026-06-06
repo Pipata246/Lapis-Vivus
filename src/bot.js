@@ -93,7 +93,6 @@ function registerHandlers(bot) {
             'Отправьте новый текст системного промпта.\n\n' +
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
-            '• PDF файл\n' +
             '• TXT файл\n\n' +
             '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
@@ -108,7 +107,6 @@ function registerHandlers(bot) {
             'Отправьте новый текст этапов блоков.\n\n' +
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
-            '• PDF файл\n' +
             '• TXT файл\n\n' +
             '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
@@ -286,9 +284,15 @@ function registerHandlers(bot) {
       const mimeType = document.mime_type || '';
       const fileName = document.file_name || '';
       
-      // Проверяем тип файла
-      if (!mimeType.includes('pdf') && !mimeType.includes('text') && !fileName.endsWith('.txt')) {
-        await ctx.reply('❌ Поддерживаются только PDF и TXT файлы');
+      // Проверяем тип файла - ТОЛЬКО TXT
+      if (!mimeType.includes('text') && !fileName.endsWith('.txt')) {
+        await ctx.reply(
+          '❌ Поддерживаются только TXT файлы\n\n' +
+          'Если у вас PDF:\n' +
+          '1. Откройте PDF\n' +
+          '2. Скопируйте весь текст (Ctrl+A, Ctrl+C)\n' +
+          '3. Отправьте текст обычным сообщением или сохраните в .txt файл'
+        );
         return;
       }
       
@@ -318,16 +322,8 @@ function registerHandlers(bot) {
         const arrayBuffer = await fileRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         
-        let extractedText = '';
-        
-        // Извлекаем текст в зависимости от типа
-        if (mimeType.includes('pdf')) {
-          const pdfParse = await import('pdf-parse');
-          const pdfData = await pdfParse.default(buffer);
-          extractedText = pdfData.text;
-        } else {
-          extractedText = buffer.toString('utf-8');
-        }
+        // Извлекаем текст (только TXT)
+        const extractedText = buffer.toString('utf-8');
         
         if (!extractedText || extractedText.trim().length < 10) {
           throw new Error('Не удалось извлечь текст из файла или файл пустой');
