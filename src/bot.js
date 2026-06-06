@@ -16,15 +16,16 @@ const processingMessages = new Map();
 const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
 
-// Map для отслеживания режима админа
-const adminModes = new Map();
-
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
     try {
       // Сбрасываем режим админа при /start
-      adminModes.delete(ctx.from.id);
+      const { getSession, updateSession } = await import('./db/sessions.js');
+      const session = await getSession(ctx.from.id);
+      if (session?.admin_mode) {
+        await updateSession(ctx.from.id, { admin_mode: null });
+      }
       
       const payload = await initUser(ctx.from);
       await sendScenarioReply(ctx, payload);
@@ -74,6 +75,7 @@ function registerHandlers(bot) {
     // Обработка admin callback'ов
     if (callbackData.startsWith('admin:')) {
       const { isAdmin } = await import('./db/users.js');
+      const { updateSession } = await import('./db/sessions.js');
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
@@ -87,7 +89,7 @@ function registerHandlers(bot) {
       
       switch (action) {
         case 'edit_system_prompt':
-          adminModes.set(userId, 'edit_system_prompt');
+          await updateSession(userId, { admin_mode: 'edit_system_prompt' });
           await ctx.reply(
             '📝 *Редактирование системного промпта*\n\n' +
             'Отправьте новый текст системного промпта.\n\n' +
@@ -101,7 +103,7 @@ function registerHandlers(bot) {
           break;
           
         case 'edit_blocks':
-          adminModes.set(userId, 'edit_blocks');
+          await updateSession(userId, { admin_mode: 'edit_blocks' });
           await ctx.reply(
             '🔄 *Редактирование этапов*\n\n' +
             'Отправьте новый текст этапов блоков.\n\n' +
@@ -115,7 +117,7 @@ function registerHandlers(bot) {
           break;
           
         case 'close':
-          adminModes.delete(userId);
+          await updateSession(userId, { admin_mode: null });
           await ctx.deleteMessage().catch(() => {});
           break;
           
@@ -177,14 +179,18 @@ function registerHandlers(bot) {
 
     const userId = ctx.from.id;
     
-    // Проверяем режим админа
-    const adminMode = adminModes.get(userId);
+    // Проверяем режим админа из БД
+    const { getSession, updateSession } = await import('./db/sessions.js');
+    const session = await getSession(userId);
+    const adminMode = session?.admin_mode;
+    
     if (adminMode) {
       const { isAdmin } = await import('./db/users.js');
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        adminModes.delete(userId);
+        console.log('[text] НЕ админ, сбрасываем режим');
+        await updateSession(userId, { admin_mode: null });
         await ctx.reply('У вас недостаточно прав');
         return;
       }
@@ -197,7 +203,7 @@ function registerHandlers(bot) {
         await ctx.sendChatAction('typing').catch(() => {});
         await updatePrompt(promptId, text, userId);
         
-        adminModes.delete(userId);
+        await updateSession(userId, { admin_mode: null });
         await ctx.reply(
           `✅ ${promptName} успешно обновлен!\n\n` +
           `Длина: ${text.length} символов\n` +
@@ -269,14 +275,21 @@ function registerHandlers(bot) {
     
     const userId = ctx.from.id;
     
-    // Проверяем режим админа
-    const adminMode = adminModes.get(userId);
+    // Проверяем режим админа из БД
+    const { getSession, updateSession } = await import('./db/sessions.js');
+    const session = await getSession(userId);
+    const adminMode = session?.admin_mode;
+    
+    console.log(`[document] userId=${userId}, adminMode=${adminMode}, fileName=${document.file_name}`);
+    
     if (adminMode) {
+      console.log(`[document] Админ в режиме ${adminMode}`);
       const { isAdmin } = await import('./db/users.js');
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        adminModes.delete(userId);
+        console.log('[document] НЕ админ, сбрасываем режим');
+        await updateSession(userId, { admin_mode: null });
         await ctx.reply('У вас недостаточно прав');
         return;
       }
@@ -335,7 +348,7 @@ function registerHandlers(bot) {
         
         await updatePrompt(promptId, extractedText, userId);
         
-        adminModes.delete(userId);
+        await updateSession(userId, { admin_mode: null });
         await ctx.reply(
           `✅ ${promptName} успешно обновлен из файла!\n\n` +
           `Файл: ${fileName}\n` +
