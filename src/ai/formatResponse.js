@@ -8,10 +8,36 @@ const JSON_INLINE_RE = /```json\{[\s\S]*?\}```/gi;
 const JSON_RAW_RE = /\{[\s\n]*"блок_[^}]+\}[\s\n]*\}/gi;
 
 /**
+ * Очищает текст от символов которые могут сломать Telegram Markdown
+ */
+function sanitizeForTelegram(text) {
+  let result = text;
+  
+  // Убираем проблемные символы которые могут сломать парсинг
+  // НО сохраняем * для жирного текста
+  
+  // Убираем одиночные _ (подчеркивание) если они не парные
+  result = result.replace(/(?<!\*)_(?!\*)/g, '');
+  
+  // Убираем [ и ] если они не являются частью ссылки
+  result = result.replace(/\[(?![^\]]*\]\()/g, '');
+  result = result.replace(/\](?!\()/g, '');
+  
+  // Убираем ` (backtick) если не парный
+  result = result.replace(/(?<!`)`(?!`)/g, '');
+  
+  return result;
+}
+
+/**
  * Конвертирует markdown в Telegram MarkdownV2 формат
+ * ВАЖНО: Экранирует специальные символы для Telegram
  */
 function convertToTelegramMarkdown(text) {
   let result = text;
+
+  // Сначала очищаем от проблемных символов
+  result = sanitizeForTelegram(result);
 
   // Заменяем ## заголовки на жирный текст с переносом
   result = result.replace(/^##\s+(.+)$/gm, '\n*$1*\n');
@@ -24,6 +50,9 @@ function convertToTelegramMarkdown(text) {
   
   // Убираем пробелы в начале и конце
   result = result.trim();
+  
+  // ВАЖНО: НЕ экранируем символы для обычного Markdown (не MarkdownV2)
+  // Telegram поддерживает простой Markdown без экранирования
   
   return result;
 }

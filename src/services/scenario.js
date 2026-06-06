@@ -870,20 +870,45 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 export async function sendScenarioReply(ctx, payload) {
   const { text, keyboard, extraMessages } = payload;
 
-  // Отправляем с Markdown форматированием
-  await ctx.reply(text, {
-    parse_mode: 'Markdown',
-    reply_markup: keyboard,
-  });
+  // Пытаемся отправить с Markdown форматированием
+  try {
+    await ctx.reply(text, {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard,
+    });
+  } catch (err) {
+    // Если ошибка парсинга Markdown - отправляем без форматирования
+    if (err.message.includes('parse') || err.message.includes('entities')) {
+      console.error('Ошибка парсинга Markdown, отправляю без форматирования:', err.message);
+      await ctx.reply(text, {
+        reply_markup: keyboard,
+      });
+    } else {
+      throw err;
+    }
+  }
 
   if (extraMessages?.length) {
     for (const part of extraMessages) {
       const partText = typeof part === 'string' ? part : part.text;
       const partKb = typeof part === 'string' ? undefined : part.keyboard;
-      await ctx.reply(partText, {
-        parse_mode: 'Markdown',
-        reply_markup: partKb,
-      });
+      
+      try {
+        await ctx.reply(partText, {
+          parse_mode: 'Markdown',
+          reply_markup: partKb,
+        });
+      } catch (err) {
+        // Если ошибка парсинга - отправляем без форматирования
+        if (err.message.includes('parse') || err.message.includes('entities')) {
+          console.error('Ошибка парсинга Markdown в extra message, отправляю без форматирования');
+          await ctx.reply(partText, {
+            reply_markup: partKb,
+          });
+        } else {
+          throw err;
+        }
+      }
     }
   }
 }
