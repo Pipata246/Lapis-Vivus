@@ -40,7 +40,19 @@ function registerHandlers(bot) {
         return;
       }
       
-      await ctx.reply('Привет админ');
+      await ctx.reply(
+        '🔐 *Панель администратора*\n\nВыберите действие:',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📝 Изменить системный промпт', callback_data: 'admin:edit_system_prompt' }],
+              [{ text: '🔄 Изменить этапы', callback_data: 'admin:edit_blocks' }],
+              [{ text: '❌ Закрыть', callback_data: 'admin:close' }],
+            ],
+          },
+        }
+      );
     } catch (err) {
       console.error('Ошибка /admin:', err.message);
       await ctx.reply('Ошибка проверки прав доступа.');
@@ -53,7 +65,51 @@ function registerHandlers(bot) {
     const userId = ctx.from.id;
     const callbackData = ctx.callbackQuery.data;
     
-    // Debounce: проверяем не обрабатывается ли уже этот callback
+    // Обработка admin callback'ов
+    if (callbackData.startsWith('admin:')) {
+      const { isAdmin } = await import('./db/users.js');
+      const adminStatus = await isAdmin(userId);
+      
+      if (!adminStatus) {
+        await ctx.answerCbQuery('У вас недостаточно прав').catch(() => {});
+        return;
+      }
+      
+      await ctx.answerCbQuery().catch(() => {});
+      
+      const action = callbackData.split(':')[1];
+      
+      switch (action) {
+        case 'edit_system_prompt':
+          await ctx.reply(
+            '📝 *Редактирование системного промпта*\n\n' +
+            'Отправьте новый текст системного промпта (lapis-system.txt).\n\n' +
+            '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.',
+            { parse_mode: 'Markdown' }
+          );
+          break;
+          
+        case 'edit_blocks':
+          await ctx.reply(
+            '🔄 *Редактирование этапов*\n\n' +
+            'Отправьте новый текст этапов блоков (lapis-blocks.txt).\n\n' +
+            '⚠️ Внимание: это изменит структуру анализа для всех пользователей.',
+            { parse_mode: 'Markdown' }
+          );
+          break;
+          
+        case 'close':
+          await ctx.deleteMessage().catch(() => {});
+          break;
+          
+        default:
+          await ctx.reply('Неизвестное действие.');
+      }
+      
+      return;
+    }
+    
+    // Обычная обработка callback'ов для сценария
     const key = `${userId}:${callbackData}`;
     const now = Date.now();
     const lastProcessed = processingCallbacks.get(key);
