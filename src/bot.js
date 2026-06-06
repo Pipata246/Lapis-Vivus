@@ -95,7 +95,8 @@ function registerHandlers(bot) {
             'Отправьте новый текст системного промпта.\n\n' +
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
-            '• TXT файл\n\n' +
+            '• TXT файл\n' +
+            '• PDF файл (текст будет извлечён)\n\n' +
             '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
@@ -109,7 +110,8 @@ function registerHandlers(bot) {
             'Отправьте новый текст этапов блоков.\n\n' +
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
-            '• TXT файл\n\n' +
+            '• TXT файл\n' +
+            '• PDF файл (текст будет извлечён)\n\n' +
             '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
@@ -297,14 +299,17 @@ function registerHandlers(bot) {
       const mimeType = document.mime_type || '';
       const fileName = document.file_name || '';
       
-      // Проверяем тип файла - ТОЛЬКО TXT
-      if (!mimeType.includes('text') && !fileName.endsWith('.txt')) {
+      // Проверяем тип файла - TXT или PDF
+      const isTxt = mimeType.includes('text') || fileName.endsWith('.txt');
+      const isPdf = mimeType.includes('pdf') || fileName.endsWith('.pdf');
+      
+      if (!isTxt && !isPdf) {
         await ctx.reply(
-          '❌ Поддерживаются только TXT файлы\n\n' +
-          'Если у вас PDF:\n' +
-          '1. Откройте PDF\n' +
-          '2. Скопируйте весь текст (Ctrl+A, Ctrl+C)\n' +
-          '3. Отправьте текст обычным сообщением или сохраните в .txt файл'
+          '❌ Поддерживаются только TXT и PDF файлы\n\n' +
+          'Отправьте:\n' +
+          '• .txt файл с промптом\n' +
+          '• .pdf файл (текст будет извлечён автоматически)\n' +
+          '• Или скопируйте текст и отправьте обычным сообщением'
         );
         return;
       }
@@ -335,8 +340,35 @@ function registerHandlers(bot) {
         const arrayBuffer = await fileRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         
-        // Извлекаем текст (только TXT)
-        const extractedText = buffer.toString('utf-8');
+        let extractedText = '';
+        
+        // Извлекаем текст в зависимости от типа
+        if (isPdf) {
+          try {
+            // Динамический импорт pdf-parse
+            const pdfParse = await import('pdf-parse');
+            const pdfData = await pdfParse.default(buffer);
+            extractedText = pdfData.text;
+            
+            if (!extractedText || extractedText.trim().length < 10) {
+              throw new Error('PDF файл пустой или не содержит текста');
+            }
+          } catch (pdfErr) {
+            console.error('Ошибка обработки PDF:', pdfErr.message);
+            await ctx.reply(
+              '❌ Не удалось извлечь текст из PDF\n\n' +
+              `Ошибка: ${pdfErr.message}\n\n` +
+              'Пожалуйста, попробуйте:\n' +
+              '1. Скопировать текст из PDF (Ctrl+A, Ctrl+C)\n' +
+              '2. Отправить текст обычным сообщением\n' +
+              'Или сохраните промпт в .txt файл'
+            );
+            return;
+          }
+        } else {
+          // TXT файл
+          extractedText = buffer.toString('utf-8');
+        }
         
         if (!extractedText || extractedText.trim().length < 10) {
           throw new Error('Не удалось извлечь текст из файла или файл пустой');
