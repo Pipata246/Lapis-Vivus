@@ -346,35 +346,10 @@ function registerHandlers(bot) {
         if (isTxt) {
           extractedText = buffer.toString('utf-8');
         } else if (isPdf) {
-          // Используем pdfjs-dist для извлечения текста из PDF
           try {
-            const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-            
-            // Загружаем PDF документ
-            const loadingTask = pdfjsLib.getDocument({
-              data: new Uint8Array(buffer),
-              useSystemFonts: true,
-              isEvalSupported: false,
-            });
-            
-            const pdfDocument = await loadingTask.promise;
-            const numPages = pdfDocument.numPages;
-            
-            // Извлекаем текст со всех страниц
-            const textPromises = [];
-            for (let i = 1; i <= numPages; i++) {
-              textPromises.push(
-                pdfDocument.getPage(i).then(page => 
-                  page.getTextContent().then(content => 
-                    content.items.map(item => item.str).join(' ')
-                  )
-                )
-              );
-            }
-            
-            const pageTexts = await Promise.all(textPromises);
-            extractedText = pageTexts.join('\n\n');
-            
+            const { extractText } = await import('unpdf');
+            const { text } = await extractText(buffer);
+            extractedText = text;
           } catch (pdfError) {
             console.error('Ошибка извлечения текста из PDF:', pdfError);
             throw new Error('Не удалось извлечь текст из PDF. Попробуйте сохранить документ как .txt файл.');
