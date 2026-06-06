@@ -337,8 +337,10 @@ export async function handleCallback(from, callbackData) {
 
     case 'skip_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
+        console.log(`[skip_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
         return resumePrompt(session);
       }
+      
       const block = currentBlock(session);
       if (!block) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
@@ -357,13 +359,17 @@ export async function handleCallback(from, callbackData) {
         reason: 'Пропущено оператором',
       };
 
-      await saveBlockResult({
-        chatId: chat.id,
-        userId: from.id,
-        blockId: block.id,
-        responseText: `[ПРОПУЩЕНО] Блок ${block.id} пропущен оператором`,
-        jsonPayload: skippedJson,
-      });
+      try {
+        await saveBlockResult({
+          chatId: chat.id,
+          userId: from.id,
+          blockId: block.id,
+          responseText: `[ПРОПУЩЕНО] Блок ${block.id} пропущен оператором`,
+          jsonPayload: skippedJson,
+        });
+      } catch (err) {
+        console.error('Ошибка сохранения пропущенного блока:', err.message);
+      }
 
       // Переход к следующему блоку
       const nextIndex = session.block_index + 1;
@@ -377,10 +383,10 @@ export async function handleCallback(from, callbackData) {
           const profile = {
             completed_at: new Date().toISOString(),
             user_data: session.collected_data,
-            blocks: completedBlocks.map((block) => ({
-              block_id: block.block_id,
-              json_payload: block.json_payload,
-              completed_at: block.created_at,
+            blocks: completedBlocks.map((b) => ({
+              block_id: b.block_id,
+              json_payload: b.json_payload,
+              completed_at: b.created_at,
             })),
           };
           await saveUserProfile(from.id, profile);
@@ -401,18 +407,23 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
+      // Обновляем индекс блока
       await updateSession(from.id, {
         block_index: nextIndex,
         step: STEPS.BLOCK_PREP,
         last_block_id: block.id,
       });
       
+      // Перечитываем обновленную сессию
       const newSession = await getSession(from.id);
-      const prepPayload = await showBlockPrep(newSession, chat.id);
+      
+      // Получаем информацию о следующем блоке
+      const nextBlock = BLOCK_STACK[nextIndex];
+      const prepText = await blockPrepText(newSession, chat.id);
       
       return {
-        text: `⏭ Блок ${block.id} пропущен (данные сохранены в БД).\n\n${prepPayload.text}`,
-        keyboard: prepPayload.keyboard,
+        text: `⏭ Блок ${block.id} пропущен (данные сохранены в БД).\n\n${prepText}`,
+        keyboard: blockPrepKeyboard(nextBlock?.id, newSession.collected_data),
       };
     }
 
