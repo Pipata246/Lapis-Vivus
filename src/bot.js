@@ -16,10 +16,16 @@ const processingMessages = new Map();
 const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
 
+// Map для отслеживания режима админа
+const adminModes = new Map();
+
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
     try {
+      // Сбрасываем режим админа при /start
+      adminModes.delete(ctx.from.id);
+      
       const payload = await initUser(ctx.from);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
@@ -81,24 +87,37 @@ function registerHandlers(bot) {
       
       switch (action) {
         case 'edit_system_prompt':
+          adminModes.set(userId, 'edit_system_prompt');
           await ctx.reply(
             '📝 *Редактирование системного промпта*\n\n' +
-            'Отправьте новый текст системного промпта (lapis-system.txt).\n\n' +
-            '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.',
+            'Отправьте новый текст системного промпта.\n\n' +
+            'Можете отправить:\n' +
+            '• Текстовое сообщение\n' +
+            '• PDF файл\n' +
+            '• TXT файл\n\n' +
+            '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.\n\n' +
+            'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
           );
           break;
           
         case 'edit_blocks':
+          adminModes.set(userId, 'edit_blocks');
           await ctx.reply(
             '🔄 *Редактирование этапов*\n\n' +
-            'Отправьте новый текст этапов блоков (lapis-blocks.txt).\n\n' +
-            '⚠️ Внимание: это изменит структуру анализа для всех пользователей.',
+            'Отправьте новый текст этапов блоков.\n\n' +
+            'Можете отправить:\n' +
+            '• Текстовое сообщение\n' +
+            '• PDF файл\n' +
+            '• TXT файл\n\n' +
+            '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
+            'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
           );
           break;
           
         case 'close':
+          adminModes.delete(userId);
           await ctx.deleteMessage().catch(() => {});
           break;
           
@@ -159,6 +178,41 @@ function registerHandlers(bot) {
     }
 
     const userId = ctx.from.id;
+    
+    // Проверяем режим админа
+    const adminMode = adminModes.get(userId);
+    if (adminMode) {
+      const { isAdmin } = await import('./db/users.js');
+      const adminStatus = await isAdmin(userId);
+      
+      if (!adminStatus) {
+        adminModes.delete(userId);
+        await ctx.reply('У вас недостаточно прав');
+        return;
+      }
+      
+      try {
+        const { updatePrompt } = await import('./prompts/loadSystemPrompt.js');
+        const promptId = adminMode === 'edit_system_prompt' ? 'system' : 'blocks';
+        const promptName = adminMode === 'edit_system_prompt' ? 'Системный промпт' : 'Этапы';
+        
+        await ctx.sendChatAction('typing').catch(() => {});
+        await updatePrompt(promptId, text, userId);
+        
+        adminModes.delete(userId);
+        await ctx.reply(
+          `✅ ${promptName} успешно обновлен!\n\n` +
+          `Длина: ${text.length} символов\n` +
+          `Новый промпт будет использоваться для всех новых запросов к ИИ.`
+        );
+      } catch (err) {
+        console.error('Ошибка обновления промпта:', err.message);
+        await ctx.reply(`❌ Ошибка: ${err.message}`);
+      }
+      
+      return;
+    }
+    
     const key = `${userId}:text`;
     const now = Date.now();
     const lastProcessed = processingMessages.get(key);
@@ -214,6 +268,91 @@ function registerHandlers(bot) {
 
     const document = ctx.message.document;
     if (!document?.file_id) return;
+    
+    const userId = ctx.from.id;
+    
+    // Проверяем режим админа
+    const adminMode = adminModes.get(userId);
+    if (adminMode) {
+      const { isAdmin } = await import('./db/users.js');
+      const adminStatus = await isAdmin(userId);
+      
+      if (!adminStatus) {
+        adminModes.delete(userId);
+        await ctx.reply('У вас недостаточно прав');
+        return;
+      }
+      
+      const mimeType = document.mime_type || '';
+      const fileName = document.file_name || '';
+      
+      // Проверяем тип файла
+      if (!mimeType.includes('pdf') && !mimeType.includes('text') && !fileName.endsWith('.txt')) {
+        await ctx.reply('❌ Поддерживаются только PDF и TXT файлы');
+        return;
+      }
+      
+      try {
+        await ctx.sendChatAction('typing').catch(() => {});
+        
+        const { loadBotConfig } = await import('./config.js');
+        const { botToken } = loadBotConfig();
+        
+        // Получаем файл из Telegram
+        const metaRes = await fetch(
+          `https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(document.file_id)}`
+        );
+        const meta = await metaRes.json();
+        
+        if (!meta.ok || !meta.result?.file_path) {
+          throw new Error('Не удалось получить файл из Telegram.');
+        }
+        
+        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${meta.result.file_path}`;
+        const fileRes = await fetch(fileUrl);
+        
+        if (!fileRes.ok) {
+          throw new Error('Не удалось скачать файл.');
+        }
+        
+        const arrayBuffer = await fileRes.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        let extractedText = '';
+        
+        // Извлекаем текст в зависимости от типа
+        if (mimeType.includes('pdf')) {
+          const pdfParse = await import('pdf-parse');
+          const pdfData = await pdfParse.default(buffer);
+          extractedText = pdfData.text;
+        } else {
+          extractedText = buffer.toString('utf-8');
+        }
+        
+        if (!extractedText || extractedText.trim().length < 10) {
+          throw new Error('Не удалось извлечь текст из файла или файл пустой');
+        }
+        
+        const { updatePrompt } = await import('./prompts/loadSystemPrompt.js');
+        const promptId = adminMode === 'edit_system_prompt' ? 'system' : 'blocks';
+        const promptName = adminMode === 'edit_system_prompt' ? 'Системный промпт' : 'Этапы';
+        
+        await updatePrompt(promptId, extractedText, userId);
+        
+        adminModes.delete(userId);
+        await ctx.reply(
+          `✅ ${promptName} успешно обновлен из файла!\n\n` +
+          `Файл: ${fileName}\n` +
+          `Длина: ${extractedText.length} символов\n` +
+          `Новый промпт будет использоваться для всех новых запросов к ИИ.`
+        );
+      } catch (err) {
+        console.error('Ошибка обработки файла промпта:', err.message);
+        await ctx.reply(`❌ Ошибка: ${err.message}`);
+      }
+      
+      return;
+    }
 
     await ctx.sendChatAction('typing').catch(() => {});
     
