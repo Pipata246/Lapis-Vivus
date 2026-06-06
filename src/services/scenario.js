@@ -232,6 +232,10 @@ function resumePrompt(session) {
 
 export async function handleCallback(from, callbackData) {
   let { chat, session } = await ensureSession(from);
+  
+  // Перечитываем сессию из БД чтобы убедиться что у нас актуальное состояние
+  session = await getSession(from.id);
+  
   const parsed = parseCallbackData(callbackData);
   if (!parsed) {
     return rejectWrongInput(session, REJECT_TEXT);
@@ -414,6 +418,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'run_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
+        console.log(`[run_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
         return resumePrompt(session);
       }
       const block = currentBlock(session);
@@ -632,7 +637,10 @@ async function runCurrentBlock(from, chatId) {
 }
 
 export async function handleText(from, rawText) {
-  const { chat, session } = await ensureSession(from);
+  const { chat, session: initialSession } = await ensureSession(from);
+  
+  // Перечитываем сессию из БД чтобы убедиться что у нас актуальное состояние
+  const session = await getSession(from.id);
   const step = session.step;
 
   if (!TEXT_INPUT_STEPS.has(step)) {

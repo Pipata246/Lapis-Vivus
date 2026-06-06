@@ -74,27 +74,38 @@ export async function createSessionIfMissing(userId, chatId) {
   });
 }
 
-export async function updateSession(userId, patch) {
+export async function updateSession(userId, patch, retries = 3) {
   assertUserId(userId);
-  const existing = await getSession(userId);
-  if (!existing) {
-    throw new Error('Сессия не найдена. Нажми /start.');
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const existing = await getSession(userId);
+      if (!existing) {
+        throw new Error('Сессия не найдена. Нажми /start.');
+      }
+
+      const supabase = getSupabase();
+
+      const { data, error } = await supabase
+        .from('user_sessions')
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Не удалось обновить сессию: ${error.message}`);
+      }
+
+      return data;
+    } catch (err) {
+      if (attempt === retries) {
+        throw err;
+      }
+      // Exponential backoff: 100ms, 200ms, 400ms
+      await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+    }
   }
-
-  const supabase = getSupabase();
-
-  const { data, error } = await supabase
-    .from('user_sessions')
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Не удалось обновить сессию: ${error.message}`);
-  }
-
-  return data;
 }
 
 export function mergeCollectedData(session, additions) {

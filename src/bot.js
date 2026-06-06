@@ -10,6 +10,12 @@ import {
 
 let botInstance = null;
 
+// Map для отслеживания обработки callback'ов и сообщений (debounce)
+const processingCallbacks = new Map();
+const processingMessages = new Map();
+const CALLBACK_DEBOUNCE_MS = 1000;
+const MESSAGE_DEBOUNCE_MS = 500;
+
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
@@ -25,6 +31,28 @@ function registerHandlers(bot) {
   bot.on('callback_query', async (ctx) => {
     if (!ctx.from?.id) return;
 
+    const userId = ctx.from.id;
+    const callbackData = ctx.callbackQuery.data;
+    
+    // Debounce: проверяем не обрабатывается ли уже этот callback
+    const key = `${userId}:${callbackData}`;
+    const now = Date.now();
+    const lastProcessed = processingCallbacks.get(key);
+    
+    if (lastProcessed && (now - lastProcessed) < CALLBACK_DEBOUNCE_MS) {
+      await ctx.answerCbQuery('⏳ Обрабатывается...').catch(() => {});
+      return;
+    }
+    
+    processingCallbacks.set(key, now);
+    
+    // Очищаем старые записи (старше 5 секунд)
+    for (const [k, timestamp] of processingCallbacks.entries()) {
+      if (now - timestamp > 5000) {
+        processingCallbacks.delete(k);
+      }
+    }
+
     await ctx.answerCbQuery().catch(() => {});
     await ctx.sendChatAction('typing').catch(() => {});
 
@@ -32,8 +60,13 @@ function registerHandlers(bot) {
       const payload = await handleCallback(ctx.from, ctx.callbackQuery.data);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
-      console.error('Ошибка callback:', err.message);
-      await ctx.reply('Ошибка обработки. Используй меню.');
+      console.error('Ошибка callback:', err.message, err.stack);
+      await ctx.reply(`❌ Ошибка: ${err.message}\n\nПопробуй ещё раз или используй /start`).catch(() => {});
+    } finally {
+      // Убираем блокировку через некоторое время
+      setTimeout(() => {
+        processingCallbacks.delete(key);
+      }, CALLBACK_DEBOUNCE_MS);
     }
   });
 
@@ -50,14 +83,36 @@ function registerHandlers(bot) {
       return;
     }
 
+    const userId = ctx.from.id;
+    const key = `${userId}:text`;
+    const now = Date.now();
+    const lastProcessed = processingMessages.get(key);
+    
+    if (lastProcessed && (now - lastProcessed) < MESSAGE_DEBOUNCE_MS) {
+      return; // Игнорируем дубликаты
+    }
+    
+    processingMessages.set(key, now);
+    
+    // Очищаем старые записи
+    for (const [k, timestamp] of processingMessages.entries()) {
+      if (now - timestamp > 3000) {
+        processingMessages.delete(k);
+      }
+    }
+
     await ctx.sendChatAction('typing').catch(() => {});
 
     try {
       const payload = await handleText(ctx.from, text);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
-      console.error('Ошибка text:', err.message);
-      await ctx.reply('Ошибка. Используй кнопки меню.');
+      console.error('Ошибка text:', err.message, err.stack);
+      await ctx.reply(`❌ Ошибка: ${err.message}\n\nПопробуй ещё раз.`).catch(() => {});
+    } finally {
+      setTimeout(() => {
+        processingMessages.delete(key);
+      }, MESSAGE_DEBOUNCE_MS);
     }
   });
 
