@@ -41,6 +41,14 @@ const CALCULATORS = {
     label: '🕉 Джйотиш',
     baseUrl: 'https://vedic-horo.ru/#',
   },
+  dasha: {
+    label: '📅 Даша (расчет)',
+    baseUrl: 'https://dasha-calculator.ru/#calculator',
+  },
+  gochara: {
+    label: '🔄 Гочара (расчет)',
+    baseUrl: 'https://aum4.com/jyotish/gochara/',
+  },
   natal: {
     label: '⭐ Натальная карта',
     buildUrl: (data) => buildGeocultUrl(GEOCULT.natal, data),
@@ -57,9 +65,10 @@ const BLOCK_CALCULATORS = {
   '1B': ['pythagoras'],
   '1C': ['chakraAnalysis', 'destinyMatrix', 'taroPortrait'],
   '1D': ['tzolkin'],
-  '2': ['bazi', 'jyotish'],
-  '3': ['natal'],
-  '3B': ['transits'],
+  '2': ['bazi', 'jyotish', 'dasha'],
+  '2B': ['jyotish', 'dasha'],
+  '3': ['natal', 'gochara'],
+  '3B': ['transits', 'gochara'],
   '4': ['natal', 'bazi', 'destinyMatrix'],
   '4B': ['destinyMatrix', 'humanDesign'],
   '5': ['transits'],
@@ -190,6 +199,8 @@ export function getAllCalculatorLinks() {
     { label: '🌞 Цолькин / Кин', url: 'https://yamaya.ru/maya/kin-orakul/' },
     { label: '🏯 Бацзы (У-Син)', url: 'https://www.mingli.ru/card/739951' },
     { label: '🕉 Джйотиш', url: 'https://vedic-horo.ru/#' },
+    { label: '📅 Даша (расчет)', url: 'https://dasha-calculator.ru/#calculator' },
+    { label: '🔄 Гочара (расчет)', url: 'https://aum4.com/jyotish/gochara/' },
     { label: '⭐ Натальная карта', url: 'https://geocult.ru/natalnaya-karta-onlayn-raschet' },
     { label: '🔄 Транзиты', url: 'https://geocult.ru/tranzityi-onlayn-raschet' },
   ];
