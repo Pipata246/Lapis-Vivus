@@ -417,24 +417,35 @@ export async function handleCallback(from, callbackData) {
 
       // Обновляем индекс блока и переходим к следующему
       console.log(`[skip_block] Переходим к блоку с индексом ${nextIndex}`);
-      const updatedSession = await updateSession(from.id, {
+      await updateSession(from.id, {
         block_index: nextIndex,
         step: STEPS.BLOCK_PREP,
         last_block_id: block.id,
       });
       
-      console.log(`[skip_block] Обновленная сессия: block_index=${updatedSession.block_index}, step=${updatedSession.step}`);
+      // Перечитываем сессию из БД чтобы быть уверенными в актуальности
+      const freshSession = await getSession(from.id);
+      console.log(`[skip_block] Обновленная сессия: block_index=${freshSession.block_index}, step=${freshSession.step}`);
       
       // Получаем следующий блок
-      const nextBlock = BLOCK_STACK[nextIndex];
-      console.log(`[skip_block] Следующий блок: ${nextBlock.id}`);
+      const nextBlock = BLOCK_STACK[freshSession.block_index];
+      console.log(`[skip_block] Следующий блок: ${nextBlock?.id}`);
       
-      // Получаем информацию о следующем блоке
-      const nextBlockInfo = await showBlockPrep(updatedSession, chat.id);
+      if (!nextBlock) {
+        console.error('[skip_block] ОШИБКА: следующий блок не найден!');
+        return {
+          text: '❌ Ошибка: не удалось перейти к следующему блоку.',
+          keyboard: menuKeyboard(),
+        };
+      }
+      
+      // Формируем текст для следующего блока
+      const nextBlockText = await blockPrepText(freshSession, chat.id);
+      const nextBlockKeyboard = blockPrepKeyboard(nextBlock.id, freshSession.collected_data);
       
       return {
-        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockInfo.text}`,
-        keyboard: nextBlockInfo.keyboard,
+        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockText}`,
+        keyboard: nextBlockKeyboard,
       };
     }
 
