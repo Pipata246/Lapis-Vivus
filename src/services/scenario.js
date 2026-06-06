@@ -331,6 +331,87 @@ export async function handleCallback(from, callbackData) {
       return await showBlockPrep(session, chat.id);
     }
 
+    case 'skip_block': {
+      if (session.step !== STEPS.BLOCK_PREP) {
+        return resumePrompt(session);
+      }
+      const block = currentBlock(session);
+      if (!block) {
+        await updateSession(from.id, { step: STEPS.COMPLETED });
+        return {
+          text: '✅ Анализ по всем блокам завершён.',
+          keyboard: completedKeyboard(),
+        };
+      }
+
+      // Сохраняем пустой JSON для блока (чтобы оператор знал что блок пропущен)
+      const { saveBlockResult } = await import('../db/blockResults.js');
+      const skippedJson = {
+        status: 'skipped',
+        block_id: block.id,
+        skipped_at: new Date().toISOString(),
+        reason: 'Пропущено оператором',
+      };
+
+      await saveBlockResult({
+        chatId: chat.id,
+        userId: from.id,
+        blockId: block.id,
+        responseText: `[ПРОПУЩЕНО] Блок ${block.id} пропущен оператором`,
+        jsonPayload: skippedJson,
+      });
+
+      // Переход к следующему блоку
+      const nextIndex = session.block_index + 1;
+      if (nextIndex >= BLOCK_STACK.length) {
+        await updateSession(from.id, { step: STEPS.COMPLETED });
+        
+        // Сохраняем итоговый профиль пользователя
+        let profileSummary = '';
+        try {
+          const completedBlocks = await getCompletedBlocks(chat.id);
+          const profile = {
+            completed_at: new Date().toISOString(),
+            user_data: session.collected_data,
+            blocks: completedBlocks.map((block) => ({
+              block_id: block.block_id,
+              json_payload: block.json_payload,
+              completed_at: block.created_at,
+            })),
+          };
+          await saveUserProfile(from.id, profile);
+          
+          profileSummary = formatProfileSummary(profile);
+        } catch (err) {
+          console.error('Ошибка сохранения профиля:', err.message);
+          profileSummary = '⚠️ Профиль сохранён, но не удалось сформировать резюме.';
+        }
+        
+        const completionMessage = `✅ Анализ по всем блокам завершён.\n\n${profileSummary}`;
+        const messageParts = splitTelegramMessages(completionMessage);
+        
+        return {
+          text: messageParts[0],
+          extraMessages: messageParts.slice(1),
+          keyboard: completedKeyboard(),
+        };
+      }
+
+      await updateSession(from.id, {
+        block_index: nextIndex,
+        step: STEPS.BLOCK_PREP,
+        last_block_id: block.id,
+      });
+      
+      const newSession = await getSession(from.id);
+      const prepPayload = await showBlockPrep(newSession, chat.id);
+      
+      return {
+        text: `⏭ Блок ${block.id} пропущен (данные сохранены в БД).\n\n${prepPayload.text}`,
+        keyboard: prepPayload.keyboard,
+      };
+    }
+
     case 'run_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
         return resumePrompt(session);

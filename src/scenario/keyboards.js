@@ -56,6 +56,7 @@ export function blockPrepKeyboard(blockId, collectedData = {}) {
   }
 
   rows.push([{ text: '▶️ Запустить блок', callback_data: cb('run_block') }]);
+  rows.push([{ text: '⏭ Пропустить блок', callback_data: cb('skip_block') }]);
   rows.push([{ text: '❌ Отмена', callback_data: cb('menu') }]);
 
   return { inline_keyboard: rows };
