@@ -543,8 +543,9 @@ export async function handleCallback(from, callbackData) {
         return true;
       });
 
+      const systemPrompt = await getSystemPrompt();
       const messages = [
-        { role: 'system', content: getSystemPrompt() },
+        { role: 'system', content: systemPrompt },
         ...cleanedMessages,
       ];
 
@@ -795,8 +796,9 @@ export async function handleText(from, rawText) {
         return true;
       });
 
+      const systemPrompt = await getSystemPrompt();
       const messages = [
-        { role: 'system', content: getSystemPrompt() },
+        { role: 'system', content: systemPrompt },
         ...cleanedMessages,
       ];
 

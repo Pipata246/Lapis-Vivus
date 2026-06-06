@@ -149,8 +149,9 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
   // Получаем только сообщения текущей сессии для контекста ИИ
   const sessionMessages = await getChatMessagesForAI(chatId, sessionStartAt);
 
+  const systemPrompt = await getSystemPrompt();
   const baseMessages = [
-    { role: 'system', content: getSystemPrompt() },
+    { role: 'system', content: systemPrompt },
     ...sessionMessages,
     { role: 'user', content: userContent },
   ];

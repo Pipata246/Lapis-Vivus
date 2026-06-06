@@ -4,8 +4,10 @@ import { getSystemPrompt } from '../src/prompts/loadSystemPrompt.js';
 
 const testMessage = process.argv[2] || 'Привет, ответь одним словом: ок';
 
+const systemPrompt = await getSystemPrompt();
+
 const messages = [
-  { role: 'system', content: getSystemPrompt() },
+  { role: 'system', content: systemPrompt },
   {
     role: 'user',
     content: JSON.stringify({
@@ -31,3 +33,4 @@ askGpt(messages)
     console.error('FAIL:', err.message);
     process.exit(1);
   });
+
