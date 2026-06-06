@@ -90,7 +90,7 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
 
   return {
     режим: 'lapis_vivus_telegram_operator',
-    протокол: 'v26.9',
+    протокол: 'v26.30',
     сервер_назначил_блок: block.id,
     следующий_блок: nextBlock ? nextBlock.id : 'ЗАВЕРШЕНИЕ_СТЕКА',
     следующий_блок_описание: nextBlock ? nextBlock.description : 'Все блоки завершены',
