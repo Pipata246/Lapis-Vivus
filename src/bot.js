@@ -96,7 +96,7 @@ function registerHandlers(bot) {
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
             '• TXT файл\n' +
-            '• PDF файл (текст будет извлечён)\n\n' +
+            '• PDF файл\n\n' +
             '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
@@ -111,7 +111,7 @@ function registerHandlers(bot) {
             'Можете отправить:\n' +
             '• Текстовое сообщение\n' +
             '• TXT файл\n' +
-            '• PDF файл (текст будет извлечён)\n\n' +
+            '• PDF файл\n\n' +
             '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
@@ -301,15 +301,15 @@ function registerHandlers(bot) {
       
       // Проверяем тип файла - TXT или PDF
       const isTxt = mimeType.includes('text') || fileName.endsWith('.txt');
-      const isPdf = mimeType.includes('pdf') || fileName.endsWith('.pdf');
+      const isPdf = mimeType === 'application/pdf' || fileName.endsWith('.pdf');
       
       if (!isTxt && !isPdf) {
         await ctx.reply(
           '❌ Поддерживаются только TXT и PDF файлы\n\n' +
-          'Отправьте:\n' +
-          '• .txt файл с промптом\n' +
-          '• .pdf файл (текст будет извлечён автоматически)\n' +
-          '• Или скопируйте текст и отправьте обычным сообщением'
+          'Отправьте промпт в одном из форматов:\n' +
+          '• Текстовое сообщение\n' +
+          '• TXT файл\n' +
+          '• PDF файл'
         );
         return;
       }
@@ -340,34 +340,45 @@ function registerHandlers(bot) {
         const arrayBuffer = await fileRes.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         
-        let extractedText = '';
+        // Извлекаем текст из TXT или PDF
+        let extractedText;
         
-        // Извлекаем текст в зависимости от типа
-        if (isPdf) {
-          try {
-            // Динамический импорт pdf-parse
-            const pdfParse = await import('pdf-parse');
-            const pdfData = await pdfParse.default(buffer);
-            extractedText = pdfData.text;
-            
-            if (!extractedText || extractedText.trim().length < 10) {
-              throw new Error('PDF файл пустой или не содержит текста');
-            }
-          } catch (pdfErr) {
-            console.error('Ошибка обработки PDF:', pdfErr.message);
-            await ctx.reply(
-              '❌ Не удалось извлечь текст из PDF\n\n' +
-              `Ошибка: ${pdfErr.message}\n\n` +
-              'Пожалуйста, попробуйте:\n' +
-              '1. Скопировать текст из PDF (Ctrl+A, Ctrl+C)\n' +
-              '2. Отправить текст обычным сообщением\n' +
-              'Или сохраните промпт в .txt файл'
-            );
-            return;
-          }
-        } else {
-          // TXT файл
+        if (isTxt) {
           extractedText = buffer.toString('utf-8');
+        } else if (isPdf) {
+          // Используем pdfjs-dist для извлечения текста из PDF
+          try {
+            const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+            
+            // Загружаем PDF документ
+            const loadingTask = pdfjsLib.getDocument({
+              data: new Uint8Array(buffer),
+              useSystemFonts: true,
+              isEvalSupported: false,
+            });
+            
+            const pdfDocument = await loadingTask.promise;
+            const numPages = pdfDocument.numPages;
+            
+            // Извлекаем текст со всех страниц
+            const textPromises = [];
+            for (let i = 1; i <= numPages; i++) {
+              textPromises.push(
+                pdfDocument.getPage(i).then(page => 
+                  page.getTextContent().then(content => 
+                    content.items.map(item => item.str).join(' ')
+                  )
+                )
+              );
+            }
+            
+            const pageTexts = await Promise.all(textPromises);
+            extractedText = pageTexts.join('\n\n');
+            
+          } catch (pdfError) {
+            console.error('Ошибка извлечения текста из PDF:', pdfError);
+            throw new Error('Не удалось извлечь текст из PDF. Попробуйте сохранить документ как .txt файл.');
+          }
         }
         
         if (!extractedText || extractedText.trim().length < 10) {

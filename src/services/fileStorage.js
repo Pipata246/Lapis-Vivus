@@ -124,12 +124,13 @@ export async function extractTextFromFile(buffer, fileType, mimeType) {
       extractedText = '[Не удалось декодировать текстовый файл]';
     }
   }
-  // Для PDF и DOCX нужна обработка библиотеками (будет добавлено позже)
+  // PDF не поддерживается (требует Canvas API, недоступный на Vercel)
   else if (fileType === 'pdf') {
-    extractedText = '[PDF файл — текст будет извлечён при наличии библиотеки pdf-parse]';
+    extractedText = '[PDF не поддерживается на сервере - скопируйте текст вручную]';
   }
+  // DOCX может быть добавлен позже через mammoth
   else if (fileType === 'docx') {
-    extractedText = '[DOCX файл — текст будет извлечён при наличии библиотеки mammoth]';
+    extractedText = '[DOCX файл — извлечение текста будет добавлено]';
   }
 
   // Санитизируем извлечённый текст для защиты от prompt injection
