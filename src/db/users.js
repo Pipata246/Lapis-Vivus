@@ -12,6 +12,22 @@ export function mapTelegramUser(from) {
   };
 }
 
+export async function isAdmin(userId) {
+  const supabase = getSupabase();
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('is_admin')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    return false;
+  }
+
+  return Boolean(data?.is_admin);
+}
+
 export async function upsertUserFromTelegram(from) {
   const supabase = getSupabase();
   const row = mapTelegramUser(from);

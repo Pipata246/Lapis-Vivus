@@ -28,6 +28,25 @@ function registerHandlers(bot) {
     }
   });
 
+  bot.command('admin', async (ctx) => {
+    if (!ctx.from?.id) return;
+    
+    try {
+      const { isAdmin } = await import('./db/users.js');
+      const adminStatus = await isAdmin(ctx.from.id);
+      
+      if (!adminStatus) {
+        await ctx.reply('У вас недостаточно прав');
+        return;
+      }
+      
+      await ctx.reply('Привет админ');
+    } catch (err) {
+      console.error('Ошибка /admin:', err.message);
+      await ctx.reply('Ошибка проверки прав доступа.');
+    }
+  });
+
   bot.on('callback_query', async (ctx) => {
     if (!ctx.from?.id) return;
 
