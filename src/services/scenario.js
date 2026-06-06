@@ -417,27 +417,24 @@ export async function handleCallback(from, callbackData) {
 
       // Обновляем индекс блока и переходим к следующему
       console.log(`[skip_block] Переходим к блоку с индексом ${nextIndex}`);
-      await updateSession(from.id, {
+      const updatedSession = await updateSession(from.id, {
         block_index: nextIndex,
         step: STEPS.BLOCK_PREP,
         last_block_id: block.id,
       });
       
-      // Перечитываем обновленную сессию
-      const updatedSession = await getSession(from.id);
       console.log(`[skip_block] Обновленная сессия: block_index=${updatedSession.block_index}, step=${updatedSession.step}`);
       
       // Получаем следующий блок
       const nextBlock = BLOCK_STACK[nextIndex];
       console.log(`[skip_block] Следующий блок: ${nextBlock.id}`);
       
-      // ВАЖНО: Используем updatedSession для получения информации о следующем блоке
-      const nextBlockText = await blockPrepText(updatedSession, chat.id);
-      const nextBlockKeyboard = blockPrepKeyboard(nextBlock.id, updatedSession.collected_data);
+      // Получаем информацию о следующем блоке
+      const nextBlockInfo = await showBlockPrep(updatedSession, chat.id);
       
       return {
-        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockText}`,
-        keyboard: nextBlockKeyboard,
+        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockInfo.text}`,
+        keyboard: nextBlockInfo.keyboard,
       };
     }
 
