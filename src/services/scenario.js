@@ -39,7 +39,7 @@ import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js'
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
-import { getCompletedBlocks } from '../db/blockResults.js';
+import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 
 function cb(action, value = null) {
@@ -356,7 +356,6 @@ export async function handleCallback(from, callbackData) {
       console.log(`[skip_block] Пропускаем блок ${block.id}`);
 
       // Сохраняем пустой JSON для блока (чтобы оператор знал что блок пропущен)
-      const { saveBlockResult } = await import('../db/blockResults.js');
       const skippedJson = {
         status: 'skipped',
         block_id: block.id,
@@ -415,12 +414,24 @@ export async function handleCallback(from, callbackData) {
         };
       }
 
-      // Обновляем индекс блока и переходим к следующему
+      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем индекс блока И очищаем блочные данные
+      // чтобы следующий блок начался с чистого состояния
       console.log(`[skip_block] Переходим к блоку с индексом ${nextIndex}`);
+      
+      // Очищаем данные пропущенного блока из collected_data
+      const cleanedData = { ...session.collected_data };
+      if (cleanedData.block_user_text && cleanedData.block_user_text[block.id]) {
+        delete cleanedData.block_user_text[block.id];
+      }
+      if (cleanedData.block_attachments && cleanedData.block_attachments[block.id]) {
+        delete cleanedData.block_attachments[block.id];
+      }
+      
       await updateSession(from.id, {
         block_index: nextIndex,
         step: STEPS.BLOCK_PREP,
         last_block_id: block.id,
+        collected_data: cleanedData,
       });
       
       // Перечитываем сессию из БД чтобы быть уверенными в актуальности
@@ -724,7 +735,7 @@ export async function handleText(from, rawText) {
     }
 
     case STEPS.BLOCK_PREP: {
-      // Пользователь отвечает на уточняющие вопросы ИИ
+      // Пользователь отвечает на уточняющие вопросы ИИ или предоставляет данные
       // Сохраняем текст как "дополнительную информацию" для блока
       const block = currentBlock(session);
       if (!block) {
@@ -743,8 +754,12 @@ export async function handleText(from, rawText) {
       const data = mergeCollectedData(session, { block_user_text: blockTexts });
       await updateSession(from.id, { collected_data: data });
 
+      // ВАЖНО: После сохранения текста показываем обновленное состояние блока
+      const updatedSession = await getSession(from.id);
+      const updatedText = await blockPrepText(updatedSession, chat.id);
+      
       return {
-        text: '✅ Ответ сохранён.\n\nМожешь добавить ещё текст, прикрепить файл или запустить блок.',
+        text: `✅ Ответ сохранён.\n\n${updatedText}`,
         keyboard: blockPrepKeyboard(block.id, data),
       };
     }

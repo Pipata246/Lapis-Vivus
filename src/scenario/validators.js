@@ -50,6 +50,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'confirm_yes',
   'confirm_edit',
   'run_block',
+  'skip_block',
   'next_block',
   'retry_block',
   'reset',
