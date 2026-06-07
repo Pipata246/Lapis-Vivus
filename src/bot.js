@@ -7,6 +7,22 @@ import {
   handleFile,
   sendScenarioReply,
 } from './services/scenario.js';
+import { t, getLanguageName } from './i18n.js';
+import {
+  getMainMenuKeyboard,
+  getProfileKeyboard,
+  getSettingsKeyboard,
+  getLanguageKeyboard,
+  getHelpKeyboard,
+  getAdminKeyboard,
+} from './navigation.js';
+import {
+  getUserLanguage,
+  setUserLanguage,
+  getUserProfile,
+  isAdmin,
+} from './db/users.js';
+import { getSession, updateSession, getUserSessions } from './db/sessions.js';
 
 let botInstance = null;
 
@@ -20,18 +36,31 @@ function registerHandlers(bot) {
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
     try {
+      const userId = ctx.from.id;
+      
       // Сбрасываем режим админа при /start
-      const { getSession, updateSession } = await import('./db/sessions.js');
-      const session = await getSession(ctx.from.id);
+      const session = await getSession(userId);
       if (session?.admin_mode) {
-        await updateSession(ctx.from.id, { admin_mode: null });
+        await updateSession(userId, { admin_mode: null });
       }
       
-      const payload = await initUser(ctx.from);
-      await sendScenarioReply(ctx, payload);
+      // Инициализируем пользователя
+      await initUser(ctx.from);
+      
+      // Получаем язык пользователя
+      const lang = await getUserLanguage(userId);
+      
+      // Отправляем главное меню
+      await ctx.reply(
+        `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: getMainMenuKeyboard(lang),
+        }
+      );
     } catch (err) {
       console.error('Ошибка /start:', err.message);
-      await ctx.reply('Не удалось запустить бота. Попробуй позже.');
+      await ctx.reply('Failed to start bot. Try again later.');
     }
   });
 
@@ -39,33 +68,25 @@ function registerHandlers(bot) {
     if (!ctx.from?.id) return;
     
     try {
-      const { isAdmin } = await import('./db/users.js');
-      const adminStatus = await isAdmin(ctx.from.id);
+      const userId = ctx.from.id;
+      const lang = await getUserLanguage(userId);
+      const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        await ctx.reply('У вас недостаточно прав');
+        await ctx.reply(t(lang, 'insufficientRights'));
         return;
       }
       
       await ctx.reply(
-        '🔐 *Панель администратора*\n\nВыберите действие:',
+        `${t(lang, 'adminPanel')}\n\n${t(lang, 'adminText')}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: '📝 Изменить системный промпт', callback_data: 'admin:edit_system_prompt' }],
-              [{ text: '🔄 Изменить этапы', callback_data: 'admin:edit_blocks' }],
-              [{ text: '📖 Изменить глоссарий', callback_data: 'admin:edit_glossary' }],
-              [{ text: '📚 Изменить библиографию', callback_data: 'admin:edit_bibliography' }],
-              [{ text: '🔗 Изменить калькуляторы', callback_data: 'admin:edit_calculators' }],
-              [{ text: '❌ Закрыть', callback_data: 'admin:close' }],
-            ],
-          },
+          reply_markup: getAdminKeyboard(lang),
         }
       );
     } catch (err) {
       console.error('Ошибка /admin:', err.message);
-      await ctx.reply('Ошибка проверки прав доступа.');
+      await ctx.reply('Error checking access rights.');
     }
   });
 
@@ -75,10 +96,143 @@ function registerHandlers(bot) {
     const userId = ctx.from.id;
     const callbackData = ctx.callbackQuery.data;
     
+    // Получаем язык пользователя
+    const lang = await getUserLanguage(userId);
+    
+    // Обработка навигационных callback'ов
+    if (callbackData.startsWith('nav:')) {
+      await ctx.answerCbQuery().catch(() => {});
+      
+      const action = callbackData.split(':')[1];
+      
+      switch (action) {
+        case 'main_menu':
+          await ctx.editMessageText(
+            `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: getMainMenuKeyboard(lang),
+            }
+          ).catch(() => {});
+          break;
+          
+        case 'start_analysis':
+          // Запускаем сценарий анализа
+          await ctx.deleteMessage().catch(() => {});
+          const payload = await initUser(ctx.from);
+          await sendScenarioReply(ctx, payload);
+          break;
+          
+        case 'profile':
+          try {
+            const profile = await getUserProfile(userId);
+            const sessions = await getUserSessions(userId);
+            
+            const profileText = t(lang, 'profileInfo', {
+              telegramId: profile.id,
+              name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
+              language: getLanguageName(profile.language || 'en'),
+              createdAt: new Date(profile.created_at).toLocaleDateString(),
+              sessions: sessions?.length || 0,
+            });
+            
+            await ctx.editMessageText(profileText, {
+              parse_mode: 'Markdown',
+              reply_markup: getProfileKeyboard(lang),
+            }).catch(() => {});
+          } catch (err) {
+            console.error('Error loading profile:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
+          break;
+          
+        case 'settings':
+          await ctx.editMessageText(
+            `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: getSettingsKeyboard(lang),
+            }
+          ).catch(() => {});
+          break;
+          
+        case 'change_language':
+          await ctx.editMessageText(
+            `${t(lang, 'changeLanguage')}:`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: getLanguageKeyboard(lang),
+            }
+          ).catch(() => {});
+          break;
+          
+        case 'help':
+          await ctx.editMessageText(
+            t(lang, 'helpText'),
+            {
+              parse_mode: 'Markdown',
+              reply_markup: getHelpKeyboard(lang),
+            }
+          ).catch(() => {});
+          break;
+          
+        case 'sessions':
+          try {
+            const sessions = await getUserSessions(userId);
+            let sessionsText = `*${t(lang, 'viewSessions')}*\n\n`;
+            
+            if (!sessions || sessions.length === 0) {
+              sessionsText += lang === 'ru' ? 'У вас пока нет сессий.' : 'You have no sessions yet.';
+            } else {
+              sessions.slice(0, 10).forEach((s, i) => {
+                const date = new Date(s.created_at).toLocaleString();
+                sessionsText += `${i + 1}. ${date}\n`;
+              });
+            }
+            
+            await ctx.editMessageText(sessionsText, {
+              parse_mode: 'Markdown',
+              reply_markup: getProfileKeyboard(lang),
+            }).catch(() => {});
+          } catch (err) {
+            console.error('Error loading sessions:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
+          break;
+          
+        default:
+          await ctx.reply(lang === 'ru' ? 'Неизвестное действие.' : 'Unknown action.');
+      }
+      
+      return;
+    }
+    
+    // Обработка смены языка
+    if (callbackData.startsWith('lang:')) {
+      const newLang = callbackData.split(':')[1];
+      
+      try {
+        await setUserLanguage(userId, newLang);
+        await ctx.answerCbQuery(t(newLang, 'languageChanged')).catch(() => {});
+        
+        // Обновляем сообщение с настройками на новом языке
+        await ctx.editMessageText(
+          `${t(newLang, 'settingsTitle')}\n\n${t(newLang, 'settingsText')}`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: getSettingsKeyboard(newLang),
+          }
+        ).catch(() => {});
+      } catch (err) {
+        console.error('Error changing language:', err.message);
+        await ctx.answerCbQuery('Error').catch(() => {});
+      }
+      
+      return;
+    }
+    
     // Обработка admin callback'ов
     if (callbackData.startsWith('admin:')) {
-      const { isAdmin } = await import('./db/users.js');
-      const { updateSession } = await import('./db/sessions.js');
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
@@ -220,14 +374,13 @@ function registerHandlers(bot) {
     const text = ctx.message.text?.trim();
     if (!text) return;
 
+    const userId = ctx.from.id;
+    const lang = await getUserLanguage(userId);
+
     if (text.startsWith('/')) {
-      await ctx.reply(
-        'Команды отключены. Используй /start и кнопки сценария Lapis Vivus.',
-      );
+      await ctx.reply(t(lang, 'commandsDisabled'));
       return;
     }
-
-    const userId = ctx.from.id;
     
     // Проверяем режим админа из БД
     const { getSession, updateSession } = await import('./db/sessions.js');

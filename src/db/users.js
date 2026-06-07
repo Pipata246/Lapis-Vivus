@@ -32,6 +32,18 @@ export async function upsertUserFromTelegram(from) {
   const supabase = getSupabase();
   const row = mapTelegramUser(from);
 
+  // Проверяем существует ли пользователь
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id, language')
+    .eq('id', from.id)
+    .single();
+
+  // Если новый пользователь - устанавливаем язык по умолчанию (английский)
+  if (!existing) {
+    row.language = 'en';
+  }
+
   const { data, error } = await supabase
     .from('users')
     .upsert(row, { onConflict: 'id' })
@@ -40,6 +52,57 @@ export async function upsertUserFromTelegram(from) {
 
   if (error) {
     throw new Error(`Не удалось сохранить пользователя: ${error.message}`);
+  }
+
+  return data;
+}
+
+export async function getUserLanguage(userId) {
+  const supabase = getSupabase();
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('language')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) {
+    return 'en'; // Default language
+  }
+
+  return data.language || 'en';
+}
+
+export async function setUserLanguage(userId, language) {
+  if (!['en', 'ru'].includes(language)) {
+    throw new Error('Unsupported language. Use: en, ru');
+  }
+
+  const supabase = getSupabase();
+
+  const { error } = await supabase
+    .from('users')
+    .update({ language })
+    .eq('id', userId);
+
+  if (error) {
+    throw new Error(`Failed to update language: ${error.message}`);
+  }
+
+  return language;
+}
+
+export async function getUserProfile(userId) {
+  const supabase = getSupabase();
+  
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to get user profile: ${error.message}`);
   }
 
   return data;

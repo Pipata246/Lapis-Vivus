@@ -131,3 +131,21 @@ export function recoverStaleBlockRunning(session) {
     step: STEPS.BLOCK_PREP,
   };
 }
+
+export async function getUserSessions(userId) {
+  assertUserId(userId);
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('user_sessions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error loading user sessions:', error.message);
+    return [];
+  }
+
+  return data || [];
+}
