@@ -118,9 +118,47 @@ function registerHandlers(bot) {
           
         case 'start_analysis':
           // Запускаем сценарий анализа
-          await ctx.deleteMessage().catch(() => {});
-          const payload = await initUser(ctx.from);
-          await sendScenarioReply(ctx, payload);
+          try {
+            await ctx.deleteMessage().catch(() => {});
+            
+            // Сбрасываем сессию и запускаем анализ
+            const { resetSession } = await import('./db/sessions.js');
+            const { updateSession } = await import('./db/sessions.js');
+            const { getOrCreateUserChat } = await import('./db/chats.js');
+            const { deleteAllChatFiles } = await import('./db/files.js');
+            
+            const chat = await getOrCreateUserChat(userId);
+            
+            // Сбрасываем все и начинаем анализ
+            await resetSession(userId, chat.id);
+            await deleteAllChatFiles(chat.id);
+            await updateSession(userId, {
+              step: 'GENDER',
+              collected_data: {},
+              block_index: 0,
+              last_block_id: null,
+              session_start_at: new Date().toISOString(),
+            });
+            
+            // Отправляем первый вопрос
+            await ctx.reply(
+              lang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:',
+              {
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: lang === 'ru' ? 'Мужской' : 'Male', callback_data: 'lv:gender:male' },
+                      { text: lang === 'ru' ? 'Женский' : 'Female', callback_data: 'lv:gender:female' },
+                    ],
+                    [{ text: lang === 'ru' ? '❌ Отмена' : '❌ Cancel', callback_data: 'lv:menu' }],
+                  ],
+                },
+              }
+            );
+          } catch (err) {
+            console.error('Error starting analysis:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
           break;
           
         case 'profile':
