@@ -174,12 +174,24 @@ async function rejectWrongInput(session, hint, userId) {
   
   if (hasAnalysisProgress(session) && session.step !== STEPS.MENU) {
     const payload = resumePrompt(session, lang);
+    
+    // Если payload требует async (для меню)
+    if (payload._needsAsync) {
+      const menu = await showMenu(payload.lang);
+      return {
+        text: `${hint}\n\n${menu.text}`,
+        keyboard: menu.keyboard,
+      };
+    }
+    
     return {
       text: `${hint}\n\n${payload.text}`,
       keyboard: payload.keyboard,
     };
   }
-  return { text: hint, keyboard: showMenu(lang).keyboard };
+  
+  const menu = await showMenu(lang);
+  return { text: hint, keyboard: menu.keyboard };
 }
 
 export async function initUser(from) {
@@ -193,13 +205,13 @@ export async function initUser(from) {
   // Получаем язык пользователя
   const lang = await getUserLanguage(from.id);
   
-  return showMenu(lang);
+  return await showMenu(lang);
 }
 
-function showMenu(lang = 'en') {
+async function showMenu(lang = 'en') {
   // Возвращаем новое главное меню с мультиязычностью
-  const { t } = require('../i18n.js');
-  const { getMainMenuKeyboard } = require('../navigation.js');
+  const { t } = await import('../i18n.js');
+  const { getMainMenuKeyboard } = await import('../navigation.js');
   
   return {
     text: `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
@@ -248,7 +260,12 @@ function resumePrompt(session, lang = 'en') {
     },
   };
 
-  return messages[step] ?? showMenu(lang);
+  // Для MENU возвращаем промис, который нужно будет await
+  if (!messages[step]) {
+    return { _needsAsync: true, lang };
+  }
+  
+  return messages[step];
 }
 
 export async function handleCallback(from, callbackData) {
@@ -269,7 +286,7 @@ export async function handleCallback(from, callbackData) {
       
       await resetSession(from.id, chat.id);
       await deleteAllChatFiles(chat.id);
-      return showMenu(lang);
+      return await showMenu(lang);
     }
 
     case 'links': {
@@ -301,9 +318,10 @@ export async function handleCallback(from, callbackData) {
       
       await resetSession(from.id, chat.id);
       await deleteAllChatFiles(chat.id);
+      const menu = await showMenu(lang);
       return {
         text: lang === 'ru' ? 'Сессия сброшена. Можно начать новый анализ.' : 'Session reset. You can start a new analysis.',
-        keyboard: showMenu(lang).keyboard,
+        keyboard: menu.keyboard,
       };
     }
 
