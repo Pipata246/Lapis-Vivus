@@ -289,15 +289,22 @@ async function safeResumePrompt(session, userId = null) {
 }
 
 export async function handleCallback(from, callbackData) {
+  console.log(`[handleCallback] userId=${from.id}, callback="${callbackData}"`);
+  
   let { chat, session } = await ensureSession(from);
   
   // Перечитываем сессию из БД чтобы убедиться что у нас актуальное состояние
   session = await getSession(from.id);
   
+  console.log(`[handleCallback] session.step=${session.step}, block_index=${session.block_index}`);
+  
   const parsed = parseCallbackData(callbackData);
   if (!parsed) {
+    console.error(`[handleCallback] Не удалось распарсить callback: ${callbackData}`);
     return await rejectWrongInput(session, REJECT_TEXT, from.id);
   }
+  
+  console.log(`[handleCallback] parsed.action=${parsed.action}, parsed.value=${parsed.value}`);
 
   switch (parsed.action) {
     case 'menu': {
@@ -590,10 +597,15 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'quick_question': {
+      console.log(`[quick_question] userId=${from.id}, questionIndex=${parsed.value}`);
+      
       // Обновляем сессию из БД на случай если она изменилась
       session = await getSession(from.id);
       
+      console.log(`[quick_question] session.step=${session.step}, expected=${STEPS.BLOCK_REVIEW}`);
+      
       if (session.step !== STEPS.BLOCK_REVIEW) {
+        console.log(`[quick_question] Неверный шаг, возвращаем safeResumePrompt`);
         return await safeResumePrompt(session, from.id);
       }
 
@@ -608,8 +620,11 @@ export async function handleCallback(from, callbackData) {
       const selectedQuestion = quickQuestions[questionIndex];
 
       if (!selectedQuestion) {
+        console.error(`[quick_question] Вопрос не найден, index=${questionIndex}`);
         return await rejectWrongInput(session, 'Вопрос не найден.', from.id);
       }
+      
+      console.log(`[quick_question] Выбран вопрос: "${selectedQuestion}"`);
 
       // Отправляем вопрос в ИИ как обычное сообщение пользователя
       await saveChatMessages(chat.id, [
@@ -642,7 +657,9 @@ export async function handleCallback(from, callbackData) {
 
       let aiResponse;
       try {
+        console.log(`[quick_question] Вызываем askGpt...`);
         aiResponse = await askGpt(messages);
+        console.log(`[quick_question] Получен ответ от ИИ, длина: ${aiResponse.length}`);
       } catch (err) {
         console.error('Ошибка ИИ на quick question:', err.message);
         return {
@@ -655,10 +672,14 @@ export async function handleCallback(from, callbackData) {
       await saveChatMessages(chat.id, [
         { role: 'assistant', content: aiResponse },
       ]);
+      
+      console.log(`[quick_question] Ответ сохранён, возвращаем пользователю`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
       const formattedResponse = extractMetacomments(aiResponse, 50000);
       const chunks = splitTelegramMessages(formattedResponse);
+      
+      console.log(`[quick_question] Chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);
 
       return {
         text: chunks[0],
@@ -668,11 +689,18 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'next_block': {
+      console.log(`[next_block] userId=${from.id}, session.step=${session.step}, block_index=${session.block_index}`);
+      
       if (session.step !== STEPS.BLOCK_REVIEW) {
+        console.log(`[next_block] Неверный шаг, ожидался BLOCK_REVIEW`);
         return await safeResumePrompt(session, from.id);
       }
+      
       const nextIndex = session.block_index + 1;
+      console.log(`[next_block] Переход к блоку с индексом ${nextIndex}/${BLOCK_STACK.length}`);
+      
       if (nextIndex >= BLOCK_STACK.length) {
+        console.log(`[next_block] Это был последний блок, завершаем анализ`);
         await updateSession(from.id, { step: STEPS.COMPLETED });
         
         // Сохраняем итоговый профиль пользователя
@@ -857,13 +885,18 @@ export async function handleText(from, rawText) {
     }
 
     case STEPS.BLOCK_REVIEW: {
+      console.log(`[handleText BLOCK_REVIEW] userId=${from.id}, blockId=${session.last_block_id}, text="${rawText.slice(0, 50)}..."`);
+      
       // Пользователь задаёт свой вопрос (свободный текст)
       const blockId = session.last_block_id;
       
       if (!blockId) {
+        console.error('[handleText BLOCK_REVIEW] Блок не найден!');
         return await rejectWrongInput(session, 'Блок не найден.', from.id);
       }
 
+      console.log(`[handleText BLOCK_REVIEW] Отправляем вопрос в ИИ...`);
+      
       // Отправляем вопрос пользователя в ИИ как обычное сообщение
       await saveChatMessages(chat.id, [
         { role: 'user', content: rawText },
@@ -895,7 +928,9 @@ export async function handleText(from, rawText) {
 
       let aiResponse;
       try {
+        console.log(`[handleText BLOCK_REVIEW] Вызываем askGpt...`);
         aiResponse = await askGpt(messages);
+        console.log(`[handleText BLOCK_REVIEW] Получен ответ от ИИ, длина: ${aiResponse.length}`);
       } catch (err) {
         console.error('Ошибка ИИ на текстовый вопрос:', err.message);
         return {
@@ -908,10 +943,14 @@ export async function handleText(from, rawText) {
       await saveChatMessages(chat.id, [
         { role: 'assistant', content: aiResponse },
       ]);
+      
+      console.log(`[handleText BLOCK_REVIEW] Ответ сохранён в БД`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
       const formattedResponse = extractMetacomments(aiResponse, 50000);
       const chunks = splitTelegramMessages(formattedResponse);
+      
+      console.log(`[handleText BLOCK_REVIEW] Возвращаем ответ пользователю, chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);
 
       return {
         text: chunks[0],
