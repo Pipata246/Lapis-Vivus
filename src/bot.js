@@ -22,7 +22,7 @@ import {
   getUserProfile,
   isAdmin,
 } from './db/users.js';
-import { getSession, updateSession, getUserSessions } from './db/sessions.js';
+import { getSession, updateSession } from './db/sessions.js';
 
 let botInstance = null;
 
@@ -126,14 +126,13 @@ function registerHandlers(bot) {
         case 'profile':
           try {
             const profile = await getUserProfile(userId);
-            const sessions = await getUserSessions(userId);
             
             const profileText = t(lang, 'profileInfo', {
               telegramId: profile.id,
               name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
               language: getLanguageName(profile.language || 'en'),
               createdAt: new Date(profile.created_at).toLocaleDateString(),
-              sessions: sessions?.length || 0,
+              sessions: '-',
             });
             
             await ctx.editMessageText(profileText, {
@@ -174,30 +173,6 @@ function registerHandlers(bot) {
               reply_markup: getHelpKeyboard(lang),
             }
           ).catch(() => {});
-          break;
-          
-        case 'sessions':
-          try {
-            const sessions = await getUserSessions(userId);
-            let sessionsText = `*${t(lang, 'viewSessions')}*\n\n`;
-            
-            if (!sessions || sessions.length === 0) {
-              sessionsText += lang === 'ru' ? 'У вас пока нет сессий.' : 'You have no sessions yet.';
-            } else {
-              sessions.slice(0, 10).forEach((s, i) => {
-                const date = new Date(s.created_at).toLocaleString();
-                sessionsText += `${i + 1}. ${date}\n`;
-              });
-            }
-            
-            await ctx.editMessageText(sessionsText, {
-              parse_mode: 'Markdown',
-              reply_markup: getProfileKeyboard(lang),
-            }).catch(() => {});
-          } catch (err) {
-            console.error('Error loading sessions:', err.message);
-            await ctx.reply(t(lang, 'errorOccurred'));
-          }
           break;
           
         default:

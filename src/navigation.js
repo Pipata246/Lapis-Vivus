@@ -22,7 +22,6 @@ export function getMainMenuKeyboard(lang) {
 export function getProfileKeyboard(lang) {
   return {
     inline_keyboard: [
-      [{ text: t(lang, 'viewSessions'), callback_data: 'nav:sessions' }],
       [{ text: t(lang, 'back'), callback_data: 'nav:main_menu' }],
     ],
   };

@@ -22,11 +22,9 @@ const translations = {
       `📱 Telegram ID: {telegramId}\n` +
       `👤 Name: {name}\n` +
       `🌐 Language: {language}\n` +
-      `📅 Registered: {createdAt}\n` +
-      `📊 Sessions: {sessions}\n\n` +
+      `📅 Registered: {createdAt}\n\n` +
       `Choose an action:`,
     editProfile: '✏️ Edit Profile',
-    viewSessions: '📊 View Sessions',
     
     // Settings
     settingsTitle: '⚙️ Settings',
@@ -85,11 +83,9 @@ const translations = {
       `📱 Telegram ID: {telegramId}\n` +
       `👤 Имя: {name}\n` +
       `🌐 Язык: {language}\n` +
-      `📅 Дата регистрации: {createdAt}\n` +
-      `📊 Сессий: {sessions}\n\n` +
+      `📅 Дата регистрации: {createdAt}\n\n` +
       `Выберите действие:`,
     editProfile: '✏️ Редактировать профиль',
-    viewSessions: '📊 Просмотр сессий',
     
     // Settings
     settingsTitle: '⚙️ Настройки',
