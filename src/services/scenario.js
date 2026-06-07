@@ -268,6 +268,14 @@ function resumePrompt(session, lang = 'en') {
   return messages[step];
 }
 
+async function safeResumePrompt(session, lang = 'en') {
+  const result = resumePrompt(session, lang);
+  if (result._needsAsync) {
+    return await showMenu(result.lang);
+  }
+  return result;
+}
+
 export async function handleCallback(from, callbackData) {
   let { chat, session } = await ensureSession(from);
   
@@ -341,7 +349,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'gender': {
       if (session.step !== STEPS.GENDER) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       const data = mergeCollectedData(session, {
         gender: parsed.value,
@@ -353,7 +361,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'time_unknown': {
       if (session.step !== STEPS.BIRTH_TIME) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       const data = mergeCollectedData(session, { birth_time: 'неизвестно' });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
@@ -371,7 +379,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'confirm_yes': {
       if (session.step !== STEPS.CONFIRM) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       await updateSession(from.id, {
         block_index: 0,
@@ -385,7 +393,7 @@ export async function handleCallback(from, callbackData) {
     case 'skip_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
         console.log(`[skip_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       
       const block = currentBlock(session);
@@ -507,7 +515,7 @@ export async function handleCallback(from, callbackData) {
     case 'run_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
         console.log(`[run_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       const block = currentBlock(session);
       if (!block) {
@@ -535,7 +543,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'retry_block': {
       if (session.step !== STEPS.BLOCK_FAILED) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       await updateSession(from.id, { step: STEPS.BLOCK_PREP });
       session = await getSession(from.id);
@@ -547,7 +555,7 @@ export async function handleCallback(from, callbackData) {
       session = await getSession(from.id);
       
       if (session.step !== STEPS.BLOCK_REVIEW) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
 
       // Статичные вопросы (не генерируются ИИ)
@@ -622,7 +630,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'next_block': {
       if (session.step !== STEPS.BLOCK_REVIEW) {
-        return resumePrompt(session);
+        return await safeResumePrompt(session);
       }
       const nextIndex = session.block_index + 1;
       if (nextIndex >= BLOCK_STACK.length) {
@@ -954,19 +962,28 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 export async function sendScenarioReply(ctx, payload) {
   const { text, keyboard, extraMessages } = payload;
 
+  // Формируем опции для отправки
+  const replyOptions = {
+    parse_mode: 'Markdown',
+  };
+  
+  // Добавляем клавиатуру только если она есть
+  if (keyboard) {
+    replyOptions.reply_markup = keyboard;
+  }
+
   // Пытаемся отправить с Markdown форматированием
   try {
-    await ctx.reply(text, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard,
-    });
+    await ctx.reply(text, replyOptions);
   } catch (err) {
     // Если ошибка парсинга Markdown - отправляем без форматирования
     if (err.message.includes('parse') || err.message.includes('entities')) {
       console.error('Ошибка парсинга Markdown, отправляю без форматирования:', err.message);
-      await ctx.reply(text, {
-        reply_markup: keyboard,
-      });
+      const plainOptions = {};
+      if (keyboard) {
+        plainOptions.reply_markup = keyboard;
+      }
+      await ctx.reply(text, plainOptions);
     } else {
       throw err;
     }
@@ -977,17 +994,25 @@ export async function sendScenarioReply(ctx, payload) {
       const partText = typeof part === 'string' ? part : part.text;
       const partKb = typeof part === 'string' ? undefined : part.keyboard;
       
+      const partOptions = {
+        parse_mode: 'Markdown',
+      };
+      
+      if (partKb) {
+        partOptions.reply_markup = partKb;
+      }
+      
       try {
-        await ctx.reply(partText, {
-          parse_mode: 'Markdown',
-          reply_markup: partKb,
-        });
+        await ctx.reply(partText, partOptions);
       } catch (err) {
         // Если ошибка парсинга - отправляем без форматирования
         if (err.message.includes('parse') || err.message.includes('entities')) {
           console.error('Ошибка парсинга Markdown в extra message, отправляю без форматирования');
-          await ctx.reply(partText, {
-            reply_markup: partKb,
+          const plainPartOptions = {};
+          if (partKb) {
+            plainPartOptions.reply_markup = partKb;
+          }
+          await ctx.reply(partText, plainPartOptions);
           });
         } else {
           throw err;
