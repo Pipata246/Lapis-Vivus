@@ -1013,7 +1013,6 @@ export async function sendScenarioReply(ctx, payload) {
             plainPartOptions.reply_markup = partKb;
           }
           await ctx.reply(partText, plainPartOptions);
-          });
         } else {
           throw err;
         }
