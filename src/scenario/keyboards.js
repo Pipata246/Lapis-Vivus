@@ -6,11 +6,10 @@ function cb(action, value = null) {
 }
 
 export function menuKeyboard() {
+  // DEPRECATED: Эта клавиатура больше не используется
+  // Навигация теперь идет через getMainMenuKeyboard() из navigation.js
   return {
-    inline_keyboard: [
-      [{ text: '🔮 Начать анализ Lapis Vivus', callback_data: cb('start') }],
-      [{ text: '🔗 Полезные ссылки', callback_data: cb('links') }],
-    ],
+    inline_keyboard: [],
   };
 }
 

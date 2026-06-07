@@ -161,35 +161,53 @@ async function ensureSession(from) {
   return { chat, session };
 }
 
-function rejectWrongInput(session, hint) {
+async function rejectWrongInput(session, hint, userId) {
+  let lang = 'en';
+  if (userId) {
+    try {
+      const { getUserLanguage } = await import('../db/users.js');
+      lang = await getUserLanguage(userId);
+    } catch (err) {
+      console.error('Error getting language:', err.message);
+    }
+  }
+  
   if (hasAnalysisProgress(session) && session.step !== STEPS.MENU) {
-    const payload = resumePrompt(session);
+    const payload = resumePrompt(session, lang);
     return {
       text: `${hint}\n\n${payload.text}`,
       keyboard: payload.keyboard,
     };
   }
-  return { text: hint, keyboard: menuKeyboard() };
+  return { text: hint, keyboard: showMenu(lang).keyboard };
 }
 
 export async function initUser(from) {
   const { chat, session } = await ensureSession(from);
+  const { getUserLanguage } = await import('../db/users.js');
   
   // При /start всегда сбрасываем сессию, контекст ИИ и удаляем все файлы
   await resetSession(from.id, chat.id);
   await deleteAllChatFiles(chat.id);
   
-  return showMenu();
+  // Получаем язык пользователя
+  const lang = await getUserLanguage(from.id);
+  
+  return showMenu(lang);
 }
 
-function showMenu() {
+function showMenu(lang = 'en') {
+  // Возвращаем новое главное меню с мультиязычностью
+  const { t } = require('../i18n.js');
+  const { getMainMenuKeyboard } = require('../navigation.js');
+  
   return {
-    text: 'Lapis Vivus — анализ по фиксированному протоколу.\n\nВыбери действие кнопкой ниже. Свободный ввод не используется.',
-    keyboard: menuKeyboard(),
+    text: `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+    keyboard: getMainMenuKeyboard(lang),
   };
 }
 
-function resumePrompt(session) {
+function resumePrompt(session, lang = 'en') {
   session = recoverStaleBlockRunning(session);
   const step = session.step;
   
@@ -230,7 +248,7 @@ function resumePrompt(session) {
     },
   };
 
-  return messages[step] ?? showMenu();
+  return messages[step] ?? showMenu(lang);
 }
 
 export async function handleCallback(from, callbackData) {
@@ -241,14 +259,18 @@ export async function handleCallback(from, callbackData) {
   
   const parsed = parseCallbackData(callbackData);
   if (!parsed) {
-    return rejectWrongInput(session, REJECT_TEXT);
+    return await rejectWrongInput(session, REJECT_TEXT, from.id);
   }
 
   switch (parsed.action) {
-    case 'menu':
+    case 'menu': {
+      const { getUserLanguage } = await import('../db/users.js');
+      const lang = await getUserLanguage(from.id);
+      
       await resetSession(from.id, chat.id);
       await deleteAllChatFiles(chat.id);
-      return showMenu();
+      return showMenu(lang);
+    }
 
     case 'links': {
       const linksText = [
@@ -273,13 +295,17 @@ export async function handleCallback(from, callbackData) {
       };
     }
 
-    case 'reset':
+    case 'reset': {
+      const { getUserLanguage } = await import('../db/users.js');
+      const lang = await getUserLanguage(from.id);
+      
       await resetSession(from.id, chat.id);
       await deleteAllChatFiles(chat.id);
       return {
-        text: 'Сессия сброшена. Можно начать новый анализ.',
-        keyboard: menuKeyboard(),
+        text: lang === 'ru' ? 'Сессия сброшена. Можно начать новый анализ.' : 'Session reset. You can start a new analysis.',
+        keyboard: showMenu(lang).keyboard,
       };
+    }
 
     case 'start': {
       // При нажатии "Начать анализ" всегда сбрасываем сессию, контекст ИИ и удаляем файлы
@@ -517,7 +543,7 @@ export async function handleCallback(from, callbackData) {
       const selectedQuestion = quickQuestions[questionIndex];
 
       if (!selectedQuestion) {
-        return rejectWrongInput(session, 'Вопрос не найден.');
+        return await rejectWrongInput(session, 'Вопрос не найден.', from.id);
       }
 
       // Отправляем вопрос в ИИ как обычное сообщение пользователя
@@ -701,7 +727,7 @@ export async function handleText(from, rawText) {
       [STEPS.CONFIRM]: 'Подтверди данные кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: 'Нажми «Повторить блок» или вернись в меню.',
     };
-    return rejectWrongInput(session, hints[step] ?? REJECT_TEXT);
+    return await rejectWrongInput(session, hints[step] ?? REJECT_TEXT, from.id);
   }
 
   switch (step) {
@@ -770,7 +796,7 @@ export async function handleText(from, rawText) {
       const blockId = session.last_block_id;
       
       if (!blockId) {
-        return rejectWrongInput(session, 'Блок не найден.');
+        return await rejectWrongInput(session, 'Блок не найден.', from.id);
       }
 
       // Отправляем вопрос пользователя в ИИ как обычное сообщение
@@ -830,7 +856,7 @@ export async function handleText(from, rawText) {
     }
 
     default:
-      return rejectWrongInput(session, REJECT_TEXT);
+      return await rejectWrongInput(session, REJECT_TEXT, from.id);
   }
 }
 
@@ -838,9 +864,10 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
   const { chat, session } = await ensureSession(from);
 
   if (session.step !== STEPS.BLOCK_PREP) {
-    return rejectWrongInput(
+    return await rejectWrongInput(
       session,
       '📎 Файлы принимаются только на экране блока (после подтверждения данных). Нажми «Начать анализ» в меню.',
+      from.id
     );
   }
 
