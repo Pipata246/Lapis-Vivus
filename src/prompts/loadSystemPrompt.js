@@ -8,6 +8,7 @@ const SYSTEM_PROMPT_PATH = path.join(__dirname, 'lapis-system.txt');
 const CORE_PATH = path.join(__dirname, 'lapis-core.txt');
 const BLOCKS_PATH = path.join(__dirname, 'lapis-blocks.txt');
 const GLOSSARY_PATH = path.join(__dirname, 'glossary.txt');
+const BIBLIOGRAPHY_PATH = path.join(__dirname, 'bibliography.txt');
 
 let cachedPrompt = null;
 
@@ -22,14 +23,15 @@ async function initializePromptsInDB() {
     const { data: existing } = await supabase
       .from('prompts')
       .select('id, content')
-      .in('id', ['system', 'blocks', 'glossary']);
+      .in('id', ['system', 'blocks', 'glossary', 'bibliography']);
     
     // Если промпты уже есть и не пустые - не перезаписываем
     const hasSystem = existing?.some(p => p.id === 'system' && p.content.length > 100);
     const hasBlocks = existing?.some(p => p.id === 'blocks' && p.content.length > 100);
     const hasGlossary = existing?.some(p => p.id === 'glossary' && p.content.length > 100);
+    const hasBibliography = existing?.some(p => p.id === 'bibliography' && p.content.length > 100);
     
-    if (hasSystem && hasBlocks && hasGlossary) {
+    if (hasSystem && hasBlocks && hasGlossary && hasBibliography) {
       return; // Промпты уже инициализированы
     }
     
@@ -38,8 +40,9 @@ async function initializePromptsInDB() {
     const corePrompt = readFileSync(CORE_PATH, 'utf8');
     const blocksPrompt = readFileSync(BLOCKS_PATH, 'utf8');
     const glossary = readFileSync(GLOSSARY_PATH, 'utf8');
+    const bibliography = readFileSync(BIBLIOGRAPHY_PATH, 'utf8');
     
-    // Объединяем system и core в один промпт (БЕЗ глоссария - он отдельно)
+    // Объединяем system и core в один промпт (БЕЗ глоссария и библиографии - они отдельно)
     const combinedSystem = systemPrompt + '\n\n' + corePrompt;
     
     // Обновляем в БД
@@ -62,6 +65,13 @@ async function initializePromptsInDB() {
         .from('prompts')
         .upsert({ id: 'glossary', content: glossary }, { onConflict: 'id' });
       console.log('[Prompts] Глоссарий инициализирован в БД');
+    }
+    
+    if (!hasBibliography) {
+      await supabase
+        .from('prompts')
+        .upsert({ id: 'bibliography', content: bibliography }, { onConflict: 'id' });
+      console.log('[Prompts] Библиография инициализирована в БД');
     }
   } catch (err) {
     console.error('[Prompts] Ошибка инициализации:', err.message);
@@ -106,6 +116,7 @@ export async function getSystemPrompt() {
   let systemPrompt = await loadPromptFromDB('system');
   let blocksPrompt = await loadPromptFromDB('blocks');
   let glossary = await loadPromptFromDB('glossary');
+  let bibliography = await loadPromptFromDB('bibliography');
   
   // Fallback на файлы если в БД пусто
   if (!systemPrompt || systemPrompt.length < 100) {
@@ -125,7 +136,12 @@ export async function getSystemPrompt() {
     glossary = readFileSync(GLOSSARY_PATH, 'utf8');
   }
   
-  cachedPrompt = systemPrompt + '\n\n' + glossary + '\n\n' + blocksPrompt;
+  if (!bibliography || bibliography.length < 100) {
+    console.warn('[Prompts] Библиография не найдена в БД, используем файлы');
+    bibliography = readFileSync(BIBLIOGRAPHY_PATH, 'utf8');
+  }
+  
+  cachedPrompt = systemPrompt + '\n\n' + glossary + '\n\n' + bibliography + '\n\n' + blocksPrompt;
   return cachedPrompt;
 }
 
@@ -133,8 +149,8 @@ export async function getSystemPrompt() {
  * Обновление промпта в БД (вызывается из админки)
  */
 export async function updatePrompt(promptId, content, adminId) {
-  if (!['system', 'blocks', 'glossary'].includes(promptId)) {
-    throw new Error('Некорректный ID промпта. Допустимые: system, blocks, glossary');
+  if (!['system', 'blocks', 'glossary', 'bibliography'].includes(promptId)) {
+    throw new Error('Некорректный ID промпта. Допустимые: system, blocks, glossary, bibliography');
   }
   
   if (!content || content.trim().length < 10) {

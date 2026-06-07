@@ -56,6 +56,7 @@ function registerHandlers(bot) {
               [{ text: '📝 Изменить системный промпт', callback_data: 'admin:edit_system_prompt' }],
               [{ text: '🔄 Изменить этапы', callback_data: 'admin:edit_blocks' }],
               [{ text: '📖 Изменить глоссарий', callback_data: 'admin:edit_glossary' }],
+              [{ text: '📚 Изменить библиографию', callback_data: 'admin:edit_bibliography' }],
               [{ text: '❌ Закрыть', callback_data: 'admin:close' }],
             ],
           },
@@ -129,6 +130,21 @@ function registerHandlers(bot) {
             '• TXT файл\n' +
             '• PDF файл\n\n' +
             '⚠️ Внимание: это изменит определения терминов для всех пользователей.\n\n' +
+            'Для отмены используйте /admin',
+            { parse_mode: 'Markdown' }
+          );
+          break;
+          
+        case 'edit_bibliography':
+          await updateSession(userId, { admin_mode: 'edit_bibliography' });
+          await ctx.reply(
+            '📚 *Редактирование библиографии*\n\n' +
+            'Отправьте новый текст библиографии первоисточников.\n\n' +
+            'Можете отправить:\n' +
+            '• Текстовое сообщение\n' +
+            '• TXT файл\n' +
+            '• PDF файл\n\n' +
+            '⚠️ Внимание: это изменит библиографию для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
           );
@@ -226,6 +242,9 @@ function registerHandlers(bot) {
         } else if (adminMode === 'edit_glossary') {
           promptId = 'glossary';
           promptName = 'Глоссарий';
+        } else if (adminMode === 'edit_bibliography') {
+          promptId = 'bibliography';
+          promptName = 'Библиография';
         }
         
         await ctx.sendChatAction('typing').catch(() => {});
@@ -398,6 +417,9 @@ function registerHandlers(bot) {
         } else if (adminMode === 'edit_glossary') {
           promptId = 'glossary';
           promptName = 'Глоссарий';
+        } else if (adminMode === 'edit_bibliography') {
+          promptId = 'bibliography';
+          promptName = 'Библиография';
         }
         
         await updatePrompt(promptId, extractedText, userId);
