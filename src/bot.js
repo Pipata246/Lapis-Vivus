@@ -99,6 +99,47 @@ function registerHandlers(bot) {
     // Получаем язык пользователя
     const lang = await getUserLanguage(userId);
     
+    // ВАЖНО: Сценарные callback'ы (lv:*) обрабатываются ПЕРВЫМИ
+    // чтобы не конфликтовать с навигацией
+    if (callbackData.startsWith('lv:')) {
+      // Обработка сценарных callback'ов через scenario.js
+      const key = `${userId}:${callbackData}`;
+      const now = Date.now();
+      const lastProcessed = processingCallbacks.get(key);
+      
+      if (lastProcessed && (now - lastProcessed) < CALLBACK_DEBOUNCE_MS) {
+        await ctx.answerCbQuery('⏳ Обрабатывается...').catch(() => {});
+        return;
+      }
+      
+      processingCallbacks.set(key, now);
+      
+      // Очищаем старые записи (старше 5 секунд)
+      for (const [k, timestamp] of processingCallbacks.entries()) {
+        if (now - timestamp > 5000) {
+          processingCallbacks.delete(k);
+        }
+      }
+
+      await ctx.answerCbQuery().catch(() => {});
+      await ctx.sendChatAction('typing').catch(() => {});
+
+      try {
+        const payload = await handleCallback(ctx.from, ctx.callbackQuery.data);
+        await sendScenarioReply(ctx, payload);
+      } catch (err) {
+        console.error('Ошибка callback:', err.message, err.stack);
+        await ctx.reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`).catch(() => {});
+      } finally {
+        // Убираем блокировку через некоторое время
+        setTimeout(() => {
+          processingCallbacks.delete(key);
+        }, CALLBACK_DEBOUNCE_MS);
+      }
+      
+      return;
+    }
+    
     // Обработка навигационных callback'ов
     if (callbackData.startsWith('nav:')) {
       await ctx.answerCbQuery().catch(() => {});
@@ -343,41 +384,6 @@ function registerHandlers(bot) {
       }
       
       return;
-    }
-    
-    // Обычная обработка callback'ов для сценария
-    const key = `${userId}:${callbackData}`;
-    const now = Date.now();
-    const lastProcessed = processingCallbacks.get(key);
-    
-    if (lastProcessed && (now - lastProcessed) < CALLBACK_DEBOUNCE_MS) {
-      await ctx.answerCbQuery('⏳ Обрабатывается...').catch(() => {});
-      return;
-    }
-    
-    processingCallbacks.set(key, now);
-    
-    // Очищаем старые записи (старше 5 секунд)
-    for (const [k, timestamp] of processingCallbacks.entries()) {
-      if (now - timestamp > 5000) {
-        processingCallbacks.delete(k);
-      }
-    }
-
-    await ctx.answerCbQuery().catch(() => {});
-    await ctx.sendChatAction('typing').catch(() => {});
-
-    try {
-      const payload = await handleCallback(ctx.from, ctx.callbackQuery.data);
-      await sendScenarioReply(ctx, payload);
-    } catch (err) {
-      console.error('Ошибка callback:', err.message, err.stack);
-      await ctx.reply(`❌ Ошибка: ${err.message}\n\nПопробуй ещё раз или используй /start`).catch(() => {});
-    } finally {
-      // Убираем блокировку через некоторое время
-      setTimeout(() => {
-        processingCallbacks.delete(key);
-      }, CALLBACK_DEBOUNCE_MS);
     }
   });
 
