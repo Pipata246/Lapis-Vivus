@@ -346,6 +346,8 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'start': {
+      console.log(`[start] userId=${from.id}, начинаем новый анализ`);
+      
       // При нажатии "Начать анализ" всегда сбрасываем сессию, контекст ИИ и удаляем файлы
       await resetSession(from.id, chat.id);
       await deleteAllChatFiles(chat.id);
@@ -356,19 +358,44 @@ export async function handleCallback(from, callbackData) {
         last_block_id: null,
         session_start_at: new Date().toISOString(),
       });
-      return { text: 'Шаг 1/4. Выбери пол:', keyboard: genderKeyboard() };
+      
+      console.log(`[start] Сессия сброшена, step установлен в ${STEPS.GENDER}`);
+      
+      // Получаем язык пользователя
+      const { getUserLanguage } = await import('../db/users.js');
+      const userLang = await getUserLanguage(from.id);
+      
+      return { 
+        text: userLang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:', 
+        keyboard: genderKeyboard(),
+        editMessage: true, // Редактируем текущее сообщение вместо отправки нового
+      };
     }
 
     case 'gender': {
+      console.log(`[gender] userId=${from.id}, session.step=${session.step}, expected=${STEPS.GENDER}`);
+      
       if (session.step !== STEPS.GENDER) {
+        console.log(`[gender] Неверный шаг, возвращаем safeResumePrompt`);
         return await safeResumePrompt(session, from.id);
       }
+      
+      console.log(`[gender] Сохраняем пол: ${parsed.value}`);
       const data = mergeCollectedData(session, {
         gender: parsed.value,
         gender_label: genderLabel(parsed.value),
       });
       await updateSession(from.id, { step: STEPS.BIRTH_DATE, collected_data: data });
-      return { text: 'Шаг 2/4. Дата рождения (ДД.ММ.ГГГГ):', keyboard: null };
+      
+      // Получаем язык пользователя
+      const { getUserLanguage } = await import('../db/users.js');
+      const userLang = await getUserLanguage(from.id);
+      
+      return { 
+        text: userLang === 'ru' ? 'Шаг 2/4. Дата рождения (ДД.ММ.ГГГГ):' : 'Step 2/4. Birth date (DD.MM.YYYY):', 
+        keyboard: null,
+        editMessage: true,
+      };
     }
 
     case 'time_unknown': {
@@ -972,7 +999,7 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 }
 
 export async function sendScenarioReply(ctx, payload) {
-  const { text, keyboard, extraMessages } = payload;
+  const { text, keyboard, extraMessages, editMessage = false } = payload;
 
   // Формируем опции для отправки
   const replyOptions = {
@@ -982,6 +1009,18 @@ export async function sendScenarioReply(ctx, payload) {
   // Добавляем клавиатуру только если она есть
   if (keyboard) {
     replyOptions.reply_markup = keyboard;
+  }
+
+  // Если нужно редактировать - пробуем editMessageText
+  if (editMessage && ctx.callbackQuery) {
+    try {
+      await ctx.editMessageText(text, replyOptions);
+      return; // Успешно отредактировали, выходим
+    } catch (err) {
+      // Если не удалось отредактировать (сообщение слишком старое или идентичное)
+      // Отправляем новое
+      console.log('Не удалось отредактировать сообщение, отправляю новое:', err.message);
+    }
   }
 
   // Пытаемся отправить с Markdown форматированием

@@ -6,7 +6,7 @@ import { t } from './i18n.js';
 export function getMainMenuKeyboard(lang) {
   return {
     inline_keyboard: [
-      [{ text: t(lang, 'startAnalysis'), callback_data: 'nav:start_analysis' }],
+      [{ text: t(lang, 'startAnalysis'), callback_data: 'lv:start' }],
       [{ text: t(lang, 'myProfile'), callback_data: 'nav:profile' }],
       [
         { text: t(lang, 'settings'), callback_data: 'nav:settings' },
