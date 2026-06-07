@@ -268,7 +268,19 @@ function resumePrompt(session, lang = 'en') {
   return messages[step];
 }
 
-async function safeResumePrompt(session, lang = 'en') {
+async function safeResumePrompt(session, userId = null) {
+  let lang = 'en';
+  
+  // Получаем язык пользователя если передан userId
+  if (userId) {
+    try {
+      const { getUserLanguage } = await import('../db/users.js');
+      lang = await getUserLanguage(userId);
+    } catch (err) {
+      console.error('Error getting user language in safeResumePrompt:', err.message);
+    }
+  }
+  
   const result = resumePrompt(session, lang);
   if (result._needsAsync) {
     return await showMenu(result.lang);
@@ -349,7 +361,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'gender': {
       if (session.step !== STEPS.GENDER) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       const data = mergeCollectedData(session, {
         gender: parsed.value,
@@ -361,7 +373,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'time_unknown': {
       if (session.step !== STEPS.BIRTH_TIME) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       const data = mergeCollectedData(session, { birth_time: 'неизвестно' });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
@@ -379,7 +391,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'confirm_yes': {
       if (session.step !== STEPS.CONFIRM) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       await updateSession(from.id, {
         block_index: 0,
@@ -393,7 +405,7 @@ export async function handleCallback(from, callbackData) {
     case 'skip_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
         console.log(`[skip_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       
       const block = currentBlock(session);
@@ -515,7 +527,7 @@ export async function handleCallback(from, callbackData) {
     case 'run_block': {
       if (session.step !== STEPS.BLOCK_PREP) {
         console.log(`[run_block] Неверный шаг. Ожидался: ${STEPS.BLOCK_PREP}, получен: ${session.step}`);
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       const block = currentBlock(session);
       if (!block) {
@@ -543,7 +555,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'retry_block': {
       if (session.step !== STEPS.BLOCK_FAILED) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       await updateSession(from.id, { step: STEPS.BLOCK_PREP });
       session = await getSession(from.id);
@@ -555,7 +567,7 @@ export async function handleCallback(from, callbackData) {
       session = await getSession(from.id);
       
       if (session.step !== STEPS.BLOCK_REVIEW) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
 
       // Статичные вопросы (не генерируются ИИ)
@@ -630,7 +642,7 @@ export async function handleCallback(from, callbackData) {
 
     case 'next_block': {
       if (session.step !== STEPS.BLOCK_REVIEW) {
-        return await safeResumePrompt(session);
+        return await safeResumePrompt(session, from.id);
       }
       const nextIndex = session.block_index + 1;
       if (nextIndex >= BLOCK_STACK.length) {
