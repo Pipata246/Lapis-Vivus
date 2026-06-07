@@ -55,6 +55,7 @@ function registerHandlers(bot) {
             inline_keyboard: [
               [{ text: '📝 Изменить системный промпт', callback_data: 'admin:edit_system_prompt' }],
               [{ text: '🔄 Изменить этапы', callback_data: 'admin:edit_blocks' }],
+              [{ text: '📖 Изменить глоссарий', callback_data: 'admin:edit_glossary' }],
               [{ text: '❌ Закрыть', callback_data: 'admin:close' }],
             ],
           },
@@ -113,6 +114,21 @@ function registerHandlers(bot) {
             '• TXT файл\n' +
             '• PDF файл\n\n' +
             '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
+            'Для отмены используйте /admin',
+            { parse_mode: 'Markdown' }
+          );
+          break;
+          
+        case 'edit_glossary':
+          await updateSession(userId, { admin_mode: 'edit_glossary' });
+          await ctx.reply(
+            '📖 *Редактирование глоссария*\n\n' +
+            'Отправьте новый текст глоссария терминов.\n\n' +
+            'Можете отправить:\n' +
+            '• Текстовое сообщение\n' +
+            '• TXT файл\n' +
+            '• PDF файл\n\n' +
+            '⚠️ Внимание: это изменит определения терминов для всех пользователей.\n\n' +
             'Для отмены используйте /admin',
             { parse_mode: 'Markdown' }
           );
@@ -199,8 +215,18 @@ function registerHandlers(bot) {
       
       try {
         const { updatePrompt } = await import('./prompts/loadSystemPrompt.js');
-        const promptId = adminMode === 'edit_system_prompt' ? 'system' : 'blocks';
-        const promptName = adminMode === 'edit_system_prompt' ? 'Системный промпт' : 'Этапы';
+        
+        let promptId, promptName;
+        if (adminMode === 'edit_system_prompt') {
+          promptId = 'system';
+          promptName = 'Системный промпт';
+        } else if (adminMode === 'edit_blocks') {
+          promptId = 'blocks';
+          promptName = 'Этапы';
+        } else if (adminMode === 'edit_glossary') {
+          promptId = 'glossary';
+          promptName = 'Глоссарий';
+        }
         
         await ctx.sendChatAction('typing').catch(() => {});
         await updatePrompt(promptId, text, userId);
@@ -361,8 +387,18 @@ function registerHandlers(bot) {
         }
         
         const { updatePrompt } = await import('./prompts/loadSystemPrompt.js');
-        const promptId = adminMode === 'edit_system_prompt' ? 'system' : 'blocks';
-        const promptName = adminMode === 'edit_system_prompt' ? 'Системный промпт' : 'Этапы';
+        
+        let promptId, promptName;
+        if (adminMode === 'edit_system_prompt') {
+          promptId = 'system';
+          promptName = 'Системный промпт';
+        } else if (adminMode === 'edit_blocks') {
+          promptId = 'blocks';
+          promptName = 'Этапы';
+        } else if (adminMode === 'edit_glossary') {
+          promptId = 'glossary';
+          promptName = 'Глоссарий';
+        }
         
         await updatePrompt(promptId, extractedText, userId);
         
