@@ -10,51 +10,51 @@ const GEOCULT = {
 
 const CALCULATORS = {
   humanDesign: {
-    label: '🧬 Дизайн Человека',
+    label: 'Дизайн Человека',
     baseUrl: 'https://human-design.space/dizajn-cheloveka-raschet-karty/#/bodygraph',
   },
   pythagoras: {
-    label: '🔢 Квадрат Пифагора',
+    label: 'Квадрат Пифагора',
     baseUrl: 'https://in-contri.ru/kvadrat-pifagora/',
   },
   chakraAnalysis: {
-    label: '🔮 Чакроанализ (ХВД)',
+    label: 'Чакроанализ',
     baseUrl: 'https://numeria.ru/calculators/chakroanaliz/',
   },
   destinyMatrix: {
-    label: '🎯 Матрица судьбы',
+    label: 'Матрица судьбы',
     baseUrl: 'https://human-design.space/rasschitat-matriczu-sudby/',
   },
   taroPortrait: {
-    label: '🃏 Кармический портрет Таро',
+    label: 'Кармический портрет Таро',
     baseUrl: 'https://olvia-center.ru/article/psihologicheskiy-portret-po-kartam-taro',
   },
   tzolkin: {
-    label: '🌞 Цолькин / Кин',
+    label: 'Цолькин',
     baseUrl: 'https://yamaya.ru/maya/kin-orakul/',
   },
   bazi: {
-    label: '🏯 Бацзы (У-Син)',
+    label: 'Бацзы · У-Син',
     baseUrl: 'https://www.mingli.ru/card/739951',
   },
   jyotish: {
-    label: '🕉 Джйотиш',
+    label: 'Джйотиш',
     baseUrl: 'https://vedic-horo.ru/#',
   },
   dasha: {
-    label: '📅 Даша (расчет)',
+    label: 'Даша',
     baseUrl: 'https://dasha-calculator.ru/#calculator',
   },
   gochara: {
-    label: '🔄 Гочара (расчет)',
+    label: 'Гочара',
     baseUrl: 'https://aum4.com/jyotish/gochara/',
   },
   natal: {
-    label: '⭐ Натальная карта',
+    label: 'Натальная карта',
     buildUrl: (data) => buildGeocultUrl(GEOCULT.natal, data),
   },
   transits: {
-    label: '🔄 Транзиты',
+    label: 'Транзиты',
     buildUrl: (data) => buildGeocultUrl(GEOCULT.transits, data),
   },
 };
@@ -186,18 +186,21 @@ export function formatCalculatorLinksText(blockId, collectedData = {}) {
     return '';
   }
 
-  const lines = ['🧮 Калькуляторы — кнопки ниже откроют сайт в браузере:'];
+  const lines = [
+    '<b>Справочные калькуляторы</b>',
+    '<i>Ссылки откроются в браузере</i>',
+  ];
   for (const link of links) {
-    lines.push(`• ${link.label}${link.note ? ` — ${link.note}` : ''}`);
+    lines.push(`· ${link.label}${link.note ? ` — ${link.note}` : ''}`);
   }
   lines.push('');
-  lines.push('Сохрани скрин результата и прикрепи его, если блок требует данные с калькулятора.');
+  lines.push('Сохраните результат расчёта и приложите файл, если этап требует исходных данных.');
 
   const hasGeocult = links.some((l) => l.url.includes('geocult.ru'));
   if (hasGeocult && collectedData?.birth_date) {
-    lines.push('Дата, время и город из анкеты уже подставлены в ссылку.');
+    lines.push('<i>Дата, время и место из профиля подставлены в ссылку.</i>');
   } else if (collectedData?.birth_date) {
-    lines.push('Дата рождения из анкеты — введи на сайте, если поля пустые.');
+    lines.push('<i>Дата рождения из профиля — уточните на сайте при необходимости.</i>');
   }
 
   return lines.join('\n');
@@ -211,25 +214,30 @@ export function calculatorUrlButtons(blockId, collectedData = {}) {
   }));
 }
 
-/** Все калькуляторы для раздела «Полезные ссылки» */
+/** Все калькуляторы для раздела «Справочные ресурсы» */
 export function getAllCalculatorLinks() {
-  return [
-    { label: '🧬 Дизайн Человека', url: 'https://human-design.space/dizajn-cheloveka-raschet-karty/#/bodygraph' },
-    { label: '🔢 Квадрат Пифагора', url: 'https://in-contri.ru/kvadrat-pifagora/' },
-    { label: '🔮 Чакроанализ (ХВД)', url: 'https://numeria.ru/calculators/chakroanaliz/' },
-    { label: '🎯 Матрица судьбы', url: 'https://human-design.space/rasschitat-matriczu-sudby/' },
-    { label: '🃏 Кармический портрет Таро', url: 'https://olvia-center.ru/article/psihologicheskiy-portret-po-kartam-taro' },
-    { label: '🌞 Цолькин / Кин', url: 'https://yamaya.ru/maya/kin-orakul/' },
-    { label: '🏯 Бацзы (У-Син)', url: 'https://www.mingli.ru/card/739951' },
-    { label: '🕉 Джйотиш', url: 'https://vedic-horo.ru/#' },
-    { label: '📅 Даша (расчет)', url: 'https://dasha-calculator.ru/#calculator' },
-    { label: '🔄 Гочара (расчет)', url: 'https://aum4.com/jyotish/gochara/' },
-    { label: '⭐ Натальная карта', url: 'https://geocult.ru/natalnaya-karta-onlayn-raschet' },
-    { label: '🔄 Транзиты', url: 'https://geocult.ru/tranzityi-onlayn-raschet' },
-  ];
+  const urls = {
+    humanDesign: 'https://human-design.space/dizajn-cheloveka-raschet-karty/#/bodygraph',
+    pythagoras: 'https://in-contri.ru/kvadrat-pifagora/',
+    chakraAnalysis: 'https://numeria.ru/calculators/chakroanaliz/',
+    destinyMatrix: 'https://human-design.space/rasschitat-matriczu-sudby/',
+    taroPortrait: 'https://olvia-center.ru/article/psihologicheskiy-portret-po-kartam-taro',
+    tzolkin: 'https://yamaya.ru/maya/kin-orakul/',
+    bazi: 'https://www.mingli.ru/card/739951',
+    jyotish: 'https://vedic-horo.ru/#',
+    dasha: 'https://dasha-calculator.ru/#calculator',
+    gochara: 'https://aum4.com/jyotish/gochara/',
+    natal: GEOCULT.natal,
+    transits: GEOCULT.transits,
+  };
+
+  return Object.entries(urls).map(([key, url]) => ({
+    label: CALCULATORS[key]?.label ?? key,
+    url,
+  }));
 }
 
-/** Кнопки для раздела «Полезные ссылки» */
+/** Кнопки для раздела «Справочные ресурсы» */
 export function allLinksButtons() {
   const links = getAllCalculatorLinks();
   const rows = [];

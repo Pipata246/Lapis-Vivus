@@ -74,7 +74,7 @@ export async function buildVisionContentParts(textPayload, files) {
       }
       // Для файлов с извлечённым текстом
       else if (file.extracted_text) {
-        textParts.push(`📄 ${file.file_name || 'Файл'}:\n${file.extracted_text}`);
+        textParts.push(`${file.file_name || 'Файл'}:\n${file.extracted_text}`);
       }
     } catch (err) {
       console.warn('Пропуск файла для ИИ:', err.message);
@@ -84,7 +84,7 @@ export async function buildVisionContentParts(textPayload, files) {
 
   // Добавляем текст из файлов к основному сообщению
   if (textParts.length > 0) {
-    parts[0].text += '\n\n📎 Содержимое прикреплённых файлов:\n\n' + textParts.join('\n\n---\n\n');
+    parts[0].text += '\n\n<b>Прикреплённые материалы</b>\n\n' + textParts.join('\n\n— — —\n\n');
   }
 
   if (skipped.length > 0) {

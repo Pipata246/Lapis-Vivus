@@ -271,22 +271,22 @@ export const BLOCK_USER_TITLES = {
   '4B': 'Гностический слой · архетипы',
   '4E': 'Суфийский слой · работа с нафс',
   '4C': 'Алхимический катализатор',
-  '4G': 'Cut-up · новые смыслы',
-  '4F': 'Адвaita · обнуление паттернов',
+  '4G': 'Метод деконструкции',
+  '4F': 'Обнуление паттернов',
   '4D': 'Итоговый манифест',
-  '5A': 'Стратегия и протокол',
-  '5B': 'Тело Dao · внутренние практики',
+  '5A': 'Стратегический протокол',
+  '5B': 'Телесные практики · Neidan',
 };
 
 export function getBlockUserTitle(blockId) {
-  return BLOCK_USER_TITLES[blockId] ?? `Блок ${blockId}`;
+  return BLOCK_USER_TITLES[blockId] ?? `Этап ${blockId}`;
 }
 
 export function formatBlockHeader(blockId, blockIndex) {
   const title = getBlockUserTitle(blockId);
   const step = blockIndex + 1;
   const total = BLOCK_STACK.length;
-  return `✦ <b>${title}</b>\n<i>${step} из ${total}</i>`;
+  return `<b>${title}</b>\n<i>Этап ${step} из ${total} · Lapis Vivus</i>`;
 }
 
 /** Индекс блока 4 — с него в контекст подмешиваются метакомментарии прошлых блоков */
@@ -363,6 +363,6 @@ export const TEXT_INPUT_STEPS = new Set([
 export const FILE_ONLY_STEPS = new Set([STEPS.BLOCK_PREP]);
 
 export const REJECT_TEXT =
-  'На этом шаге текст не принимается. Используй кнопки или прикрепи файл.';
+  'На этом этапе текст не принимается. Используйте кнопки или прикрепите файл.';
 
 export const TELEGRAM_MAX_MESSAGE = 4096;

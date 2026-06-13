@@ -47,6 +47,13 @@ import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js'
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
 import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
+import {
+  BRAND,
+  btn,
+  divider,
+  formatClientProfile,
+  onboardingHeader,
+} from '../ui/brand.js';
 import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 
@@ -65,14 +72,8 @@ function genderLabel(value) {
   return value === 'male' ? 'Мужской' : 'Женский';
 }
 
-function formatProfile(data) {
-  return [
-    '📋 Данные оператора:',
-    `• Пол: ${data.gender_label ?? '—'}`,
-    `• Дата: ${data.birth_date ?? '—'}`,
-    `• Время: ${data.birth_time ?? '—'}`,
-    `• Место: ${data.birth_place ?? '—'}`,
-  ].join('\n');
+function formatProfile(data, lang = 'ru') {
+  return formatClientProfile(data, lang);
 }
 
 function currentBlock(session) {
@@ -100,7 +101,7 @@ async function getEffectiveBlockFiles(chatId, block) {
 async function blockPrepText(session, chatId) {
   const block = currentBlock(session);
   if (!block) {
-    return 'Стек блоков завершён.';
+    return '<i>Полный цикл анализа завершён.</i>';
   }
 
   // Получаем файлы из БД
@@ -122,44 +123,39 @@ async function blockPrepText(session, chatId) {
 
   let fileLine;
   if (ownFiles.length > 0) {
-    const fileNames = ownFiles.map(f => {
-      const icon = f.file_type === 'image' ? '📷' : '📄';
-      return `${icon} ${f.file_name || 'Файл'}`;
-    }).join(', ');
-    fileLine = `📎 Прикреплено файлов: ${ownFiles.length} (${fileNames})`;
+    const fileNames = ownFiles.map((f) => f.file_name || 'Файл').join(', ');
+    fileLine = `Прикреплено файлов · ${ownFiles.length} (${fileNames})`;
   } else if (inheritedFiles.length > 0) {
-    fileLine = `📎 Используются файлы блока 3 (${inheritedFiles.length}). Можно добавить свои.`;
+    fileLine = `Используются материалы этапа 3 · ${inheritedFiles.length}. Можно добавить свои.`;
   } else if (block.requiresExternal) {
     fileLine =
       is3BBlockId(block.id)
-        ? '📎 Нужен файл (скрин/документ) ИЛИ текст с описанием данных.'
-        : '📎 Файл (скрин/документ/PDF) ИЛИ текст с описанием — обязательно.';
+        ? 'Требуется файл или текстовое описание данных.'
+        : 'Требуется файл или текстовое описание — обязательно.';
   } else {
-    fileLine = '📎 Файл (скрин/документ/PDF) ИЛИ текст — по желанию.';
+    fileLine = 'Файл или текст — по необходимости.';
   }
 
-  // Проверяем есть ли текст от пользователя
   const userText = session.collected_data?.block_user_text?.[block.id];
   let textLine = null;
   if (userText) {
-    const preview = userText.length > 100 ? userText.slice(0, 100) + '...' : userText;
-    textLine = `💬 Твой текст: "${preview}"`;
+    const preview = userText.length > 100 ? `${userText.slice(0, 100)}…` : userText;
+    textLine = `Ваш текст · «${preview}»`;
   }
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
-
   const header = formatBlockHeader(block.id, session.block_index);
 
   return [
     header,
-    '',
+    divider(),
     calcBlock || null,
     calcBlock ? '' : null,
     fileLine,
     textLine || null,
     '',
-    'При необходимости добавь скрин или опиши данные текстом.',
-    'Когда готов — нажми «Запустить блок».',
+    'При необходимости приложите скриншот или опишите данные текстом.',
+    `Для запуска нажмите «${btn('ru', 'runStage')}».`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -251,38 +247,44 @@ function resumePrompt(session, lang = 'en') {
   const step = session.step;
   
   const messages = {
-    [STEPS.GENDER]: { text: 'Выбери пол:', keyboard: genderKeyboard() },
-    [STEPS.BIRTH_DATE]: { text: 'Введи дату рождения: ДД.ММ.ГГГГ', keyboard: textInputKeyboard() },
+    [STEPS.GENDER]: {
+      text: `${onboardingHeader(1, 4, 'Пол')}\n\nУкажите пол для расчёта.`,
+      keyboard: genderKeyboard(),
+    },
+    [STEPS.BIRTH_DATE]: {
+      text: `${onboardingHeader(2, 4, 'Дата рождения')}\n\nФормат · ДД.ММ.ГГГГ`,
+      keyboard: textInputKeyboard(),
+    },
     [STEPS.BIRTH_TIME]: {
-      text: 'Введи время рождения ЧЧ:ММ или нажми кнопку.',
+      text: `${onboardingHeader(3, 4, 'Время рождения')}\n\nФормат · ЧЧ:ММ или «${btn('ru', 'timeUnknown')}».`,
       keyboard: birthTimeKeyboard(),
     },
     [STEPS.BIRTH_PLACE]: {
-      text: 'Введи город или населённый пункт рождения (например: Москва, Санкт-Петербург):',
+      text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
       keyboard: textInputKeyboard(),
     },
     [STEPS.CONFIRM]: {
-      text: formatProfile(session.collected_data),
+      text: `${formatProfile(session.collected_data)}\n\n<i>Проверьте данные перед началом анализа.</i>`,
       keyboard: confirmKeyboard(),
     },
-    [STEPS.BLOCK_PREP]: { 
-      text: 'Подготовка блока...', 
+    [STEPS.BLOCK_PREP]: {
+      text: '<i>Подготовка этапа…</i>',
       keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data),
     },
     [STEPS.BLOCK_FAILED]: {
-      text: `Блок ${session.last_block_id ?? ''} не выполнен. Повтори или вернись в меню.`,
+      text: `Этап ${session.last_block_id ?? ''} не выполнен.\nПовторите или вернитесь в меню.`,
       keyboard: blockFailedKeyboard(),
     },
     [STEPS.BLOCK_RUNNING]: {
-      text: '⏳ Выполняется блок анализа. Подожди…',
+      text: '<i>Выполняется расчёт этапа. Пожалуйста, подождите.</i>',
       keyboard: runningKeyboard(),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `Блок ${session.last_block_id ?? ''} завершён. Нажми «Следующий блок».`,
+      text: `Этап ${session.last_block_id ?? ''} завершён.\nПерейдите к следующему или задайте вопрос.`,
       keyboard: nextBlockKeyboard(),
     },
     [STEPS.COMPLETED]: {
-      text: '✅ Полный стек блоков завершён.',
+      text: `<b>${BRAND.name}</b>\n<i>Полный цикл анализа завершён.</i>`,
       keyboard: completedKeyboard(),
     },
   };
@@ -345,24 +347,27 @@ export async function handleCallback(from, callbackData) {
 
     case 'links': {
       const linksText = [
-        '🔗 **Полезные ссылки на калькуляторы:**',
-        '',
-        'Нажми на кнопку ниже, чтобы перейти к калькулятору.',
+        '<b>Справочные ресурсы</b>',
+        '<i>Калькуляторы и внешние сервисы</i>',
+        divider(),
+        'Выберите ресурс в кнопках ниже.',
       ].join('\n');
-      
+
       const links = getAllCalculatorLinks();
       const urlButtons = [];
       for (let i = 0; i < links.length; i += 2) {
-        urlButtons.push(links.slice(i, i + 2).map((l) => ({
-          text: l.label,
-          url: l.url,
-        })));
+        urlButtons.push(
+          links.slice(i, i + 2).map((l) => ({
+            text: l.label,
+            url: l.url,
+          }))
+        );
       }
-      urlButtons.push([{ text: '📋 Меню', callback_data: cb('menu') }]);
-      
-      return { 
-        text: linksText, 
-        keyboard: { inline_keyboard: urlButtons } 
+      urlButtons.push([{ text: btn('ru', 'menu'), callback_data: cb('menu') }]);
+
+      return {
+        text: linksText,
+        keyboard: { inline_keyboard: urlButtons },
       };
     }
 
@@ -396,7 +401,9 @@ export async function handleCallback(from, callbackData) {
       const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
 
       return {
-        text: userLang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:',
+        text: userLang === 'ru'
+          ? `${onboardingHeader(1, 4, 'Пол', 'ru')}\n\nУкажите пол для расчёта.`
+          : `${onboardingHeader(1, 4, 'Gender', 'en')}\n\nSelect gender for the analysis.`,
         keyboard: genderKeyboard(),
       };
     }
@@ -419,7 +426,9 @@ export async function handleCallback(from, callbackData) {
       const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
 
       return {
-        text: userLang === 'ru' ? 'Шаг 2/4. Дата рождения (ДД.ММ.ГГГГ):' : 'Step 2/4. Birth date (DD.MM.YYYY):',
+        text: userLang === 'ru'
+          ? `${onboardingHeader(2, 4, 'Дата рождения', 'ru')}\n\nФормат · ДД.ММ.ГГГГ`
+          : `${onboardingHeader(2, 4, 'Birth date', 'en')}\n\nFormat · DD.MM.YYYY`,
         keyboard: textInputKeyboard(),
       };
     }
@@ -430,7 +439,10 @@ export async function handleCallback(from, callbackData) {
       }
       const data = mergeCollectedData(session, { birth_time: 'неизвестно' });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
-      return { text: 'Шаг 4/4. Город рождения:', keyboard: null };
+      return {
+        text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
+        keyboard: textInputKeyboard(),
+      };
     }
 
     case 'confirm_edit':
@@ -440,7 +452,10 @@ export async function handleCallback(from, callbackData) {
         block_index: 0,
         last_block_id: null,
       });
-      return { text: 'Начнём заново. Выбери пол:', keyboard: genderKeyboard() };
+      return {
+        text: `${onboardingHeader(1, 4, 'Пол')}\n\nУкажите пол для расчёта.`,
+        keyboard: genderKeyboard(),
+      };
 
     case 'confirm_yes': {
       if (session.step !== STEPS.CONFIRM) {
@@ -465,7 +480,7 @@ export async function handleCallback(from, callbackData) {
       if (!block) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
         return {
-          text: '✅ Анализ по всем блокам завершён.',
+          text: `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>`,
           keyboard: completedKeyboard(),
         };
       }
@@ -518,10 +533,10 @@ export async function handleCallback(from, callbackData) {
           profileSummary = formatProfileSummary(profile);
         } catch (err) {
           console.error('Ошибка сохранения профиля:', err.message);
-          profileSummary = '⚠️ Профиль сохранён, но не удалось сформировать резюме.';
+          profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
         }
         
-        const completionMessage = `✅ Анализ по всем блокам завершён.\n\n${profileSummary}`;
+        const completionMessage = `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>\n${divider()}\n\n${profileSummary}`;
         const messageParts = splitTelegramMessages(completionMessage);
         
         return {
@@ -565,7 +580,7 @@ export async function handleCallback(from, callbackData) {
         const lang = await getUserLanguage(from.id);
         const menu = await showMenu(lang);
         return {
-          text: '❌ Ошибка: не удалось перейти к следующему блоку.',
+          text: 'Не удалось перейти к следующему этапу. Повторите попытку.',
           keyboard: menu.keyboard,
         };
       }
@@ -575,7 +590,7 @@ export async function handleCallback(from, callbackData) {
       const nextBlockKeyboard = blockPrepKeyboard(nextBlock.id, freshSession.collected_data);
       
       return {
-        text: `⏭ Блок ${block.id} пропущен.\n\n${nextBlockText}`,
+        text: `<i>Этап ${block.id} пропущен.</i>\n\n${nextBlockText}`,
         keyboard: nextBlockKeyboard,
       };
     }
@@ -589,7 +604,7 @@ export async function handleCallback(from, callbackData) {
       if (!block) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
         return {
-          text: '✅ Анализ по всем блокам завершён.',
+          text: `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>`,
           keyboard: completedKeyboard(),
         };
       }
@@ -600,7 +615,7 @@ export async function handleCallback(from, callbackData) {
       if (block.requiresExternal && files.length === 0 && !userText) {
         const text = await blockPrepText(session, chat.id);
         return {
-          text: `${text}\n\n⚠️ Для этого блока нужен хотя бы один файл (скрин/документ) или текст с ответами.`,
+          text: `${text}\n\n<i>Для этого этапа требуется файл или текстовое описание данных.</i>`,
           keyboard: blockPrepKeyboard(block.id, session.collected_data),
         };
       }
@@ -631,9 +646,9 @@ export async function handleCallback(from, callbackData) {
 
       // Статичные вопросы (не генерируются ИИ)
       const quickQuestions = [
-        'Как мне применить эту информацию в жизни?',
-        'Расскажи подробнее об этом блоке',
-        'Что конкретно это значит для меня?',
+        'Как применить полученные выводы на практике?',
+        'Дайте развёрнутую интерпретацию текущего этапа.',
+        'Что это означает в контексте моего профиля?',
       ];
 
       const questionIndex = parseInt(parsed.value, 10);
@@ -683,7 +698,7 @@ export async function handleCallback(from, callbackData) {
       } catch (err) {
         console.error('Ошибка ИИ на quick question:', err.message);
         return {
-          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
+          text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
           keyboard: nextBlockKeyboard(),
         };
       }
@@ -742,10 +757,10 @@ export async function handleCallback(from, callbackData) {
           profileSummary = formatProfileSummary(profile);
         } catch (err) {
           console.error('Ошибка сохранения профиля:', err.message);
-          profileSummary = '⚠️ Профиль сохранён, но не удалось сформировать резюме.';
+          profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
         }
         
-        const completionMessage = `✅ Анализ по всем блокам завершён.\n\n${profileSummary}`;
+        const completionMessage = `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>\n${divider()}\n\n${profileSummary}`;
         
         // Разбиваем на части если сообщение слишком длинное
         const messageParts = splitTelegramMessages(completionMessage);
@@ -776,7 +791,7 @@ async function runCurrentBlock(from, chatId) {
 
   if (session.step === STEPS.BLOCK_RUNNING) {
     return {
-      text: 'Блок уже выполняется. Подожди завершения.',
+      text: '<i>Этап уже выполняется. Дождитесь завершения расчёта.</i>',
       keyboard: runningKeyboard(),
     };
   }
@@ -810,7 +825,7 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
     return {
-      text: `Ошибка блока ${blockId}: ${err.message}\n\nИндекс блока не изменён — нажми «Повторить блок».`,
+      text: `Ошибка этапа ${blockId} · ${err.message}\n\nПовторите этап или вернитесь в меню.`,
       keyboard: blockFailedKeyboard(),
     };
   }
@@ -826,15 +841,15 @@ export async function handleText(from, rawText) {
   if (!TEXT_INPUT_STEPS.has(step)) {
     if (step === STEPS.BLOCK_RUNNING) {
       return {
-        text: 'Идёт расчёт блока. Подожди завершения (до 2 минут).',
+        text: '<i>Выполняется расчёт этапа. Пожалуйста, подождите.</i>',
         keyboard: runningKeyboard(),
       };
     }
     // Убираем хинты для BLOCK_REVIEW — там текст разрешён
     const hints = {
-      [STEPS.GENDER]: 'На этом шаге выбери пол кнопкой.',
-      [STEPS.CONFIRM]: 'Подтверди данные кнопкой ниже.',
-      [STEPS.BLOCK_FAILED]: 'Нажми «Повторить блок» или вернись в меню.',
+      [STEPS.GENDER]: 'На этом шаге выберите пол с помощью кнопок.',
+      [STEPS.CONFIRM]: 'Подтвердите данные кнопкой ниже.',
+      [STEPS.BLOCK_FAILED]: 'Повторите этап или вернитесь в главное меню.',
     };
     return await rejectWrongInput(session, hints[step] ?? REJECT_TEXT, from.id);
   }
@@ -846,7 +861,7 @@ export async function handleText(from, rawText) {
       const data = mergeCollectedData(session, { birth_date: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_TIME, collected_data: data });
       return {
-        text: 'Шаг 3/4. Время рождения (ЧЧ:ММ) или кнопка «неизвестно»:',
+        text: `${onboardingHeader(3, 4, 'Время рождения')}\n\nФормат · ЧЧ:ММ или «${btn('ru', 'timeUnknown')}».`,
         keyboard: birthTimeKeyboard(),
       };
     }
@@ -856,7 +871,10 @@ export async function handleText(from, rawText) {
       if (!v.ok) return { text: v.error, keyboard: birthTimeKeyboard() };
       const data = mergeCollectedData(session, { birth_time: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
-      return { text: 'Шаг 4/4. Город рождения:', keyboard: textInputKeyboard() };
+      return {
+        text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
+        keyboard: textInputKeyboard(),
+      };
     }
 
     case STEPS.BIRTH_PLACE: {
@@ -865,7 +883,7 @@ export async function handleText(from, rawText) {
       const data = mergeCollectedData(session, { birth_place: v.value });
       await updateSession(from.id, { step: STEPS.CONFIRM, collected_data: data });
       return {
-        text: `${formatProfile(data)}\n\nПодтверди данные:`,
+        text: `${formatProfile(data)}\n\n<i>Проверьте данные перед началом анализа.</i>`,
         keyboard: confirmKeyboard(),
       };
     }
@@ -895,7 +913,7 @@ export async function handleText(from, rawText) {
       const updatedText = await blockPrepText(updatedSession, chat.id);
       
       return {
-        text: `✅ Ответ сохранён.\n\n${updatedText}`,
+        text: `<i>Данные сохранены.</i>\n\n${updatedText}`,
         keyboard: blockPrepKeyboard(block.id, data),
       };
     }
@@ -950,7 +968,7 @@ export async function handleText(from, rawText) {
       } catch (err) {
         console.error('Ошибка ИИ на текстовый вопрос:', err.message);
         return {
-          text: `❌ Ошибка получения ответа: ${err.message}\n\nПопробуй ещё раз или нажми «Следующий блок».`,
+          text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
           keyboard: nextBlockKeyboard(),
         };
       }
@@ -986,7 +1004,7 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
   if (session.step !== STEPS.BLOCK_PREP) {
     return await rejectWrongInput(
       session,
-      '📎 Файлы принимаются только на экране блока (после подтверждения данных). Нажми «Начать анализ» в меню.',
+      'Файлы принимаются только на экране этапа после подтверждения профиля. Запустите анализ из главного меню.',
       from.id
     );
   }
@@ -1047,7 +1065,7 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
   } catch (err) {
     console.error('Ошибка загрузки файла:', err.message);
     return {
-      text: `❌ Ошибка: ${err.message}\n\nПопробуй загрузить файл заново.`,
+      text: `Ошибка · ${err.message}\n\nПовторите загрузку файла.`,
       keyboard: blockPrepKeyboard(block.id, session.collected_data),
     };
   }
@@ -1057,7 +1075,7 @@ export async function sendScenarioReply(ctx, payload) {
   if (!payload?.text) {
     console.error('[sendScenarioReply] пустой payload:', payload);
     await ctx
-      .reply('⚠️ Не удалось сформировать ответ. Нажмите /start и попробуйте снова.')
+      .reply('Не удалось сформировать ответ. Отправьте /start и повторите.')
       .catch(() => {});
     return;
   }

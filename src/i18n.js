@@ -1,160 +1,142 @@
 // Multilingual support for Lapis Vivus Bot
 // Supported languages: en (English), ru (Russian)
 
+import { BRAND, btn } from './ui/brand.js';
+
 const translations = {
   en: {
-    // Start and Welcome
-    welcome: '👋 Welcome to Lapis Vivus',
-    welcomeText: 'AI-powered system for deep psychological and astrological analysis.\n\nChoose an action:',
-    
-    // Main Menu
-    mainMenu: '📋 Main Menu',
-    startAnalysis: '🔮 Start Analysis',
-    myProfile: '👤 My Profile',
-    settings: '⚙️ Settings',
-    help: '❓ Help',
-    back: '◀️ Back',
-    close: '❌ Close',
-    
-    // Profile
-    profileTitle: '👤 Your Profile',
-    profileInfo: `*Your Profile*\n\n` +
-      `📱 Telegram ID: {telegramId}\n` +
-      `👤 Name: {name}\n` +
-      `🌐 Language: {language}\n` +
-      `📅 Registered: {createdAt}\n\n` +
-      `Choose an action:`,
-    editProfile: '✏️ Edit Profile',
-    
-    // Settings
-    settingsTitle: '⚙️ Settings',
+    welcome: `<b>${BRAND.name}</b>`,
+    welcomeText:
+      `<i>${BRAND.tagline.en}</i>\n\n` +
+      'Structured multi-stage analysis based on your birth profile.\n\n' +
+      'Select an action:',
+
+    mainMenu: 'Main menu',
+    startAnalysis: btn('en', 'startAnalysis'),
+    myProfile: btn('en', 'myProfile'),
+    settings: btn('en', 'settings'),
+    help: btn('en', 'help'),
+    back: btn('en', 'back'),
+    close: btn('en', 'close'),
+
+    profileTitle: 'Profile',
+    profileInfo:
+      `<b>Your profile</b>\n\n` +
+      `Telegram ID · {telegramId}\n` +
+      `Name · {name}\n` +
+      `Language · {language}\n` +
+      `Registered · {createdAt}\n\n` +
+      'Select an action:',
+    editProfile: 'Edit profile',
+
+    settingsTitle: 'Settings',
     settingsText: 'Configure your preferences:',
-    changeLanguage: '🌐 Change Language',
-    languageEn: '🇬🇧 English',
-    languageRu: '🇷🇺 Русский',
-    languageChanged: '✅ Language changed to English',
-    
-    // Help
-    helpTitle: '❓ Help',
-    helpText: `*Lapis Vivus Help*\n\n` +
-      `This bot provides deep psychological and astrological analysis based on your profile.\n\n` +
-      `*How to use:*\n` +
-      `1. Start analysis by pressing 🔮 Start Analysis\n` +
-      `2. Follow the bot instructions\n` +
-      `3. View your profile and sessions in 👤 My Profile\n\n` +
-      `*Settings:*\n` +
-      `You can change language and other preferences in ⚙️ Settings\n\n` +
-      `*Support:*\n` +
-      `If you have questions, contact administrator.`,
-    
-    // Admin
-    adminPanel: '🔐 Administrator Panel',
-    adminText: 'Choose an action:',
-    editSystemPrompt: '📝 Edit System Prompt',
-    editBlocks: '🔄 Edit Blocks',
-    editGlossary: '📖 Edit Glossary',
-    editBibliography: '📚 Edit Bibliography',
-    editCalculators: '🔗 Edit Calculators',
-    insufficientRights: 'Insufficient rights',
-    
-    // Errors
-    errorOccurred: '❌ Error occurred',
-    tryAgain: 'Try again or use /start',
-    commandsDisabled: 'Commands are disabled. Use /start and scenario buttons.',
+    changeLanguage: btn('en', 'changeLanguage'),
+    languageEn: btn('en', 'languageEn'),
+    languageRu: btn('en', 'languageRu'),
+    languageChanged: 'Language changed to English',
+
+    helpTitle: 'Help',
+    helpText:
+      `<b>${BRAND.name}</b>\n\n` +
+      'The system performs structured psychological and astrological analysis in sequential stages.\n\n' +
+      '<b>Workflow</b>\n' +
+      '1. Start analysis from the main menu\n' +
+      '2. Enter your birth data\n' +
+      '3. Complete each stage in order\n' +
+      '4. Review results and proceed to the next stage\n\n' +
+      '<b>Support</b>\n' +
+      'For technical issues, contact the administrator.',
+
+    adminPanel: 'Administrator panel',
+    adminText: 'Select an action:',
+    editSystemPrompt: 'System prompt',
+    editBlocks: 'Analysis stages',
+    editGlossary: 'Glossary',
+    editBibliography: 'Bibliography',
+    editCalculators: 'Calculators',
+    insufficientRights: 'Insufficient access rights',
+
+    errorOccurred: 'Error',
+    tryAgain: 'Please try again or send /start',
+    commandsDisabled: 'Commands are disabled. Use /start and menu buttons.',
   },
-  
+
   ru: {
-    // Start and Welcome
-    welcome: '👋 Добро пожаловать в Lapis Vivus',
-    welcomeText: 'ИИ-система для глубокого психологического и астрологического анализа.\n\nВыберите действие:',
-    
-    // Main Menu
-    mainMenu: '📋 Главное меню',
-    startAnalysis: '🔮 Начать анализ',
-    myProfile: '👤 Мой профиль',
-    settings: '⚙️ Настройки',
-    help: '❓ Помощь',
-    back: '◀️ Назад',
-    close: '❌ Закрыть',
-    
-    // Profile
-    profileTitle: '👤 Ваш профиль',
-    profileInfo: `*Ваш профиль*\n\n` +
-      `📱 Telegram ID: {telegramId}\n` +
-      `👤 Имя: {name}\n` +
-      `🌐 Язык: {language}\n` +
-      `📅 Дата регистрации: {createdAt}\n\n` +
-      `Выберите действие:`,
-    editProfile: '✏️ Редактировать профиль',
-    
-    // Settings
-    settingsTitle: '⚙️ Настройки',
-    settingsText: 'Настройте ваши предпочтения:',
-    changeLanguage: '🌐 Изменить язык',
-    languageEn: '🇬🇧 English',
-    languageRu: '🇷🇺 Русский',
-    languageChanged: '✅ Язык изменён на русский',
-    
-    // Help
-    helpTitle: '❓ Помощь',
-    helpText: `*Справка Lapis Vivus*\n\n` +
-      `Этот бот предоставляет глубокий психологический и астрологический анализ на основе вашего профиля.\n\n` +
-      `*Как использовать:*\n` +
-      `1. Начните анализ нажав 🔮 Начать анализ\n` +
-      `2. Следуйте инструкциям бота\n` +
-      `3. Просматривайте профиль и сессии в 👤 Мой профиль\n\n` +
-      `*Настройки:*\n` +
-      `Вы можете изменить язык и другие параметры в ⚙️ Настройки\n\n` +
-      `*Поддержка:*\n` +
-      `При возникновении вопросов обращайтесь к администратору.`,
-    
-    // Admin
-    adminPanel: '🔐 Панель администратора',
+    welcome: `<b>${BRAND.name}</b>`,
+    welcomeText:
+      `<i>${BRAND.tagline.ru}</i>\n\n` +
+      'Структурированный многоэтапный анализ на основе вашего профиля рождения.\n\n' +
+      'Выберите действие:',
+
+    mainMenu: 'Главное меню',
+    startAnalysis: btn('ru', 'startAnalysis'),
+    myProfile: btn('ru', 'myProfile'),
+    settings: btn('ru', 'settings'),
+    help: btn('ru', 'help'),
+    back: btn('ru', 'back'),
+    close: btn('ru', 'close'),
+
+    profileTitle: 'Профиль',
+    profileInfo:
+      `<b>Ваш профиль</b>\n\n` +
+      `Telegram ID · {telegramId}\n` +
+      `Имя · {name}\n` +
+      `Язык · {language}\n` +
+      `Регистрация · {createdAt}\n\n` +
+      'Выберите действие:',
+    editProfile: 'Редактировать профиль',
+
+    settingsTitle: 'Настройки',
+    settingsText: 'Параметры интерфейса:',
+    changeLanguage: btn('ru', 'changeLanguage'),
+    languageEn: btn('ru', 'languageEn'),
+    languageRu: btn('ru', 'languageRu'),
+    languageChanged: 'Язык изменён на русский',
+
+    helpTitle: 'Справка',
+    helpText:
+      `<b>${BRAND.name}</b>\n\n` +
+      'Система проводит структурированный психологический и астрологический анализ в последовательных этапах.\n\n' +
+      '<b>Порядок работы</b>\n' +
+      '1. Запустите анализ из главного меню\n' +
+      '2. Введите данные рождения\n' +
+      '3. Пройдите этапы в заданном порядке\n' +
+      '4. Изучите результат и переходите к следующему этапу\n\n' +
+      '<b>Поддержка</b>\n' +
+      'По техническим вопросам обращайтесь к администратору.',
+
+    adminPanel: 'Панель администратора',
     adminText: 'Выберите действие:',
-    editSystemPrompt: '📝 Изменить системный промпт',
-    editBlocks: '🔄 Изменить этапы',
-    editGlossary: '📖 Изменить глоссарий',
-    editBibliography: '📚 Изменить библиографию',
-    editCalculators: '🔗 Изменить калькуляторы',
-    insufficientRights: 'Недостаточно прав',
-    
-    // Errors
-    errorOccurred: '❌ Произошла ошибка',
-    tryAgain: 'Попробуйте ещё раз или используйте /start',
-    commandsDisabled: 'Команды отключены. Используйте /start и кнопки сценария.',
+    editSystemPrompt: 'Системный промпт',
+    editBlocks: 'Этапы анализа',
+    editGlossary: 'Глоссарий',
+    editBibliography: 'Библиография',
+    editCalculators: 'Калькуляторы',
+    insufficientRights: 'Недостаточно прав доступа',
+
+    errorOccurred: 'Ошибка',
+    tryAgain: 'Повторите попытку или отправьте /start',
+    commandsDisabled: 'Команды отключены. Используйте /start и кнопки меню.',
   },
 };
 
-/**
- * Получить перевод для ключа
- * @param {string} lang - Код языка (en, ru)
- * @param {string} key - Ключ перевода
- * @param {Object} params - Параметры для подстановки {name: 'value'}
- * @returns {string} Переведенная строка
- */
 export function t(lang, key, params = {}) {
-  const translation = translations[lang]?.[key] || translations['en'][key] || key;
-  
-  // Подставляем параметры
+  const translation = translations[lang]?.[key] || translations.en[key] || key;
+
   return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
     return params[paramKey] !== undefined ? params[paramKey] : match;
   });
 }
 
-/**
- * Получить название языка
- */
 export function getLanguageName(lang) {
   const names = {
-    en: 'English 🇬🇧',
-    ru: 'Русский 🇷🇺',
+    en: 'English',
+    ru: 'Русский',
   };
-  return names[lang] || names['en'];
+  return names[lang] || names.en;
 }
 
-/**
- * Проверить валидность языка
- */
 export function isValidLanguage(lang) {
   return ['en', 'ru'].includes(lang);
 }

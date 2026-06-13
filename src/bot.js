@@ -54,7 +54,7 @@ function registerHandlers(bot) {
       await ctx.reply(
         `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: getMainMenuKeyboard(lang),
         }
       );
@@ -80,7 +80,7 @@ function registerHandlers(bot) {
       await ctx.reply(
         `${t(lang, 'adminPanel')}\n\n${t(lang, 'adminText')}`,
         {
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
           reply_markup: getAdminKeyboard(lang),
         }
       );
@@ -133,7 +133,7 @@ function registerHandlers(bot) {
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);
         await ctx
-          .reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+          .reply(`${t(lang, 'errorOccurred')} · ${err.message}\n\n${t(lang, 'tryAgain')}`)
           .catch(() => {});
       } finally {
         processingCallbacks.delete(key);
@@ -151,7 +151,7 @@ function registerHandlers(bot) {
           await ctx.editMessageText(
             `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: getMainMenuKeyboard(lang),
             }
           ).catch(() => {});
@@ -185,7 +185,7 @@ function registerHandlers(bot) {
             });
             
             await ctx.editMessageText(profileText, {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: getProfileKeyboard(lang),
             }).catch(() => {});
           } catch (err) {
@@ -198,7 +198,7 @@ function registerHandlers(bot) {
           await ctx.editMessageText(
             `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: getSettingsKeyboard(lang),
             }
           ).catch(() => {});
@@ -208,7 +208,7 @@ function registerHandlers(bot) {
           await ctx.editMessageText(
             `${t(lang, 'changeLanguage')}:`,
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: getLanguageKeyboard(lang),
             }
           ).catch(() => {});
@@ -218,7 +218,7 @@ function registerHandlers(bot) {
           await ctx.editMessageText(
             t(lang, 'helpText'),
             {
-              parse_mode: 'Markdown',
+              parse_mode: 'HTML',
               reply_markup: getHelpKeyboard(lang),
             }
           ).catch(() => {});
@@ -242,7 +242,7 @@ function registerHandlers(bot) {
         await ctx.editMessageText(
           `${t(newLang, 'settingsTitle')}\n\n${t(newLang, 'settingsText')}`,
           {
-            parse_mode: 'Markdown',
+            parse_mode: 'HTML',
             reply_markup: getSettingsKeyboard(newLang),
           }
         ).catch(() => {});
@@ -269,75 +269,60 @@ function registerHandlers(bot) {
         case 'edit_system_prompt':
           await updateSession(userId, { admin_mode: 'edit_system_prompt' });
           await ctx.reply(
-            '📝 *Редактирование системного промпта*\n\n' +
+            '<b>Редактирование системного промпта</b>\n\n' +
             'Отправьте новый текст системного промпта.\n\n' +
-            'Можете отправить:\n' +
-            '• Текстовое сообщение\n' +
-            '• TXT файл\n' +
-            '• PDF файл\n\n' +
-            '⚠️ Внимание: это изменит поведение ИИ для всех пользователей.\n\n' +
-            'Для отмены используйте /admin',
-            { parse_mode: 'Markdown' }
+            'Формат · текст, TXT или PDF.\n\n' +
+            '<i>Изменение повлияет на поведение системы для всех пользователей.</i>\n\n' +
+            'Отмена · /admin',
+            { parse_mode: 'HTML' }
           );
           break;
-          
+
         case 'edit_blocks':
           await updateSession(userId, { admin_mode: 'edit_blocks' });
           await ctx.reply(
-            '🔄 *Редактирование этапов*\n\n' +
-            'Отправьте новый текст этапов блоков.\n\n' +
-            'Можете отправить:\n' +
-            '• Текстовое сообщение\n' +
-            '• TXT файл\n' +
-            '• PDF файл\n\n' +
-            '⚠️ Внимание: это изменит структуру анализа для всех пользователей.\n\n' +
-            'Для отмены используйте /admin',
-            { parse_mode: 'Markdown' }
+            '<b>Редактирование этапов</b>\n\n' +
+            'Отправьте новый текст этапов анализа.\n\n' +
+            'Формат · текст, TXT или PDF.\n\n' +
+            '<i>Изменение повлияет на структуру анализа для всех пользователей.</i>\n\n' +
+            'Отмена · /admin',
+            { parse_mode: 'HTML' }
           );
           break;
-          
+
         case 'edit_glossary':
           await updateSession(userId, { admin_mode: 'edit_glossary' });
           await ctx.reply(
-            '📖 *Редактирование глоссария*\n\n' +
+            '<b>Редактирование глоссария</b>\n\n' +
             'Отправьте новый текст глоссария терминов.\n\n' +
-            'Можете отправить:\n' +
-            '• Текстовое сообщение\n' +
-            '• TXT файл\n' +
-            '• PDF файл\n\n' +
-            '⚠️ Внимание: это изменит определения терминов для всех пользователей.\n\n' +
-            'Для отмены используйте /admin',
-            { parse_mode: 'Markdown' }
+            'Формат · текст, TXT или PDF.\n\n' +
+            '<i>Изменение повлияет на определения терминов для всех пользователей.</i>\n\n' +
+            'Отмена · /admin',
+            { parse_mode: 'HTML' }
           );
           break;
-          
+
         case 'edit_bibliography':
           await updateSession(userId, { admin_mode: 'edit_bibliography' });
           await ctx.reply(
-            '📚 *Редактирование библиографии*\n\n' +
+            '<b>Редактирование библиографии</b>\n\n' +
             'Отправьте новый текст библиографии первоисточников.\n\n' +
-            'Можете отправить:\n' +
-            '• Текстовое сообщение\n' +
-            '• TXT файл\n' +
-            '• PDF файл\n\n' +
-            '⚠️ Внимание: это изменит библиографию для всех пользователей.\n\n' +
-            'Для отмены используйте /admin',
-            { parse_mode: 'Markdown' }
+            'Формат · текст, TXT или PDF.\n\n' +
+            '<i>Изменение повлияет на библиографию для всех пользователей.</i>\n\n' +
+            'Отмена · /admin',
+            { parse_mode: 'HTML' }
           );
           break;
-          
+
         case 'edit_calculators':
           await updateSession(userId, { admin_mode: 'edit_calculators' });
           await ctx.reply(
-            '🔗 *Редактирование калькуляторов*\n\n' +
-            'Отправьте новый список инструментов расчета и ссылок.\n\n' +
-            'Можете отправить:\n' +
-            '• Текстовое сообщение\n' +
-            '• TXT файл\n' +
-            '• PDF файл\n\n' +
-            '⚠️ Внимание: это изменит список калькуляторов для всех пользователей.\n\n' +
-            'Для отмены используйте /admin',
-            { parse_mode: 'Markdown' }
+            '<b>Редактирование калькуляторов</b>\n\n' +
+            'Отправьте новый список инструментов расчёта и ссылок.\n\n' +
+            'Формат · текст, TXT или PDF.\n\n' +
+            '<i>Изменение повлияет на список калькуляторов для всех пользователей.</i>\n\n' +
+            'Отмена · /admin',
+            { parse_mode: 'HTML' }
           );
           break;
           
@@ -364,7 +349,7 @@ function registerHandlers(bot) {
     } catch (err) {
       console.error('[callback] fatal:', err.message, err.stack);
       await ctx
-        .reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+        .reply(`${t(lang, 'errorOccurred')} · ${err.message}\n\n${t(lang, 'tryAgain')}`)
         .catch(() => {});
     }
   });
@@ -425,13 +410,13 @@ function registerHandlers(bot) {
         
         await updateSession(userId, { admin_mode: null });
         await ctx.reply(
-          `✅ ${promptName} успешно обновлен!\n\n` +
+          `<b>${promptName}</b> успешно обновлён.\n\n` +
           `Длина: ${text.length} символов\n` +
           `Новый промпт будет использоваться для всех новых запросов к ИИ.`
         );
       } catch (err) {
         console.error('Ошибка обновления промпта:', err.message);
-        await ctx.reply(`❌ Ошибка: ${err.message}`);
+        await ctx.reply(`Ошибка · ${err.message}`);
       }
       
       return;
@@ -461,7 +446,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка text:', err.message, err.stack);
-      await ctx.reply(`❌ Ошибка: ${err.message}\n\nПопробуй ещё раз.`).catch(() => {});
+      await ctx.reply(`Ошибка · ${err.message}\n\nПовторите попытку.`).catch(() => {});
     } finally {
       setTimeout(() => {
         processingMessages.delete(key);
@@ -523,7 +508,7 @@ function registerHandlers(bot) {
       
       if (!isTxt && !isPdf) {
         await ctx.reply(
-          '❌ Поддерживаются только TXT и PDF файлы\n\n' +
+          'Поддерживаются только TXT и PDF файлы.\n\n' +
           'Отправьте промпт в одном из форматов:\n' +
           '• Текстовое сообщение\n' +
           '• TXT файл\n' +
@@ -602,14 +587,14 @@ function registerHandlers(bot) {
         
         await updateSession(userId, { admin_mode: null });
         await ctx.reply(
-          `✅ ${promptName} успешно обновлен из файла!\n\n` +
+          `<b>${promptName}</b> успешно обновлён из файла.\n\n` +
           `Файл: ${fileName}\n` +
           `Длина: ${extractedText.length} символов\n` +
           `Новый промпт будет использоваться для всех новых запросов к ИИ.`
         );
       } catch (err) {
         console.error('Ошибка обработки файла промпта:', err.message);
-        await ctx.reply(`❌ Ошибка: ${err.message}`);
+        await ctx.reply(`Ошибка · ${err.message}`);
       }
       
       return;

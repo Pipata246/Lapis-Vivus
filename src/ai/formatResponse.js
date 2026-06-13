@@ -3,6 +3,7 @@
  */
 
 import { formatBlockHeader } from '../scenario/constants.js';
+import { divider } from '../ui/brand.js';
 
 export const TELEGRAM_PARSE_MODE = 'HTML';
 
@@ -182,12 +183,13 @@ export function formatBlockForUser(rawAnswer, blockId, blockIndex) {
 
   if (!visible) {
     return (
-      `${header}\n\n` +
-      'Анализ сохранён. Нажми «Следующий блок», чтобы продолжить.'
+      `${header}\n${divider()}\n\n` +
+      '<i>Этап выполнен. Данные сохранены.</i>\n' +
+      'Перейдите к следующему этапу.'
     );
   }
 
-  return `${header}\n\n${visible}`;
+  return `${header}\n${divider()}\n\n${visible}`;
 }
 
 export function splitTelegramMessages(text, maxLen = 4096) {
