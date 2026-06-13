@@ -286,7 +286,7 @@ export function formatBlockHeader(blockId, blockIndex) {
   const title = getBlockUserTitle(blockId);
   const step = blockIndex + 1;
   const total = BLOCK_STACK.length;
-  return `✦ *${title}*\n_${step} из ${total}_`;
+  return `✦ <b>${title}</b>\n<i>${step} из ${total}</i>`;
 }
 
 /** Индекс блока 4 — с него в контекст подмешиваются метакомментарии прошлых блоков */

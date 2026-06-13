@@ -6,7 +6,7 @@ import {
   CALLBACK_PREFIX,
   formatBlockHeader,
 } from '../scenario/constants.js';
-import { splitTelegramMessages, splitForTelegramWithKeyboard } from '../ai/formatResponse.js';
+import { splitTelegramMessages, splitForTelegramWithKeyboard, TELEGRAM_PARSE_MODE, htmlToPlain } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
   parseCallbackData,
@@ -654,7 +654,7 @@ export async function handleCallback(from, callbackData) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { extractMetacomments } = await import('../ai/formatResponse.js');
+      const { formatForTelegram } = await import('../ai/formatResponse.js');
 
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
@@ -696,7 +696,7 @@ export async function handleCallback(from, callbackData) {
       console.log(`[quick_question] Ответ сохранён, возвращаем пользователю`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const formattedResponse = formatForTelegram(aiResponse, 50000);
       const chunks = splitTelegramMessages(formattedResponse);
       
       console.log(`[quick_question] Chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);
@@ -921,7 +921,7 @@ export async function handleText(from, rawText) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { extractMetacomments } = await import('../ai/formatResponse.js');
+      const { formatForTelegram } = await import('../ai/formatResponse.js');
 
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
@@ -963,7 +963,7 @@ export async function handleText(from, rawText) {
       console.log(`[handleText BLOCK_REVIEW] Ответ сохранён в БД`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = extractMetacomments(aiResponse, 50000);
+      const formattedResponse = formatForTelegram(aiResponse, 50000);
       const chunks = splitTelegramMessages(formattedResponse);
       
       console.log(`[handleText BLOCK_REVIEW] Возвращаем ответ пользователю, chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);
@@ -1066,7 +1066,7 @@ export async function sendScenarioReply(ctx, payload) {
 
   // Формируем опции для отправки
   const replyOptions = {
-    parse_mode: 'Markdown',
+    parse_mode: TELEGRAM_PARSE_MODE,
   };
   
   // Добавляем клавиатуру только если она есть
@@ -1090,14 +1090,13 @@ export async function sendScenarioReply(ctx, payload) {
   try {
     await ctx.reply(text, replyOptions);
   } catch (err) {
-    // Если ошибка парсинга Markdown - отправляем без форматирования
     if (err.message.includes('parse') || err.message.includes('entities')) {
-      console.error('Ошибка парсинга Markdown, отправляю без форматирования:', err.message);
+      console.error('Ошибка парсинга HTML, отправляю plain:', err.message);
       const plainOptions = {};
       if (keyboard) {
         plainOptions.reply_markup = keyboard;
       }
-      await ctx.reply(text, plainOptions);
+      await ctx.reply(htmlToPlain(text), plainOptions);
     } else {
       throw err;
     }
@@ -1107,26 +1106,25 @@ export async function sendScenarioReply(ctx, payload) {
     for (const part of extraMessages) {
       const partText = typeof part === 'string' ? part : part.text;
       const partKb = typeof part === 'string' ? undefined : part.keyboard;
-      
+
       const partOptions = {
-        parse_mode: 'Markdown',
+        parse_mode: TELEGRAM_PARSE_MODE,
       };
-      
+
       if (partKb) {
         partOptions.reply_markup = partKb;
       }
-      
+
       try {
         await ctx.reply(partText, partOptions);
       } catch (err) {
-        // Если ошибка парсинга - отправляем без форматирования
         if (err.message.includes('parse') || err.message.includes('entities')) {
-          console.error('Ошибка парсинга Markdown в extra message, отправляю без форматирования');
+          console.error('Ошибка парсинга HTML в extra message, отправляю plain');
           const plainPartOptions = {};
           if (partKb) {
             plainPartOptions.reply_markup = partKb;
           }
-          await ctx.reply(partText, plainPartOptions);
+          await ctx.reply(htmlToPlain(partText), plainPartOptions);
         } else {
           throw err;
         }

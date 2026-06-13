@@ -1,8 +1,10 @@
 /**
- * JSON уходит в БД; в Telegram — читаемый текст после JSON (метакомментарии или профанский комментарий).
+ * JSON уходит в БД; в Telegram — читаемый HTML-текст (без сырого Markdown).
  */
 
 import { formatBlockHeader } from '../scenario/constants.js';
+
+export const TELEGRAM_PARSE_MODE = 'HTML';
 
 const JSON_FENCE_RE = /```json[\s\S]*?```/gi;
 
@@ -26,7 +28,6 @@ const TECHNICAL_LINE_PATTERNS = [
   /^ITERATIVE[_\s]BLOCK[^\n]*$/gim,
   /^UNIVERSAL[^\n]*(?:PROCESSOR|CONVEYOR)[^\n]*$/gim,
   /\/\/\s*RUNTIME[^\n]*$/gim,
-  /^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*$/gim,
 ];
 
 const TECHNICAL_INLINE_PATTERNS = [
@@ -40,6 +41,24 @@ const TECHNICAL_INLINE_PATTERNS = [
   /\/\/\s*RUNTIME:\s*v[\d._]+/gi,
 ];
 
+export function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** Убирает HTML-теги для безопасной plain-text отправки при ошибке парсинга */
+export function htmlToPlain(text) {
+  return String(text)
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(b|i|u|s|code|pre)>/gi, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .trim();
+}
+
 function stripTechnicalLines(text) {
   let result = text;
   for (const pattern of TECHNICAL_LINE_PATTERNS) {
@@ -51,21 +70,40 @@ function stripTechnicalLines(text) {
   return result;
 }
 
-function sanitizeForTelegram(text) {
+function convertToTelegramHtml(text) {
   let result = text;
-  result = result.replace(/(?<!\*)_(?!\*)/g, '');
-  result = result.replace(/\[(?![^\]]*\]\()/g, '');
-  result = result.replace(/\](?!\()/g, '');
-  result = result.replace(/(?<!`)`(?!`)/g, '');
-  return result;
-}
 
-function convertToTelegramMarkdown(text) {
-  let result = stripTechnicalLines(text);
-  result = result.replace(/^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*/gim, '');
-  result = sanitizeForTelegram(result);
-  result = result.replace(/^##\s+(.+)$/gm, '\n*$1*\n');
-  result = result.replace(/\*\*([^*]+)\*\*/g, '*$1*');
+  const placeholders = [];
+  let phIndex = 0;
+
+  const addPlaceholder = (html) => {
+    const token = `\uE000${phIndex++}\uE001`;
+    placeholders.push({ token, html });
+    return token;
+  };
+
+  result = result.replace(/^#{1,6}\s+(.+)$/gm, (_, title) =>
+    addPlaceholder(`<b>${escapeHtml(title.trim())}</b>`)
+  );
+
+  result = result.replace(/\*\*([^*\n]+)\*\*/g, (_, chunk) =>
+    addPlaceholder(`<b>${escapeHtml(chunk.trim())}</b>`)
+  );
+
+  result = result.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, (_, chunk) =>
+    addPlaceholder(`<b>${escapeHtml(chunk.trim())}</b>`)
+  );
+
+  result = result.replace(/_([^_\n]+)_/g, (_, chunk) =>
+    addPlaceholder(`<i>${escapeHtml(chunk.trim())}</i>`)
+  );
+
+  result = escapeHtml(result);
+
+  for (const { token, html } of placeholders) {
+    result = result.split(token).join(html);
+  }
+
   result = result.replace(/\n{3,}/g, '\n\n');
   return result.trim();
 }
@@ -94,13 +132,12 @@ export function extractJsonFromAnswer(rawAnswer) {
   return { jsonRaw, jsonParsed };
 }
 
-export function extractMetacomments(rawAnswer, maxLen = 4000) {
+function extractVisiblePlain(rawAnswer) {
   const jsonMatch = rawAnswer.match(/```json[\s\S]*?```/i);
   let visible = jsonMatch
     ? rawAnswer.slice(jsonMatch.index + jsonMatch[0].length)
     : rawAnswer.replace(JSON_FENCE_RE, '');
 
-  visible = visible.replace(/^```\s*$/gim, '');
   visible = visible.trim();
 
   if (!visible) {
@@ -110,17 +147,37 @@ export function extractMetacomments(rawAnswer, maxLen = 4000) {
     }
   }
 
-  visible = convertToTelegramMarkdown(visible);
+  visible = stripTechnicalLines(visible);
+  visible = visible.replace(/^#{1,6}\s*ПРОФАНСКИЙ\s+КОММЕНТАРИЙ[^\n]*/gim, '');
+  visible = visible.replace(/^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*\n?/gim, '');
+  visible = visible.replace(/```[\s\S]*?```/g, '');
+  visible = visible.replace(/\n{3,}/g, '\n\n');
+
+  return visible.trim();
+}
+
+/** Чистый текст для контекста ИИ (без HTML) */
+export function extractMetacomments(rawAnswer, maxLen = 4000) {
+  let visible = extractVisiblePlain(rawAnswer);
+  if (visible.length > maxLen) {
+    visible = `${visible.slice(0, maxLen)}…`;
+  }
+  return visible;
+}
+
+/** Единый форматтер для любого ответа ИИ в Telegram */
+export function formatForTelegram(rawAnswer, maxLen = 50000) {
+  let visible = convertToTelegramHtml(extractVisiblePlain(rawAnswer));
 
   if (visible.length > maxLen) {
-    visible = `${visible.slice(0, maxLen)}\n…[усечено]`;
+    visible = `${visible.slice(0, maxLen)}\n…`;
   }
 
   return visible;
 }
 
 export function formatBlockForUser(rawAnswer, blockId, blockIndex) {
-  const visible = extractMetacomments(rawAnswer, 50000);
+  const visible = formatForTelegram(rawAnswer, 50000);
   const header = formatBlockHeader(blockId, blockIndex);
 
   if (!visible) {
