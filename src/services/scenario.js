@@ -32,6 +32,7 @@ import {
   createSessionIfMissing,
   resetSession,
   updateSession,
+  upsertSession,
   mergeCollectedData,
   recoverStaleBlockRunning,
 } from '../db/sessions.js';
@@ -377,7 +378,7 @@ export async function handleCallback(from, callbackData) {
       console.log(`[start] userId=${from.id}, начинаем новый анализ`);
 
       scheduleChatFilesCleanup(chat.id);
-      await updateSession(from.id, {
+      await upsertSession(from.id, chat.id, {
         step: STEPS.GENDER,
         collected_data: {},
         block_index: 0,
@@ -387,8 +388,7 @@ export async function handleCallback(from, callbackData) {
 
       console.log(`[start] step установлен в ${STEPS.GENDER}`);
 
-      const { getUserLanguage } = await import('../db/users.js');
-      const userLang = await getUserLanguage(from.id);
+      const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
 
       return {
         text: userLang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:',
@@ -410,15 +410,12 @@ export async function handleCallback(from, callbackData) {
         gender_label: genderLabel(parsed.value),
       });
       await updateSession(from.id, { step: STEPS.BIRTH_DATE, collected_data: data });
-      
-      // Получаем язык пользователя
-      const { getUserLanguage } = await import('../db/users.js');
-      const userLang = await getUserLanguage(from.id);
-      
-      return { 
-        text: userLang === 'ru' ? 'Шаг 2/4. Дата рождения (ДД.ММ.ГГГГ):' : 'Step 2/4. Birth date (DD.MM.YYYY):', 
-        keyboard: null,
-        editMessage: true,
+
+      const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
+
+      return {
+        text: userLang === 'ru' ? 'Шаг 2/4. Дата рождения (ДД.ММ.ГГГГ):' : 'Step 2/4. Birth date (DD.MM.YYYY):',
+        keyboard: textInputKeyboard(),
       };
     }
 
@@ -1053,6 +1050,14 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 }
 
 export async function sendScenarioReply(ctx, payload) {
+  if (!payload?.text) {
+    console.error('[sendScenarioReply] пустой payload:', payload);
+    await ctx
+      .reply('⚠️ Не удалось сформировать ответ. Нажмите /start и попробуйте снова.')
+      .catch(() => {});
+    return;
+  }
+
   const { text, keyboard, extraMessages, editMessage = false } = payload;
 
   // Формируем опции для отправки

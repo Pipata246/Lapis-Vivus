@@ -94,37 +94,39 @@ function registerHandlers(bot) {
     if (!ctx.from?.id) return;
 
     const userId = ctx.from.id;
-    const callbackData = ctx.callbackQuery.data;
-    
-    // Получаем язык пользователя
-    const lang = await getUserLanguage(userId);
-    
+    const callbackData = ctx.callbackQuery.data ?? '';
+
+    // Сразу снимаем «часики» — до любых запросов в БД
+    await ctx.answerCbQuery().catch(() => {});
+
+    let lang = 'en';
+    try {
+      lang = await getUserLanguage(userId);
+    } catch (err) {
+      console.error('[callback] getUserLanguage:', err.message);
+    }
+
+    try {
     // ВАЖНО: Сценарные callback'ы (lv:*) обрабатываются ПЕРВЫМИ
-    // чтобы не конфликтовать с навигацией
     if (callbackData.startsWith('lv:')) {
-      // Обработка сценарных callback'ов через scenario.js
       const key = `${userId}:${callbackData}`;
       const now = Date.now();
       const lastProcessed = processingCallbacks.get(key);
-      
-      if (lastProcessed && (now - lastProcessed) < CALLBACK_DEBOUNCE_MS) {
-        await ctx.answerCbQuery('⏳ Обрабатывается...').catch(() => {});
+
+      if (lastProcessed && now - lastProcessed < CALLBACK_DEBOUNCE_MS) {
         return;
       }
-      
+
       processingCallbacks.set(key, now);
-      
-      // Очищаем старые записи (старше 5 секунд)
+
       for (const [k, timestamp] of processingCallbacks.entries()) {
         if (now - timestamp > 5000) {
           processingCallbacks.delete(k);
         }
       }
 
-      await ctx.answerCbQuery().catch(() => {});
       await ctx.sendChatAction('typing').catch(() => {});
 
-      const callbackData = ctx.callbackQuery.data;
       if (callbackData.includes(':run_block')) {
         await ctx
           .reply('⏳ Блок выполняется… Это может занять до 2 минут.')
@@ -136,21 +138,18 @@ function registerHandlers(bot) {
         await sendScenarioReply(ctx, payload);
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);
-        await ctx.reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`).catch(() => {});
+        await ctx
+          .reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+          .catch(() => {});
       } finally {
-        // Убираем блокировку через некоторое время
-        setTimeout(() => {
-          processingCallbacks.delete(key);
-        }, CALLBACK_DEBOUNCE_MS);
+        processingCallbacks.delete(key);
       }
-      
+
       return;
     }
-    
+
     // Обработка навигационных callback'ов
     if (callbackData.startsWith('nav:')) {
-      await ctx.answerCbQuery().catch(() => {});
-      
       const action = callbackData.split(':')[1];
       
       switch (action) {
@@ -244,8 +243,7 @@ function registerHandlers(bot) {
       
       try {
         await setUserLanguage(userId, newLang);
-        await ctx.answerCbQuery(t(newLang, 'languageChanged')).catch(() => {});
-        
+
         // Обновляем сообщение с настройками на новом языке
         await ctx.editMessageText(
           `${t(newLang, 'settingsTitle')}\n\n${t(newLang, 'settingsText')}`,
@@ -256,7 +254,7 @@ function registerHandlers(bot) {
         ).catch(() => {});
       } catch (err) {
         console.error('Error changing language:', err.message);
-        await ctx.answerCbQuery('Error').catch(() => {});
+        await ctx.reply(t(lang, 'errorOccurred')).catch(() => {});
       }
       
       return;
@@ -267,12 +265,10 @@ function registerHandlers(bot) {
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        await ctx.answerCbQuery('У вас недостаточно прав').catch(() => {});
+        await ctx.reply(t(lang, 'insufficientRights')).catch(() => {});
         return;
       }
-      
-      await ctx.answerCbQuery().catch(() => {});
-      
+
       const action = callbackData.split(':')[1];
       
       switch (action) {
@@ -363,7 +359,6 @@ function registerHandlers(bot) {
       return;
     }
 
-    await ctx.answerCbQuery().catch(() => {});
     console.warn(`[callback] Неизвестный callback: ${callbackData}`);
     await ctx
       .reply(
@@ -372,6 +367,12 @@ function registerHandlers(bot) {
           : 'This button is outdated. Press /start for the current menu.'
       )
       .catch(() => {});
+    } catch (err) {
+      console.error('[callback] fatal:', err.message, err.stack);
+      await ctx
+        .reply(`❌ ${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+        .catch(() => {});
+    }
   });
 
   bot.on('text', async (ctx) => {
