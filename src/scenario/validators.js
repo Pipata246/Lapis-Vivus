@@ -218,8 +218,11 @@ export function getBlockAttachments(data, blockId) {
 export function getBlockFilesForRun(data, block) {
   const own = getBlockAttachments(data, block.id);
   if (own.length > 0) return own;
-  if (block.id === '3B') {
-    return getBlockAttachments(data, '3');
+  if (block.id === '3B' || block.id.startsWith('3B.')) {
+    for (const id of ['3.1', '3.2', '3.3', '3.4', '3']) {
+      const inherited = getBlockAttachments(data, id);
+      if (inherited.length > 0) return inherited;
+    }
   }
   return own;
 }

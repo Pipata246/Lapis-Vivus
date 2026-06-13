@@ -124,8 +124,15 @@ function registerHandlers(bot) {
       await ctx.answerCbQuery().catch(() => {});
       await ctx.sendChatAction('typing').catch(() => {});
 
+      const callbackData = ctx.callbackQuery.data;
+      if (callbackData.includes(':run_block')) {
+        await ctx
+          .reply('⏳ Блок выполняется… Это может занять до 2 минут.')
+          .catch(() => {});
+      }
+
       try {
-        const payload = await handleCallback(ctx.from, ctx.callbackQuery.data);
+        const payload = await handleCallback(ctx.from, callbackData);
         await sendScenarioReply(ctx, payload);
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);

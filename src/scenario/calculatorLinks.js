@@ -59,20 +59,42 @@ const CALCULATORS = {
   },
 };
 
-/** Калькуляторы по block_id */
+/** Калькуляторы по базовому block_id (подблоки 2B.1, 3C_1 и т.д. резолвятся сюда) */
 const BLOCK_CALCULATORS = {
   '1A': ['humanDesign'],
   '1B': ['pythagoras'],
   '1C': ['chakraAnalysis', 'destinyMatrix', 'taroPortrait'],
   '1D': ['tzolkin'],
-  '2': ['bazi', 'jyotish', 'dasha'],
+  '1E': ['chakraAnalysis'],
+  '2A': ['bazi'],
   '2B': ['jyotish', 'dasha'],
+  '2G': ['jyotish', 'gochara', 'dasha'],
   '3': ['natal', 'gochara'],
   '3B': ['transits', 'gochara'],
+  '3C': ['natal'],
   '4': ['natal', 'bazi', 'destinyMatrix'],
+  '4A': ['bazi'],
   '4B': ['destinyMatrix', 'humanDesign'],
-  '5': ['transits'],
+  '4E': ['destinyMatrix'],
+  '4C': ['humanDesign'],
+  '4G': ['destinyMatrix'],
+  '4F': ['humanDesign'],
+  '4D': ['natal', 'bazi', 'destinyMatrix'],
+  '5A': ['transits'],
+  '5B': ['bazi'],
 };
+
+function resolveBlockCalculatorKey(blockId) {
+  if (BLOCK_CALCULATORS[blockId]) return blockId;
+  if (blockId.startsWith('2B.')) return '2B';
+  if (blockId.startsWith('2G.')) return '2G';
+  if (blockId.startsWith('3B.')) return '3B';
+  if (blockId.startsWith('3.')) return '3';
+  if (blockId.startsWith('3C_') || blockId === '3C') return '3C';
+  const m = blockId.match(/^(4[A-G]?|5[A-B]?)$/);
+  if (m && BLOCK_CALCULATORS[m[1]]) return m[1];
+  return blockId;
+}
 
 function parseBirthDate(dateStr) {
   if (!dateStr || !/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
@@ -137,14 +159,15 @@ function resolveCalculatorUrl(key, data) {
  * @returns {{ label: string, url: string, note?: string }[]}
  */
 export function getBlockCalculatorLinks(blockId, collectedData = {}) {
-  const keys = BLOCK_CALCULATORS[blockId] ?? [];
+  const key = resolveBlockCalculatorKey(blockId);
+  const keys = BLOCK_CALCULATORS[key] ?? [];
   const links = [];
 
-  for (const key of keys) {
-    const calc = CALCULATORS[key];
+  for (const calcKey of keys) {
+    const calc = CALCULATORS[calcKey];
     if (!calc) continue;
 
-    const url = resolveCalculatorUrl(key, collectedData);
+    const url = resolveCalculatorUrl(calcKey, collectedData);
     if (!url) continue;
 
     links.push({
@@ -210,13 +233,13 @@ export function getAllCalculatorLinks() {
 export function allLinksButtons() {
   const links = getAllCalculatorLinks();
   const rows = [];
-  
+
   for (let i = 0; i < links.length; i += 2) {
     rows.push(links.slice(i, i + 2).map((link) => ({
       text: link.label,
       url: link.url,
     })));
   }
-  
+
   return rows;
 }

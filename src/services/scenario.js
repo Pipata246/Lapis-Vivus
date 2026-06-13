@@ -1,5 +1,5 @@
 import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT, CALLBACK_PREFIX } from '../scenario/constants.js';
-import { splitTelegramMessages } from '../ai/formatResponse.js';
+import { splitTelegramMessages, splitForTelegramWithKeyboard } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
   parseCallbackData,
@@ -64,6 +64,24 @@ function currentBlock(session) {
   return BLOCK_STACK[session.block_index];
 }
 
+function is3BBlockId(blockId) {
+  return blockId === '3B' || blockId.startsWith('3B.');
+}
+
+async function getEffectiveBlockFiles(chatId, block) {
+  let files = await getBlockFiles(chatId, block.id);
+  if (files.length > 0 || !is3BBlockId(block.id)) {
+    return files;
+  }
+  for (const id of ['3.1', '3.2', '3.3', '3.4', '3']) {
+    const inherited = await getBlockFiles(chatId, id);
+    if (inherited.length > 0) {
+      return inherited;
+    }
+  }
+  return files;
+}
+
 async function blockPrepText(session, chatId) {
   const block = currentBlock(session);
   if (!block) {
@@ -78,11 +96,10 @@ async function blockPrepText(session, chatId) {
     console.error('Ошибка получения файлов:', err.message);
   }
 
-  // Для блока 3B проверяем также файлы блока 3
-  let block3Files = [];
-  if (block.id === '3B' && ownFiles.length === 0) {
+  let inheritedFiles = [];
+  if (is3BBlockId(block.id) && ownFiles.length === 0) {
     try {
-      block3Files = await getBlockFiles(chatId, '3');
+      inheritedFiles = await getEffectiveBlockFiles(chatId, block);
     } catch (err) {
       console.error('Ошибка получения файлов блока 3:', err.message);
     }
@@ -95,11 +112,11 @@ async function blockPrepText(session, chatId) {
       return `${icon} ${f.file_name || 'Файл'}`;
     }).join(', ');
     fileLine = `📎 Прикреплено файлов: ${ownFiles.length} (${fileNames})`;
-  } else if (block3Files.length > 0) {
-    fileLine = `📎 Используются файлы блока 3 (${block3Files.length}). Можно добавить свои.`;
+  } else if (inheritedFiles.length > 0) {
+    fileLine = `📎 Используются файлы блока 3 (${inheritedFiles.length}). Можно добавить свои.`;
   } else if (block.requiresExternal) {
     fileLine =
-      block.id === '3B'
+      is3BBlockId(block.id)
         ? '📎 Нужен файл (скрин/документ) ИЛИ текст с описанием данных.'
         : '📎 Файл (скрин/документ/PDF) ИЛИ текст с описанием — обязательно.';
   } else {
@@ -572,11 +589,9 @@ export async function handleCallback(from, callbackData) {
         };
       }
       
-      // Проверяем файлы в БД
-      const files = await getBlockFiles(chat.id, block.id);
+      const files = await getEffectiveBlockFiles(chat.id, block);
       const userText = session.collected_data?.block_user_text?.[block.id];
-      
-      // Если блок требует внешние данные, нужен хотя бы файл ИЛИ текст
+
       if (block.requiresExternal && files.length === 0 && !userText) {
         const text = await blockPrepText(session, chat.id);
         return {
@@ -775,16 +790,13 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
 
-    const chunks = splitTelegramMessages(userMessage);
-    
-    // Добавляем подсказку что можно задать вопросы
     const hintText = '\n\n💬 Можешь задать вопросы по результату или нажать «Следующий блок»';
-    const firstChunk = chunks[0] + hintText;
+    const parts = splitForTelegramWithKeyboard(userMessage + hintText, nextBlockKeyboard());
 
     return {
-      text: firstChunk,
-      extraMessages: chunks.slice(1),
-      keyboard: nextBlockKeyboard(),
+      text: parts[0].text,
+      keyboard: parts.length === 1 ? parts[0].keyboard : undefined,
+      extraMessages: parts.slice(1),
     };
   } catch (err) {
     console.error('Ошибка блока:', err.message);

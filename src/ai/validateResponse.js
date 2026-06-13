@@ -1,84 +1,85 @@
-import { jsonArtifactName } from '../scenario/constants.js';
+import { BLOCK_IDS, jsonArtifactPatterns } from '../scenario/constants.js';
 
 /**
- * Проверка ответа по 0x05 v21.5 и привязке к ожидаемому block_id (серверный стек).
+ * Проверка ответа блока — v26.90 (JSON + профанский комментарий) и legacy v26.30.
  */
 export function validateBlockResponse(text, expectedBlockId) {
   const issues = [];
+  const critical = [];
+
+  if (!text || text.trim().length < 50) {
+    critical.push('ответ слишком короткий');
+  }
 
   if (!/```json/i.test(text)) {
-    issues.push('нет блока ```json');
+    critical.push('нет блока ```json');
   }
 
-  if (!/осталось_блоков_в_стеке/i.test(text)) {
-    issues.push('нет поля "осталось_блоков_в_стеке"');
+  if (!/осталось_блоков_в_стеке|remaining_blocks_in_stack/i.test(text)) {
+    critical.push('нет поля остатка блоков (осталось_блоков_в_стеке / remaining_blocks_in_stack)');
   }
 
-  if (!/Метакомментарии_Блока/i.test(text)) {
-    issues.push('нет раздела ## Метакомментарии_Блока');
+  const hasOldMeta = /Метакомментарии_Блока/i.test(text);
+  const hasProfan = /ПРОФАНСКИЙ\s+КОММЕНТАРИЙ/i.test(text);
+  const jsonEnd = text.search(/```json[\s\S]*?```/i);
+  const afterJson = jsonEnd >= 0 ? text.slice(jsonEnd).replace(/```json[\s\S]*?```/i, '').trim() : '';
+
+  if (!hasOldMeta && !hasProfan && afterJson.length < 80) {
+    issues.push('нет развёрнутого текста после JSON (ПРОФАНСКИЙ КОММЕНТАРИЙ или метакомментарии)');
   }
 
-  if (!/Уровень_1/i.test(text) || !/Уровень_5/i.test(text)) {
+  if (hasOldMeta && (!/Уровень_1/i.test(text) || !/Уровень_5/i.test(text))) {
     issues.push('нет пятиуровневых метакомментариев (Уровень_1 … Уровень_5)');
   }
 
-  if (!/ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР/i.test(text)) {
-    issues.push('нет Уровня_3: ГЕРМЕТИЧЕСКИЙ ОПЕРАТОР');
-  }
-
   if (expectedBlockId) {
-    const artifact = jsonArtifactName(expectedBlockId);
-    
-    // Проверяем наличие JSON-артефакта с правильным именем
-    const artifactRegex = new RegExp(artifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    if (!artifactRegex.test(text)) {
-      issues.push(`нет JSON-артефакта ${artifact}`);
+    const patterns = jsonArtifactPatterns(expectedBlockId);
+    const hasArtifact = patterns.some((name) => {
+      const re = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      return re.test(text);
+    });
+
+    if (!hasArtifact) {
+      issues.push(`нет JSON-артефакта (${patterns[0]})`);
     }
 
-    // Экранируем ID блока для regex
     const escapedId = expectedBlockId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    // Проверяем привязку к блоку разными способами
     const blockPatterns = [
+      new RegExp(`"block_id"\\s*:\\s*"${escapedId}"`, 'i'),
       new RegExp(`"текущий_блок"\\s*:\\s*"${escapedId}"`, 'i'),
       new RegExp(`"сервер_назначил_блок"\\s*:\\s*"${escapedId}"`, 'i'),
+      new RegExp(`ITERATIVE_BLOCK[_\\s]*${escapedId.replace(/\./g, '[._]')}`, 'i'),
       new RegExp(`БЛОК\\s*${escapedId}\\b`, 'i'),
-      new RegExp(`блок[_\\s]*${escapedId}`, 'i'),
     ];
 
-    const mentionsCorrectBlock = blockPatterns.some(pattern => pattern.test(text));
-    
-    if (!mentionsCorrectBlock) {
+    if (!blockPatterns.some((pattern) => pattern.test(text))) {
       issues.push(`ответ не привязан к блоку ${expectedBlockId}`);
     }
 
-    // Проверяем, что в ответе НЕТ других блоков (кроме текущего)
-    const allBlockIds = ['1A', '1B', '1C', '1D', '2', '2B', '3', '3B', '4', '4B', '5'];
-    const forbiddenBlocks = allBlockIds.filter(id => id !== expectedBlockId);
-    
-    for (const forbiddenId of forbiddenBlocks) {
-      // Проверяем наличие JSON-артефакта другого блока
-      const forbiddenArtifact = jsonArtifactName(forbiddenId);
-      const forbiddenArtifactRegex = new RegExp(forbiddenArtifact.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      
-      if (forbiddenArtifactRegex.test(text)) {
-        issues.push(`обнаружен артефакт чужого блока ${forbiddenId}`);
-        break;
-      }
-      
-      // Проверяем заголовки других блоков (строго)
-      const escapedForbidden = forbiddenId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const headerRegex = new RegExp(`##\\s*БЛОК\\s*${escapedForbidden}\\b`, 'i');
-      
-      if (headerRegex.test(text)) {
-        issues.push(`обнаружен заголовок чужого блока ${forbiddenId}`);
-        break;
+    for (const otherId of BLOCK_IDS) {
+      if (otherId === expectedBlockId) continue;
+
+      const otherPatterns = jsonArtifactPatterns(otherId);
+      for (const name of otherPatterns.slice(0, 2)) {
+        const re = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        if (re.test(text)) {
+          issues.push(`обнаружен артефакт чужого блока ${otherId}`);
+          break;
+        }
       }
     }
   }
 
   return {
-    ok: issues.length === 0,
-    issues,
+    ok: critical.length === 0 && issues.length === 0,
+    critical,
+    issues: [...critical, ...issues],
+    deliverable: critical.length === 0,
   };
+}
+
+/** Можно показать пользователю, даже если мягкая валидация не прошла */
+export function isDeliverableBlockResponse(text, expectedBlockId) {
+  const result = validateBlockResponse(text, expectedBlockId);
+  return result.deliverable && /```json/i.test(text);
 }
