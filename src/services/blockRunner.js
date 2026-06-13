@@ -14,6 +14,7 @@ import {
   BLOCK_IDS,
   SYNTHESIS_BLOCK_INDEX,
   jsonArtifactName,
+  getBlockUserTitle,
 } from '../scenario/constants.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 
@@ -245,7 +246,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     { role: 'assistant', content: answer },
   ]);
 
-  const userMessage = formatBlockForUser(answer, block.id, block.title);
+  const userMessage = formatBlockForUser(answer, block.id, blockIndex);
 
-  return { blockId: block.id, blockTitle: block.title, userMessage };
+  return { blockId: block.id, blockTitle: getBlockUserTitle(block.id), userMessage };
 }

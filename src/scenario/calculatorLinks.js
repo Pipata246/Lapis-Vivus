@@ -186,18 +186,18 @@ export function formatCalculatorLinksText(blockId, collectedData = {}) {
     return '';
   }
 
-  const lines = ['🧮 Калькуляторы (откроются в браузере):'];
+  const lines = ['🧮 Калькуляторы — кнопки ниже откроют сайт в браузере:'];
   for (const link of links) {
     lines.push(`• ${link.label}${link.note ? ` — ${link.note}` : ''}`);
   }
   lines.push('');
-  lines.push('Сделай скрин/сохрани результат и прикрепи файлом, где блок требует фактуру.');
+  lines.push('Сохрани скрин результата и прикрепи его, если блок требует данные с калькулятора.');
 
   const hasGeocult = links.some((l) => l.url.includes('geocult.ru'));
   if (hasGeocult && collectedData?.birth_date) {
-    lines.push('(Geocult: дата/время/город из анкеты подставлены в ссылку; город уточни на сайте.)');
+    lines.push('Дата, время и город из анкеты уже подставлены в ссылку.');
   } else if (collectedData?.birth_date) {
-    lines.push('(Дата рождения из анкеты — введи на сайте, если поля не заполнились.)');
+    lines.push('Дата рождения из анкеты — введи на сайте, если поля пустые.');
   }
 
   return lines.join('\n');

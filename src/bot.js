@@ -127,12 +127,6 @@ function registerHandlers(bot) {
 
       await ctx.sendChatAction('typing').catch(() => {});
 
-      if (callbackData.includes(':run_block')) {
-        await ctx
-          .reply('⏳ Блок выполняется… Это может занять до 2 минут.')
-          .catch(() => {});
-      }
-
       try {
         const payload = await handleCallback(ctx.from, callbackData);
         await sendScenarioReply(ctx, payload);

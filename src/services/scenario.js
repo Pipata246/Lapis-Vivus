@@ -1,4 +1,11 @@
-import { BLOCK_STACK, STEPS, TEXT_INPUT_STEPS, REJECT_TEXT, CALLBACK_PREFIX } from '../scenario/constants.js';
+import {
+  BLOCK_STACK,
+  STEPS,
+  TEXT_INPUT_STEPS,
+  REJECT_TEXT,
+  CALLBACK_PREFIX,
+  formatBlockHeader,
+} from '../scenario/constants.js';
 import { splitTelegramMessages, splitForTelegramWithKeyboard } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
@@ -141,19 +148,17 @@ async function blockPrepText(session, chatId) {
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
 
+  const header = formatBlockHeader(block.id, session.block_index);
+
   return [
-    block.description,
+    header,
     '',
     calcBlock || null,
     calcBlock ? '' : null,
     fileLine,
     textLine || null,
     '',
-    '💡 Можешь:',
-    '• Написать текстом (описать данные, ответить на вопросы)',
-    '• Прикрепить файл (скрин калькулятора, документ)',
-    '• Или и то и другое',
-    '',
+    'При необходимости добавь скрин или опиши данные текстом.',
     'Когда готов — нажми «Запустить блок».',
   ]
     .filter(Boolean)
@@ -790,8 +795,7 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
 
-    const hintText = '\n\n💬 Можешь задать вопросы по результату или нажать «Следующий блок»';
-    const parts = splitForTelegramWithKeyboard(userMessage + hintText, nextBlockKeyboard());
+    const parts = splitForTelegramWithKeyboard(userMessage, nextBlockKeyboard());
 
     return {
       text: parts[0].text,

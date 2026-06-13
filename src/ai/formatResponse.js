@@ -2,6 +2,8 @@
  * JSON уходит в БД; в Telegram — читаемый текст после JSON (метакомментарии или профанский комментарий).
  */
 
+import { formatBlockHeader } from '../scenario/constants.js';
+
 const JSON_FENCE_RE = /```json[\s\S]*?```/gi;
 
 const TECHNICAL_LINE_PATTERNS = [
@@ -21,11 +23,29 @@ const TECHNICAL_LINE_PATTERNS = [
   /^_INTRO\s*──>/gim,
   /^_OUTRO/gim,
   /^⟦MAX_DENSITY/gim,
+  /^ITERATIVE[_\s]BLOCK[^\n]*$/gim,
+  /^UNIVERSAL[^\n]*(?:PROCESSOR|CONVEYOR)[^\n]*$/gim,
+  /\/\/\s*RUNTIME[^\n]*$/gim,
+  /^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*$/gim,
+];
+
+const TECHNICAL_INLINE_PATTERNS = [
+  /v\d+\.\d+[_\s]*ORACLE[_\s]*PREMIUM/gi,
+  /\[Neo4j\s+SYNTAX\]/gi,
+  /\[KENOMY\s+INDEX\]/gi,
+  /\[SUPERMANIFEST\]/gi,
+  /\[NEIDAN\s+PRACTICES\]/gi,
+  /\[ROM-BOARD\]/gi,
+  /\[RAM-MUTATION\]/gi,
+  /\/\/\s*RUNTIME:\s*v[\d._]+/gi,
 ];
 
 function stripTechnicalLines(text) {
   let result = text;
   for (const pattern of TECHNICAL_LINE_PATTERNS) {
+    result = result.replace(pattern, '');
+  }
+  for (const pattern of TECHNICAL_INLINE_PATTERNS) {
     result = result.replace(pattern, '');
   }
   return result;
@@ -42,6 +62,7 @@ function sanitizeForTelegram(text) {
 
 function convertToTelegramMarkdown(text) {
   let result = stripTechnicalLines(text);
+  result = result.replace(/^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*/gim, '');
   result = sanitizeForTelegram(result);
   result = result.replace(/^##\s+(.+)$/gm, '\n*$1*\n');
   result = result.replace(/\*\*([^*]+)\*\*/g, '*$1*');
@@ -98,18 +119,18 @@ export function extractMetacomments(rawAnswer, maxLen = 4000) {
   return visible;
 }
 
-export function formatBlockForUser(rawAnswer, blockId, blockTitle) {
+export function formatBlockForUser(rawAnswer, blockId, blockIndex) {
   const visible = extractMetacomments(rawAnswer, 50000);
+  const header = formatBlockHeader(blockId, blockIndex);
 
   if (!visible) {
     return (
-      `📦 *Блок ${blockId}: ${blockTitle}*\n\n` +
-      'Анализ блока выполнен. Структурированные данные сохранены в системе.\n\n' +
-      'Нажми «Следующий блок», чтобы продолжить.'
+      `${header}\n\n` +
+      'Анализ сохранён. Нажми «Следующий блок», чтобы продолжить.'
     );
   }
 
-  return `📦 *Блок ${blockId}: ${blockTitle}*\n\n${visible}`;
+  return `${header}\n\n${visible}`;
 }
 
 export function splitTelegramMessages(text, maxLen = 4096) {
