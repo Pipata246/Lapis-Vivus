@@ -46,6 +46,13 @@ function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
 }
 
+/** Не блокируем ответ пользователю — очистка файлов в фоне */
+function scheduleChatFilesCleanup(chatId) {
+  deleteAllChatFiles(chatId).catch((err) => {
+    console.error('Фоновое удаление файлов чата:', err.message);
+  });
+}
+
 function genderLabel(value) {
   return value === 'male' ? 'Мужской' : 'Женский';
 }
@@ -212,16 +219,13 @@ async function rejectWrongInput(session, hint, userId) {
 }
 
 export async function initUser(from) {
-  const { chat, session } = await ensureSession(from);
+  const { chat } = await ensureSession(from);
   const { getUserLanguage } = await import('../db/users.js');
-  
-  // При /start всегда сбрасываем сессию, контекст ИИ и удаляем все файлы
+
   await resetSession(from.id, chat.id);
-  await deleteAllChatFiles(chat.id);
-  
-  // Получаем язык пользователя
+  scheduleChatFilesCleanup(chat.id);
+
   const lang = await getUserLanguage(from.id);
-  
   return await showMenu(lang);
 }
 
@@ -327,9 +331,9 @@ export async function handleCallback(from, callbackData) {
     case 'menu': {
       const { getUserLanguage } = await import('../db/users.js');
       const lang = await getUserLanguage(from.id);
-      
+
       await resetSession(from.id, chat.id);
-      await deleteAllChatFiles(chat.id);
+      scheduleChatFilesCleanup(chat.id);
       return await showMenu(lang);
     }
 
@@ -359,9 +363,9 @@ export async function handleCallback(from, callbackData) {
     case 'reset': {
       const { getUserLanguage } = await import('../db/users.js');
       const lang = await getUserLanguage(from.id);
-      
+
       await resetSession(from.id, chat.id);
-      await deleteAllChatFiles(chat.id);
+      scheduleChatFilesCleanup(chat.id);
       const menu = await showMenu(lang);
       return {
         text: lang === 'ru' ? 'Сессия сброшена. Можно начать новый анализ.' : 'Session reset. You can start a new analysis.',
@@ -371,10 +375,8 @@ export async function handleCallback(from, callbackData) {
 
     case 'start': {
       console.log(`[start] userId=${from.id}, начинаем новый анализ`);
-      
-      // При нажатии "Начать анализ" всегда сбрасываем сессию, контекст ИИ и удаляем файлы
-      await resetSession(from.id, chat.id);
-      await deleteAllChatFiles(chat.id);
+
+      scheduleChatFilesCleanup(chat.id);
       await updateSession(from.id, {
         step: STEPS.GENDER,
         collected_data: {},
@@ -382,17 +384,15 @@ export async function handleCallback(from, callbackData) {
         last_block_id: null,
         session_start_at: new Date().toISOString(),
       });
-      
-      console.log(`[start] Сессия сброшена, step установлен в ${STEPS.GENDER}`);
-      
-      // Получаем язык пользователя
+
+      console.log(`[start] step установлен в ${STEPS.GENDER}`);
+
       const { getUserLanguage } = await import('../db/users.js');
       const userLang = await getUserLanguage(from.id);
-      
-      return { 
-        text: userLang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:', 
+
+      return {
+        text: userLang === 'ru' ? 'Шаг 1/4. Выбери пол:' : 'Step 1/4. Choose gender:',
         keyboard: genderKeyboard(),
-        editMessage: true, // Редактируем текущее сообщение вместо отправки нового
       };
     }
 
@@ -559,9 +559,12 @@ export async function handleCallback(from, callbackData) {
       
       if (!nextBlock) {
         console.error('[skip_block] ОШИБКА: следующий блок не найден!');
+        const { getUserLanguage } = await import('../db/users.js');
+        const lang = await getUserLanguage(from.id);
+        const menu = await showMenu(lang);
         return {
           text: '❌ Ошибка: не удалось перейти к следующему блоку.',
-          keyboard: menuKeyboard(),
+          keyboard: menu.keyboard,
         };
       }
       

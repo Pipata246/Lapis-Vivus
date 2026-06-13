@@ -163,6 +163,21 @@ function registerHandlers(bot) {
             }
           ).catch(() => {});
           break;
+
+        case 'start_analysis': {
+          // Старые сообщения с кнопкой nav:start_analysis (до перехода на lv:start)
+          try {
+            await ctx.sendChatAction('typing').catch(() => {});
+            const payload = await handleCallback(ctx.from, 'lv:start');
+            await sendScenarioReply(ctx, payload);
+          } catch (err) {
+            console.error('Ошибка start_analysis (legacy):', err.message, err.stack);
+            await ctx
+              .reply(`${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+              .catch(() => {});
+          }
+          break;
+        }
           
         case 'profile':
           try {
@@ -344,9 +359,19 @@ function registerHandlers(bot) {
         default:
           await ctx.reply('Неизвестное действие.');
       }
-      
+
       return;
     }
+
+    await ctx.answerCbQuery().catch(() => {});
+    console.warn(`[callback] Неизвестный callback: ${callbackData}`);
+    await ctx
+      .reply(
+        lang === 'ru'
+          ? 'Кнопка устарела или не поддерживается. Нажмите /start для актуального меню.'
+          : 'This button is outdated. Press /start for the current menu.'
+      )
+      .catch(() => {});
   });
 
   bot.on('text', async (ctx) => {

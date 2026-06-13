@@ -1,16 +1,13 @@
 import { CALLBACK_PREFIX } from './constants.js';
 import { calculatorUrlButtons } from './calculatorLinks.js';
+import { getMainMenuKeyboard } from '../navigation.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
 }
 
-export function menuKeyboard() {
-  // DEPRECATED: Эта клавиатура больше не используется
-  // Навигация теперь идет через getMainMenuKeyboard() из navigation.js
-  return {
-    inline_keyboard: [],
-  };
+export function menuKeyboard(lang = 'ru') {
+  return getMainMenuKeyboard(lang);
 }
 
 export function genderKeyboard() {
