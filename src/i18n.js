@@ -1,15 +1,11 @@
 // Multilingual support for Lapis Vivus Bot
-// Supported languages: en (English), ru (Russian)
 
-import { BRAND, btn } from './ui/brand.js';
+import { BRAND, btn, formatWelcome, letterhead, divider } from './ui/brand.js';
 
 const translations = {
   en: {
-    welcome: `<b>${BRAND.name}</b>`,
-    welcomeText:
-      `<i>${BRAND.tagline.en}</i>\n\n` +
-      'Structured multi-stage analysis based on your birth profile.\n\n' +
-      'Select an action:',
+    welcome: formatWelcome('en'),
+    welcomeText: '',
 
     mainMenu: 'Main menu',
     startAnalysis: btn('en', 'startAnalysis'),
@@ -19,39 +15,39 @@ const translations = {
     back: btn('en', 'back'),
     close: btn('en', 'close'),
 
-    profileTitle: 'Profile',
+    profileTitle: 'Client Profile',
     profileInfo:
-      `<b>Your profile</b>\n\n` +
-      `Telegram ID · {telegramId}\n` +
-      `Name · {name}\n` +
-      `Language · {language}\n` +
-      `Registered · {createdAt}\n\n` +
-      'Select an action:',
+      `${letterhead('Client Profile', 'en')}\n${divider()}\n` +
+      `Telegram ID\n{telegramId}\n\n` +
+      `Name\n{name}\n\n` +
+      `Language\n{language}\n\n` +
+      `Registered\n{createdAt}`,
     editProfile: 'Edit profile',
 
     settingsTitle: 'Settings',
-    settingsText: 'Configure your preferences:',
+    settingsText: `${letterhead('Settings', 'en')}\n${divider()}\nInterface preferences:`,
     changeLanguage: btn('en', 'changeLanguage'),
     languageEn: btn('en', 'languageEn'),
     languageRu: btn('en', 'languageRu'),
     languageChanged: 'Language changed to English',
 
-    helpTitle: 'Help',
+    helpTitle: 'About',
     helpText:
-      `<b>${BRAND.name}</b>\n\n` +
-      'The system performs structured psychological and astrological analysis in sequential stages.\n\n' +
-      '<b>Workflow</b>\n' +
-      '1. Start analysis from the main menu\n' +
-      '2. Enter your birth data\n' +
-      '3. Complete each stage in order\n' +
-      '4. Review results and proceed to the next stage\n\n' +
-      '<b>Support</b>\n' +
-      'For technical issues, contact the administrator.',
+      `${letterhead('About', 'en')}\n${divider()}\n` +
+      `<i>${BRAND.tagline.en}</i>\n\n` +
+      '<b>Session structure</b>\n' +
+      '36 modules across 5 parts — from origin mapping to integration protocol.\n\n' +
+      '<b>How to begin</b>\n' +
+      '1. Start session from the main menu\n' +
+      '2. Complete the profile protocol\n' +
+      '3. Initiate each module in sequence\n' +
+      '4. Review interpretation and proceed\n\n' +
+      '<b>Support</b>\nContact the administrator for technical assistance.',
 
-    adminPanel: 'Administrator panel',
+    adminPanel: 'Administrator',
     adminText: 'Select an action:',
     editSystemPrompt: 'System prompt',
-    editBlocks: 'Analysis stages',
+    editBlocks: 'Analysis modules',
     editGlossary: 'Glossary',
     editBibliography: 'Bibliography',
     editCalculators: 'Calculators',
@@ -59,15 +55,12 @@ const translations = {
 
     errorOccurred: 'Error',
     tryAgain: 'Please try again or send /start',
-    commandsDisabled: 'Commands are disabled. Use /start and menu buttons.',
+    commandsDisabled: 'Commands are disabled. Use /start.',
   },
 
   ru: {
-    welcome: `<b>${BRAND.name}</b>`,
-    welcomeText:
-      `<i>${BRAND.tagline.ru}</i>\n\n` +
-      'Структурированный многоэтапный анализ на основе вашего профиля рождения.\n\n' +
-      'Выберите действие:',
+    welcome: formatWelcome('ru'),
+    welcomeText: '',
 
     mainMenu: 'Главное меню',
     startAnalysis: btn('ru', 'startAnalysis'),
@@ -77,39 +70,39 @@ const translations = {
     back: btn('ru', 'back'),
     close: btn('ru', 'close'),
 
-    profileTitle: 'Профиль',
+    profileTitle: 'Профиль клиента',
     profileInfo:
-      `<b>Ваш профиль</b>\n\n` +
-      `Telegram ID · {telegramId}\n` +
-      `Имя · {name}\n` +
-      `Язык · {language}\n` +
-      `Регистрация · {createdAt}\n\n` +
-      'Выберите действие:',
+      `${letterhead('Профиль клиента', 'ru')}\n${divider()}\n` +
+      `Telegram ID\n{telegramId}\n\n` +
+      `Имя\n{name}\n\n` +
+      `Язык\n{language}\n\n` +
+      `Регистрация\n{createdAt}`,
     editProfile: 'Редактировать профиль',
 
     settingsTitle: 'Настройки',
-    settingsText: 'Параметры интерфейса:',
+    settingsText: `${letterhead('Настройки', 'ru')}\n${divider()}\nПараметры интерфейса:`,
     changeLanguage: btn('ru', 'changeLanguage'),
     languageEn: btn('ru', 'languageEn'),
     languageRu: btn('ru', 'languageRu'),
     languageChanged: 'Язык изменён на русский',
 
-    helpTitle: 'Справка',
+    helpTitle: 'О системе',
     helpText:
-      `<b>${BRAND.name}</b>\n\n` +
-      'Система проводит структурированный психологический и астрологический анализ в последовательных этапах.\n\n' +
-      '<b>Порядок работы</b>\n' +
-      '1. Запустите анализ из главного меню\n' +
-      '2. Введите данные рождения\n' +
-      '3. Пройдите этапы в заданном порядке\n' +
-      '4. Изучите результат и переходите к следующему этапу\n\n' +
-      '<b>Поддержка</b>\n' +
-      'По техническим вопросам обращайтесь к администратору.',
+      `${letterhead('О системе', 'ru')}\n${divider()}\n` +
+      `<i>${BRAND.tagline.ru}</i>\n\n` +
+      '<b>Структура сессии</b>\n' +
+      '36 модулей в 5 частях — от карты происхождения до протокола интеграции.\n\n' +
+      '<b>Как начать</b>\n' +
+      '1. Начните сессию из главного меню\n' +
+      '2. Пройдите протокол профиля\n' +
+      '3. Инициируйте модули по порядку\n' +
+      '4. Изучите интерпретацию и двигайтесь дальше\n\n' +
+      '<b>Поддержка</b>\nПо техническим вопросам — администратор.',
 
-    adminPanel: 'Панель администратора',
+    adminPanel: 'Администратор',
     adminText: 'Выберите действие:',
     editSystemPrompt: 'Системный промпт',
-    editBlocks: 'Этапы анализа',
+    editBlocks: 'Модули анализа',
     editGlossary: 'Глоссарий',
     editBibliography: 'Библиография',
     editCalculators: 'Калькуляторы',
@@ -117,12 +110,13 @@ const translations = {
 
     errorOccurred: 'Ошибка',
     tryAgain: 'Повторите попытку или отправьте /start',
-    commandsDisabled: 'Команды отключены. Используйте /start и кнопки меню.',
+    commandsDisabled: 'Команды отключены. Используйте /start.',
   },
 };
 
 export function t(lang, key, params = {}) {
   const translation = translations[lang]?.[key] || translations.en[key] || key;
+  if (!translation) return key;
 
   return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
     return params[paramKey] !== undefined ? params[paramKey] : match;
@@ -130,10 +124,7 @@ export function t(lang, key, params = {}) {
 }
 
 export function getLanguageName(lang) {
-  const names = {
-    en: 'English',
-    ru: 'Русский',
-  };
+  const names = { en: 'English', ru: 'Русский' };
   return names[lang] || names.en;
 }
 

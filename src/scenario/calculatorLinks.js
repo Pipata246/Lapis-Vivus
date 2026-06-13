@@ -186,24 +186,26 @@ export function formatCalculatorLinksText(blockId, collectedData = {}) {
     return '';
   }
 
-  const lines = [
-    '<b>Справочные калькуляторы</b>',
-    '<i>Ссылки откроются в браузере</i>',
-  ];
-  for (const link of links) {
-    lines.push(`· ${link.label}${link.note ? ` — ${link.note}` : ''}`);
-  }
-  lines.push('');
-  lines.push('Сохраните результат расчёта и приложите файл, если этап требует исходных данных.');
+  const lines = links.map(
+    (link) => `· ${link.label}${link.note ? ` — ${link.note}` : ''}`
+  );
 
   const hasGeocult = links.some((l) => l.url.includes('geocult.ru'));
+  let note = '';
   if (hasGeocult && collectedData?.birth_date) {
-    lines.push('<i>Дата, время и место из профиля подставлены в ссылку.</i>');
+    note = '<i>Дата, время и место из профиля подставлены в ссылку.</i>';
   } else if (collectedData?.birth_date) {
-    lines.push('<i>Дата рождения из профиля — уточните на сайте при необходимости.</i>');
+    note = '<i>Дата рождения из профиля — уточните на сайте при необходимости.</i>';
   }
 
-  return lines.join('\n');
+  return [
+    '<b>Инструменты расчёта</b>',
+    lines.join('\n'),
+    note,
+    '<i>Сохраните результат и приложите файл, если модуль требует исходных данных.</i>',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /** Кнопки для inline_keyboard Telegram (url). */

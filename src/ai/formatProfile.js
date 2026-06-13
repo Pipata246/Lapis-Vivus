@@ -2,7 +2,7 @@
  * Форматирование итогового профиля пользователя
  */
 
-import { BRAND, divider } from '../ui/brand.js';
+import { letterhead, divider } from '../ui/brand.js';
 
 export function formatProfileSummary(profile) {
   if (!profile || !profile.blocks) {
@@ -13,23 +13,26 @@ export function formatProfileSummary(profile) {
   const blocks = profile.blocks || [];
 
   const lines = [
-    `<b>${BRAND.name}</b>`,
-    '<i>Итоговый отчёт</i>',
+    letterhead('Final Report'),
     divider(),
     '<b>Данные клиента</b>',
-    `Пол · ${userData.gender_label || '—'}`,
-    `Дата рождения · ${userData.birth_date || '—'}`,
-    `Время рождения · ${userData.birth_time || '—'}`,
-    `Место рождения · ${userData.birth_place || '—'}`,
-    `Завершение · ${formatDate(profile.completed_at)}`,
     '',
+    `Пол\n${userData.gender_label || '—'}`,
+    '',
+    `Дата рождения\n${userData.birth_date || '—'}`,
+    '',
+    `Время рождения\n${userData.birth_time || '—'}`,
+    '',
+    `Место рождения\n${userData.birth_place || '—'}`,
+    '',
+    `Завершение\n${formatDate(profile.completed_at)}`,
     divider(),
-    '<b>Завершённые этапы</b>',
+    '<b>Пройденные модули</b>',
     '',
   ];
 
   blocks.forEach((block, index) => {
-    lines.push(`${index + 1}. Этап ${block.block_id}`);
+    lines.push(`${String(index + 1).padStart(2, '0')} · Module ${block.block_id}`);
     lines.push(`   ${formatDate(block.completed_at)}`);
 
     if (block.json_payload) {
@@ -43,7 +46,7 @@ export function formatProfileSummary(profile) {
   });
 
   lines.push(divider());
-  lines.push('<i>Анализ завершён полностью</i>');
+  lines.push('<i>Полный протокол сессии завершён.</i>');
 
   return lines.join('\n');
 }
@@ -59,7 +62,7 @@ function formatDate(isoString) {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
 
-    return `${day}.${month}.${year} ${hours}:${minutes}`;
+    return `${day}.${month}.${year} · ${hours}:${minutes}`;
   } catch {
     return '—';
   }
@@ -81,73 +84,14 @@ function extractJsonSummary(jsonPayload, blockId) {
       if (jsonPayload.тип) summaryFields.push(`Тип · ${jsonPayload.тип}`);
       if (jsonPayload.профиль) summaryFields.push(`Профиль · ${jsonPayload.профиль}`);
       break;
-
     case '1B':
       if (jsonPayload.рабочие_числа) {
-        const nums = jsonPayload.рабочие_числа;
-        summaryFields.push(`Числа · ${Object.values(nums).join(', ')}`);
+        summaryFields.push(`Числа · ${Object.values(jsonPayload.рабочие_числа).join(', ')}`);
       }
       break;
-
-    case '1C':
-      if (jsonPayload.чакральный_баланс) {
-        summaryFields.push(`Баланс · ${jsonPayload.чакральный_баланс}`);
-      }
-      break;
-
     case '1D':
       if (jsonPayload.кин) summaryFields.push(`Кин · ${jsonPayload.кин}`);
-      if (jsonPayload.печать) summaryFields.push(`Печать · ${jsonPayload.печать}`);
-      if (jsonPayload.тон) summaryFields.push(`Тон · ${jsonPayload.тон}`);
       break;
-
-    case '1E':
-      if (jsonPayload.травматические_зоны) {
-        summaryFields.push(`Зоны · ${jsonPayload.травматические_зоны}`);
-      }
-      break;
-
-    case '2A':
-      if (jsonPayload.элемент_личности) {
-        summaryFields.push(`Элемент · ${jsonPayload.элемент_личности}`);
-      }
-      break;
-
-    case '2B':
-      if (jsonPayload.лагна) summaryFields.push(`Лагна · ${jsonPayload.лагна}`);
-      if (jsonPayload.атмакарака) summaryFields.push(`Атмакарака · ${jsonPayload.атмакарака}`);
-      break;
-
-    case '3B':
-      if (jsonPayload.текущая_фаза) {
-        summaryFields.push(`Фаза · ${jsonPayload.текущая_фаза}`);
-      }
-      break;
-
-    case '3C':
-      if (jsonPayload.ключевые_мидпоинты) {
-        summaryFields.push(`Мидпоинты · ${jsonPayload.ключевые_мидпоинты}`);
-      }
-      break;
-
-    case '4':
-      if (jsonPayload.синтез_статус) {
-        summaryFields.push(`Статус · ${jsonPayload.синтез_статус}`);
-      }
-      break;
-
-    case '5A':
-      if (jsonPayload.протокол_статус) {
-        summaryFields.push(`Протокол · ${jsonPayload.протокол_статус}`);
-      }
-      break;
-
-    case '5B':
-      if (jsonPayload.практики_назначены) {
-        summaryFields.push(`Практики · ${jsonPayload.практики_назначены}`);
-      }
-      break;
-
     default:
       break;
   }

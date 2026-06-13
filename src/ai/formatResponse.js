@@ -1,9 +1,9 @@
 /**
- * JSON уходит в БД; в Telegram — читаемый HTML-текст (без сырого Markdown).
+ * JSON уходит в БД; в Telegram — премиальный HTML через ui/brand.
  */
 
-import { formatBlockHeader } from '../scenario/constants.js';
-import { divider } from '../ui/brand.js';
+import { formatModuleResult, formatClarification } from '../ui/brand.js';
+import { getModuleMeta } from '../ui/modules.js';
 
 export const TELEGRAM_PARSE_MODE = 'HTML';
 
@@ -49,7 +49,6 @@ export function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-/** Убирает HTML-теги для безопасной plain-text отправки при ошибке парсинга */
 export function htmlToPlain(text) {
   return String(text)
     .replace(/<br\s*\/?>/gi, '\n')
@@ -73,7 +72,6 @@ function stripTechnicalLines(text) {
 
 function convertToTelegramHtml(text) {
   let result = text;
-
   const placeholders = [];
   let phIndex = 0;
 
@@ -86,50 +84,40 @@ function convertToTelegramHtml(text) {
   result = result.replace(/^#{1,6}\s+(.+)$/gm, (_, title) =>
     addPlaceholder(`<b>${escapeHtml(title.trim())}</b>`)
   );
-
   result = result.replace(/\*\*([^*\n]+)\*\*/g, (_, chunk) =>
     addPlaceholder(`<b>${escapeHtml(chunk.trim())}</b>`)
   );
-
   result = result.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, (_, chunk) =>
     addPlaceholder(`<b>${escapeHtml(chunk.trim())}</b>`)
   );
-
   result = result.replace(/_([^_\n]+)_/g, (_, chunk) =>
     addPlaceholder(`<i>${escapeHtml(chunk.trim())}</i>`)
   );
 
   result = escapeHtml(result);
-
   for (const { token, html } of placeholders) {
     result = result.split(token).join(html);
   }
-
   result = result.replace(/\n{3,}/g, '\n\n');
   return result.trim();
 }
 
 export function extractJsonFromAnswer(rawAnswer) {
   let match = rawAnswer.match(/```json\s*([\s\S]*?)```/i);
-
   if (!match) {
     match = rawAnswer.match(/(\{[\s\S]*?"(?:block_|блок_)[^}]+\}[\s\S]*?\})/i);
   }
-
   if (!match) {
     return { jsonRaw: null, jsonParsed: null };
   }
-
   const jsonRaw = match[1].trim();
   let jsonParsed = null;
-
   try {
     jsonParsed = JSON.parse(jsonRaw);
   } catch (err) {
     console.error('Ошибка парсинга JSON:', err.message);
     jsonParsed = { _parse_error: true, raw: jsonRaw };
   }
-
   return { jsonRaw, jsonParsed };
 }
 
@@ -140,98 +128,69 @@ function extractVisiblePlain(rawAnswer) {
     : rawAnswer.replace(JSON_FENCE_RE, '');
 
   visible = visible.trim();
-
   if (!visible) {
     const profanMatch = rawAnswer.match(/ПРОФАНСКИЙ\s+КОММЕНТАРИЙ[\s\S]*/i);
-    if (profanMatch) {
-      visible = profanMatch[0];
-    }
+    if (profanMatch) visible = profanMatch[0];
   }
 
   visible = stripTechnicalLines(visible);
   visible = visible.replace(/^#{1,6}\s*ПРОФАНСКИЙ\s+КОММЕНТАРИЙ[^\n]*/gim, '');
   visible = visible.replace(/^ПРОФАНСКИЙ\s+КОММЕНТАРИЙ\s*:?\s*\n?/gim, '');
   visible = visible.replace(/```[\s\S]*?```/g, '');
-  visible = visible.replace(/\n{3,}/g, '\n\n');
-
-  return visible.trim();
+  return visible.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Чистый текст для контекста ИИ (без HTML) */
 export function extractMetacomments(rawAnswer, maxLen = 4000) {
   let visible = extractVisiblePlain(rawAnswer);
-  if (visible.length > maxLen) {
-    visible = `${visible.slice(0, maxLen)}…`;
-  }
+  if (visible.length > maxLen) visible = `${visible.slice(0, maxLen)}…`;
   return visible;
 }
 
-/** Единый форматтер для любого ответа ИИ в Telegram */
 export function formatForTelegram(rawAnswer, maxLen = 50000) {
   let visible = convertToTelegramHtml(extractVisiblePlain(rawAnswer));
-
-  if (visible.length > maxLen) {
-    visible = `${visible.slice(0, maxLen)}\n…`;
-  }
-
+  if (visible.length > maxLen) visible = `${visible.slice(0, maxLen)}\n…`;
   return visible;
 }
 
-export function formatBlockForUser(rawAnswer, blockId, blockIndex) {
-  const visible = formatForTelegram(rawAnswer, 50000);
-  const header = formatBlockHeader(blockId, blockIndex);
+export function formatBlockForUser(rawAnswer, blockId, blockIndex, lang = 'ru') {
+  const body = formatForTelegram(rawAnswer, 50000);
+  return formatModuleResult(blockId, blockIndex, body, lang);
+}
 
-  if (!visible) {
-    return (
-      `${header}\n${divider()}\n\n` +
-      '<i>Этап выполнен. Данные сохранены.</i>\n' +
-      'Перейдите к следующему этапу.'
-    );
-  }
-
-  return `${header}\n${divider()}\n\n${visible}`;
+export function formatFollowUpForTelegram(rawAnswer, blockId, lang = 'ru') {
+  const body = formatForTelegram(rawAnswer, 50000);
+  return formatClarification(blockId, body, lang);
 }
 
 export function splitTelegramMessages(text, maxLen = 4096) {
-  if (text.length <= maxLen) {
-    return [text];
-  }
-
+  if (text.length <= maxLen) return [text];
   const parts = [];
   let rest = text;
-
   while (rest.length > maxLen) {
     let cut = maxLen;
     const slice = rest.slice(0, maxLen);
     const paraBreak = slice.lastIndexOf('\n\n');
     const lineBreak = slice.lastIndexOf('\n');
-    if (paraBreak > maxLen * 0.5) {
-      cut = paraBreak + 2;
-    } else if (lineBreak > maxLen * 0.5) {
-      cut = lineBreak + 1;
-    }
+    if (paraBreak > maxLen * 0.5) cut = paraBreak + 2;
+    else if (lineBreak > maxLen * 0.5) cut = lineBreak + 1;
     parts.push(rest.slice(0, cut).trimEnd());
     rest = rest.slice(cut).trimStart();
   }
-
-  if (rest.length > 0) {
-    parts.push(rest);
-  }
-
+  if (rest.length > 0) parts.push(rest);
   return parts;
 }
 
-/** Разбивает текст; клавиатура — на последнем сообщении */
 export function splitForTelegramWithKeyboard(text, keyboard, maxLen = 4096) {
   const chunks = splitTelegramMessages(text, maxLen);
-  if (chunks.length === 0) {
-    return [{ text: text || '—', keyboard }];
-  }
-  if (chunks.length === 1) {
-    return [{ text: chunks[0], keyboard }];
-  }
+  if (chunks.length === 0) return [{ text: text || '—', keyboard }];
+  if (chunks.length === 1) return [{ text: chunks[0], keyboard }];
   return chunks.map((chunk, i) => ({
     text: chunk,
     keyboard: i === chunks.length - 1 ? keyboard : undefined,
   }));
+}
+
+/** @deprecated — используйте getModuleMeta из ui/modules.js */
+export function getBlockUserTitle(blockId, lang = 'ru') {
+  return getModuleMeta(blockId, lang).title;
 }

@@ -4,9 +4,8 @@ import {
   TEXT_INPUT_STEPS,
   REJECT_TEXT,
   CALLBACK_PREFIX,
-  formatBlockHeader,
 } from '../scenario/constants.js';
-import { splitTelegramMessages, splitForTelegramWithKeyboard, TELEGRAM_PARSE_MODE, htmlToPlain } from '../ai/formatResponse.js';
+import { splitTelegramMessages, splitForTelegramWithKeyboard, TELEGRAM_PARSE_MODE, htmlToPlain, formatFollowUpForTelegram } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
   parseCallbackData,
@@ -50,9 +49,14 @@ import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/ca
 import {
   BRAND,
   btn,
-  divider,
   formatClientProfile,
-  onboardingHeader,
+  formatInitStep,
+  formatModulePrep,
+  formatSessionComplete,
+  formatWelcome,
+  section,
+  divider,
+  letterhead,
 } from '../ui/brand.js';
 import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
@@ -144,21 +148,14 @@ async function blockPrepText(session, chatId) {
   }
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
-  const header = formatBlockHeader(block.id, session.block_index);
 
-  return [
-    header,
-    divider(),
+  const materials = [fileLine, textLine].filter(Boolean).join('\n');
+  const sections = [
     calcBlock || null,
-    calcBlock ? '' : null,
-    fileLine,
-    textLine || null,
-    '',
-    'При необходимости приложите скриншот или опишите данные текстом.',
-    `Для запуска нажмите «${btn('ru', 'runStage')}».`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+    materials ? section('Материалы', materials) : null,
+  ];
+
+  return formatModulePrep(block.id, session.block_index, sections, 'ru');
 }
 
 async function showBlockPrep(session, chatId) {
@@ -232,12 +229,10 @@ export async function initUser(from) {
 }
 
 async function showMenu(lang = 'en') {
-  // Возвращаем новое главное меню с мультиязычностью
-  const { t } = await import('../i18n.js');
   const { getMainMenuKeyboard } = await import('../navigation.js');
-  
+
   return {
-    text: `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+    text: formatWelcome(lang),
     keyboard: getMainMenuKeyboard(lang),
   };
 }
@@ -248,44 +243,50 @@ function resumePrompt(session, lang = 'en') {
   
   const messages = {
     [STEPS.GENDER]: {
-      text: `${onboardingHeader(1, 4, 'Пол')}\n\nУкажите пол для расчёта.`,
-      keyboard: genderKeyboard(),
+      text: formatInitStep(1, 4, 'Идентификация', 'Укажите биологический пол для корректной интерпретации систем.', lang),
+      keyboard: genderKeyboard(lang),
     },
     [STEPS.BIRTH_DATE]: {
-      text: `${onboardingHeader(2, 4, 'Дата рождения')}\n\nФормат · ДД.ММ.ГГГГ`,
-      keyboard: textInputKeyboard(),
+      text: formatInitStep(2, 4, 'Дата рождения', 'Формат · ДД.ММ.ГГГГ', lang),
+      keyboard: textInputKeyboard(lang),
     },
     [STEPS.BIRTH_TIME]: {
-      text: `${onboardingHeader(3, 4, 'Время рождения')}\n\nФормат · ЧЧ:ММ или «${btn('ru', 'timeUnknown')}».`,
-      keyboard: birthTimeKeyboard(),
+      text: formatInitStep(
+        3,
+        4,
+        'Время рождения',
+        `Формат · ЧЧ:ММ. Если неизвестно — «${btn(lang, 'timeUnknown')}».`,
+        lang
+      ),
+      keyboard: birthTimeKeyboard(lang),
     },
     [STEPS.BIRTH_PLACE]: {
-      text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
-      keyboard: textInputKeyboard(),
+      text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', lang),
+      keyboard: textInputKeyboard(lang),
     },
     [STEPS.CONFIRM]: {
-      text: `${formatProfile(session.collected_data)}\n\n<i>Проверьте данные перед началом анализа.</i>`,
-      keyboard: confirmKeyboard(),
+      text: formatProfile(session.collected_data, lang),
+      keyboard: confirmKeyboard(lang),
     },
     [STEPS.BLOCK_PREP]: {
-      text: '<i>Подготовка этапа…</i>',
-      keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data),
+      text: '<i>Подготовка модуля…</i>',
+      keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data, lang),
     },
     [STEPS.BLOCK_FAILED]: {
-      text: `Этап ${session.last_block_id ?? ''} не выполнен.\nПовторите или вернитесь в меню.`,
-      keyboard: blockFailedKeyboard(),
+      text: `<i>Модуль ${session.last_block_id ?? ''} не выполнен.</i>\nПовторите или вернитесь в меню.`,
+      keyboard: blockFailedKeyboard(lang),
     },
     [STEPS.BLOCK_RUNNING]: {
-      text: '<i>Выполняется расчёт этапа. Пожалуйста, подождите.</i>',
-      keyboard: runningKeyboard(),
+      text: '<i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
+      keyboard: runningKeyboard(lang),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `Этап ${session.last_block_id ?? ''} завершён.\nПерейдите к следующему или задайте вопрос.`,
-      keyboard: nextBlockKeyboard(),
+      text: `<i>Модуль ${session.last_block_id ?? ''} завершён.</i>\nЗадайте вопрос или перейдите дальше.`,
+      keyboard: nextBlockKeyboard(lang),
     },
     [STEPS.COMPLETED]: {
-      text: `<b>${BRAND.name}</b>\n<i>Полный цикл анализа завершён.</i>`,
-      keyboard: completedKeyboard(),
+      text: formatSessionComplete('', lang),
+      keyboard: completedKeyboard(lang),
     },
   };
 
@@ -347,10 +348,10 @@ export async function handleCallback(from, callbackData) {
 
     case 'links': {
       const linksText = [
-        '<b>Справочные ресурсы</b>',
-        '<i>Калькуляторы и внешние сервисы</i>',
+        letterhead('Reference Tools', 'ru'),
         divider(),
-        'Выберите ресурс в кнопках ниже.',
+        '<b>Инструменты расчёта</b>',
+        '<i>Выберите ресурс в кнопках ниже.</i>',
       ].join('\n');
 
       const links = getAllCalculatorLinks();
@@ -401,9 +402,15 @@ export async function handleCallback(from, callbackData) {
       const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
 
       return {
-        text: userLang === 'ru'
-          ? `${onboardingHeader(1, 4, 'Пол', 'ru')}\n\nУкажите пол для расчёта.`
-          : `${onboardingHeader(1, 4, 'Gender', 'en')}\n\nSelect gender for the analysis.`,
+        text: formatInitStep(
+          1,
+          4,
+          userLang === 'ru' ? 'Идентификация' : 'Identification',
+          userLang === 'ru'
+            ? 'Укажите биологический пол для корректной интерпретации систем.'
+            : 'Specify biological gender for accurate system interpretation.',
+          userLang
+        ),
         keyboard: genderKeyboard(),
       };
     }
@@ -426,9 +433,13 @@ export async function handleCallback(from, callbackData) {
       const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
 
       return {
-        text: userLang === 'ru'
-          ? `${onboardingHeader(2, 4, 'Дата рождения', 'ru')}\n\nФормат · ДД.ММ.ГГГГ`
-          : `${onboardingHeader(2, 4, 'Birth date', 'en')}\n\nFormat · DD.MM.YYYY`,
+        text: formatInitStep(
+          2,
+          4,
+          userLang === 'ru' ? 'Дата рождения' : 'Birth date',
+          userLang === 'ru' ? 'Формат · ДД.ММ.ГГГГ' : 'Format · DD.MM.YYYY',
+          userLang
+        ),
         keyboard: textInputKeyboard(),
       };
     }
@@ -440,7 +451,7 @@ export async function handleCallback(from, callbackData) {
       const data = mergeCollectedData(session, { birth_time: 'неизвестно' });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
       return {
-        text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
+        text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', 'ru'),
         keyboard: textInputKeyboard(),
       };
     }
@@ -453,7 +464,7 @@ export async function handleCallback(from, callbackData) {
         last_block_id: null,
       });
       return {
-        text: `${onboardingHeader(1, 4, 'Пол')}\n\nУкажите пол для расчёта.`,
+        text: formatInitStep(1, 4, 'Идентификация', 'Укажите биологический пол для корректной интерпретации систем.', 'ru'),
         keyboard: genderKeyboard(),
       };
 
@@ -536,7 +547,7 @@ export async function handleCallback(from, callbackData) {
           profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
         }
         
-        const completionMessage = `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>\n${divider()}\n\n${profileSummary}`;
+        const completionMessage = formatSessionComplete(profileSummary, 'ru');
         const messageParts = splitTelegramMessages(completionMessage);
         
         return {
@@ -669,7 +680,6 @@ export async function handleCallback(from, callbackData) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { formatForTelegram } = await import('../ai/formatResponse.js');
 
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
@@ -711,7 +721,7 @@ export async function handleCallback(from, callbackData) {
       console.log(`[quick_question] Ответ сохранён, возвращаем пользователю`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = formatForTelegram(aiResponse, 50000);
+      const formattedResponse = formatFollowUpForTelegram(aiResponse, session.last_block_id, 'ru');
       const chunks = splitTelegramMessages(formattedResponse);
       
       console.log(`[quick_question] Chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);
@@ -760,7 +770,7 @@ export async function handleCallback(from, callbackData) {
           profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
         }
         
-        const completionMessage = `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>\n${divider()}\n\n${profileSummary}`;
+        const completionMessage = formatSessionComplete(profileSummary, 'ru');
         
         // Разбиваем на части если сообщение слишком длинное
         const messageParts = splitTelegramMessages(completionMessage);
@@ -861,7 +871,13 @@ export async function handleText(from, rawText) {
       const data = mergeCollectedData(session, { birth_date: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_TIME, collected_data: data });
       return {
-        text: `${onboardingHeader(3, 4, 'Время рождения')}\n\nФормат · ЧЧ:ММ или «${btn('ru', 'timeUnknown')}».`,
+        text: formatInitStep(
+          3,
+          4,
+          'Время рождения',
+          `Формат · ЧЧ:ММ. Если неизвестно — «${btn('ru', 'timeUnknown')}».`,
+          'ru'
+        ),
         keyboard: birthTimeKeyboard(),
       };
     }
@@ -872,7 +888,7 @@ export async function handleText(from, rawText) {
       const data = mergeCollectedData(session, { birth_time: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
       return {
-        text: `${onboardingHeader(4, 4, 'Место рождения')}\n\nГород или населённый пункт.`,
+        text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', 'ru'),
         keyboard: textInputKeyboard(),
       };
     }
@@ -939,7 +955,6 @@ export async function handleText(from, rawText) {
       // Получаем ответ от ИИ
       const { askGpt } = await import('../ai/gptunnel.js');
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
-      const { formatForTelegram } = await import('../ai/formatResponse.js');
 
       // Получаем контекст сессии
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
@@ -981,7 +996,7 @@ export async function handleText(from, rawText) {
       console.log(`[handleText BLOCK_REVIEW] Ответ сохранён в БД`);
 
       // Форматируем ответ для пользователя (убираем JSON, конвертируем markdown)
-      const formattedResponse = formatForTelegram(aiResponse, 50000);
+      const formattedResponse = formatFollowUpForTelegram(aiResponse, session.last_block_id, 'ru');
       const chunks = splitTelegramMessages(formattedResponse);
       
       console.log(`[handleText BLOCK_REVIEW] Возвращаем ответ пользователю, chunks: ${chunks.length}, остаёмся в BLOCK_REVIEW`);

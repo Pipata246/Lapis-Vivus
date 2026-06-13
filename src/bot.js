@@ -52,7 +52,7 @@ function registerHandlers(bot) {
       
       // Отправляем главное меню
       await ctx.reply(
-        `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+        t(lang, 'welcome'),
         {
           parse_mode: 'HTML',
           reply_markup: getMainMenuKeyboard(lang),
@@ -149,7 +149,7 @@ function registerHandlers(bot) {
       switch (action) {
         case 'main_menu':
           await ctx.editMessageText(
-            `${t(lang, 'welcome')}\n\n${t(lang, 'welcomeText')}`,
+            t(lang, 'welcome'),
             {
               parse_mode: 'HTML',
               reply_markup: getMainMenuKeyboard(lang),
