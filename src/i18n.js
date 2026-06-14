@@ -1,6 +1,6 @@
 // Multilingual support for Lapis Vivus Bot
 
-import { BRAND, btn, formatWelcome, letterhead, divider } from './ui/brand.js';
+import { BRAND, btn, formatWelcome, letterhead } from './ui/brand.js';
 
 const translations = {
   en: {
@@ -17,7 +17,7 @@ const translations = {
 
     profileTitle: 'Client Profile',
     profileInfo:
-      `${letterhead('Client Profile', 'en')}\n${divider()}\n` +
+      `${letterhead('Client Profile', 'en')}\n\n` +
       `Telegram ID\n{telegramId}\n\n` +
       `Name\n{name}\n\n` +
       `Language\n{language}\n\n` +
@@ -25,7 +25,7 @@ const translations = {
     editProfile: 'Edit profile',
 
     settingsTitle: 'Settings',
-    settingsText: `${letterhead('Settings', 'en')}\n${divider()}\nInterface preferences:`,
+    settingsText: `${letterhead('Settings', 'en')}\n\nInterface preferences:`,
     changeLanguage: btn('en', 'changeLanguage'),
     languageEn: btn('en', 'languageEn'),
     languageRu: btn('en', 'languageRu'),
@@ -33,7 +33,7 @@ const translations = {
 
     helpTitle: 'About',
     helpText:
-      `${letterhead('About', 'en')}\n${divider()}\n` +
+      `${letterhead('About', 'en')}\n\n` +
       `<i>${BRAND.tagline.en}</i>\n\n` +
       '<b>Session structure</b>\n' +
       '36 modules across 5 parts — from origin mapping to integration protocol.\n\n' +
@@ -72,7 +72,7 @@ const translations = {
 
     profileTitle: 'Профиль клиента',
     profileInfo:
-      `${letterhead('Профиль клиента', 'ru')}\n${divider()}\n` +
+      `${letterhead('Профиль клиента', 'ru')}\n\n` +
       `Telegram ID\n{telegramId}\n\n` +
       `Имя\n{name}\n\n` +
       `Язык\n{language}\n\n` +
@@ -80,7 +80,7 @@ const translations = {
     editProfile: 'Редактировать профиль',
 
     settingsTitle: 'Настройки',
-    settingsText: `${letterhead('Настройки', 'ru')}\n${divider()}\nПараметры интерфейса:`,
+    settingsText: `${letterhead('Настройки', 'ru')}\n\nПараметры интерфейса:`,
     changeLanguage: btn('ru', 'changeLanguage'),
     languageEn: btn('ru', 'languageEn'),
     languageRu: btn('ru', 'languageRu'),
@@ -88,7 +88,7 @@ const translations = {
 
     helpTitle: 'О системе',
     helpText:
-      `${letterhead('О системе', 'ru')}\n${divider()}\n` +
+      `${letterhead('О системе', 'ru')}\n\n` +
       `<i>${BRAND.tagline.ru}</i>\n\n` +
       '<b>Структура сессии</b>\n' +
       '36 модулей в 5 частях — от карты происхождения до протокола интеграции.\n\n' +

@@ -56,7 +56,6 @@ import {
   formatSessionStart,
   formatWelcome,
   section,
-  divider,
   letterhead,
 } from '../ui/brand.js';
 import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
@@ -356,7 +355,7 @@ export async function handleCallback(from, callbackData) {
     case 'links': {
       const linksText = [
         letterhead('Калькуляторы', 'ru'),
-        divider(),
+        '',
         '🔗 <b>Инструменты расчёта</b>',
         '<i>Выберите ресурс в кнопках ниже.</i>',
       ].join('\n');

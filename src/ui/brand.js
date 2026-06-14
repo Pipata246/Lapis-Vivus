@@ -1,5 +1,5 @@
 /**
- * Визуальный язык Lapis Vivus — премиум + аккуратные эмодзи.
+ * Визуальный язык Lapis Vivus — чистые отступы, без декоративных линий.
  */
 
 import { getModuleMeta, SESSION_TOTAL } from './modules.js';
@@ -7,7 +7,6 @@ import { getModuleMeta, SESSION_TOTAL } from './modules.js';
 export const BRAND = {
   name: 'Lapis Vivus',
   nameUpper: 'LAPIS VIVUS',
-  sessionLabel: { ru: 'Private Session', en: 'Private Session' },
   tagline: {
     ru: 'Персональный протокол глубинного анализа',
     en: 'Personal protocol of deep analysis',
@@ -18,7 +17,6 @@ export const BRAND = {
   },
 };
 
-/** Иконки частей сессии */
 export const PART_ICON = {
   I: '🌱',
   II: '☯️',
@@ -27,7 +25,6 @@ export const PART_ICON = {
   V: '🕊',
 };
 
-/** Иконки шагов анкеты */
 export const ONBOARDING_ICON = {
   gender: '👤',
   birth_date: '📅',
@@ -132,11 +129,11 @@ export function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
+/** @deprecated декоративные линии убраны — пустая строка для совместимости */
 export function divider() {
-  return '✦ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ✦';
+  return '';
 }
 
-/** Визуальный индикатор шагов: ● ○ ○ ○ */
 export function stepDots(current, total) {
   const dots = [];
   for (let i = 1; i <= total; i += 1) {
@@ -145,9 +142,13 @@ export function stepDots(current, total) {
   return dots.join(' ');
 }
 
+/** Заголовок: только бренд, опционально подпись экрана */
 export function letterhead(context, lang = 'ru') {
-  const session = BRAND.sessionLabel[lang === 'en' ? 'en' : 'ru'];
-  return `💎 <b>${BRAND.nameUpper}</b>\n<i>${session}${context ? ` · ${context}` : ''}</i>`;
+  void lang;
+  if (context) {
+    return `💎 <b>${BRAND.nameUpper}</b>\n${escapeHtml(context)}`;
+  }
+  return `💎 <b>${BRAND.nameUpper}</b>`;
 }
 
 export function progressLine(step, total = SESSION_TOTAL, lang = 'ru') {
@@ -163,20 +164,13 @@ export function section(title, body, icon = '') {
   return `${head}\n${body}`;
 }
 
-/** Экран «Начать сессию» — вступление + первый шаг */
 export function formatSessionStart(lang = 'ru') {
   const intro =
     lang === 'en'
-      ? 'Welcome to your private session.\nFirst we\'ll collect your birth profile — it takes about a minute.'
-      : 'Добро пожаловать в персональную сессию.\nСначала соберём профиль рождения — это займёт около минуты.';
+      ? 'Welcome.\nFirst we\'ll collect your birth profile — about a minute.'
+      : 'Добро пожаловать.\nСначала соберём профиль рождения — это займёт около минуты.';
 
-  return [
-    letterhead(null, lang),
-    divider(),
-    intro,
-    '',
-    formatInitStep(1, 4, 'gender', lang),
-  ].join('\n');
+  return [letterhead(null, lang), '', intro, '', formatInitStep(1, 4, 'gender', lang)].join('\n');
 }
 
 const ONBOARDING_STEPS = {
@@ -191,7 +185,7 @@ const ONBOARDING_STEPS = {
   birth_time: {
     ru: {
       label: 'Время рождения',
-      prompt: 'Введите время <b>ЧЧ:ММ</b> или нажмите кнопку «⏳ Время неизвестно».',
+      prompt: 'Введите время <b>ЧЧ:ММ</b> или нажмите «⏳ Время неизвестно».',
     },
     en: {
       label: 'Birth time',
@@ -199,12 +193,11 @@ const ONBOARDING_STEPS = {
     },
   },
   birth_place: {
-    ru: { label: 'Место рождения', prompt: 'Город или населённый пункт.\n<i>Например: Москва, Санкт-Петербург</i>' },
-    en: { label: 'Birth place', prompt: 'City or town.\n<i>e.g. Moscow, London</i>' },
+    ru: { label: 'Место рождения', prompt: 'Город или населённый пункт.\n<i>Например: Москва</i>' },
+    en: { label: 'Birth place', prompt: 'City or town.\n<i>e.g. Moscow</i>' },
   },
 };
 
-/** Шаг анкеты по ключу: gender | birth_date | birth_time | birth_place */
 export function formatInitStep(stepIndex, total, stepKey, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   const meta = ONBOARDING_STEPS[stepKey]?.[code] ?? ONBOARDING_STEPS.gender[code];
@@ -219,32 +212,34 @@ export function formatInitStep(stepIndex, total, stepKey, lang = 'ru') {
   ].join('\n');
 }
 
-/** Заголовок модуля */
 export function formatModuleHeader(blockId, blockIndex, lang = 'ru') {
   const meta = getModuleMeta(blockId, lang);
   const step = blockIndex + 1;
   const partIcon = PART_ICON[meta.part] ?? '◆';
+  const moduleLabel =
+    lang === 'en' ? `Module ${String(step).padStart(2, '0')}` : `Модуль ${String(step).padStart(2, '0')}`;
 
   return [
-    letterhead(`Module ${String(step).padStart(2, '0')}`, lang),
-    divider(),
+    letterhead(null, lang),
+    '',
     `${partIcon} <b>${escapeHtml(meta.title)}</b>`,
-    `<i>Part ${meta.part} · ${escapeHtml(meta.partName)}</i>`,
+    `<i>Part ${meta.part} · ${escapeHtml(meta.partName)} · ${moduleLabel}</i>`,
     progressLine(step, SESSION_TOTAL, lang),
   ].join('\n');
 }
 
 export function formatModulePrep(blockId, blockIndex, sections, lang = 'ru') {
   const meta = getModuleMeta(blockId, lang);
-  const parts = [
+  return [
     formatModuleHeader(blockId, blockIndex, lang),
-    divider(),
+    '',
     section('Описание', `<i>${escapeHtml(meta.brief)}</i>`, '📋'),
     ...sections.filter(Boolean),
-    divider(),
+    '',
     `<i>▶ ${lang === 'en' ? 'When ready — run the module.' : 'Когда готовы — запустите модуль.'}</i>`,
-  ];
-  return parts.filter(Boolean).join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export function formatModuleResult(blockId, blockIndex, bodyHtml, lang = 'ru') {
@@ -256,22 +251,20 @@ export function formatModuleResult(blockId, blockIndex, bodyHtml, lang = 'ru') {
 
   return [
     formatModuleHeader(blockId, blockIndex, lang),
-    divider(),
+    '',
     `🔮 <b>${label}</b>`,
     '',
     bodyHtml || `<i>${lang === 'en' ? 'Module completed.' : 'Модуль выполнен.'}</i>`,
-    divider(),
+    '',
     `<i>💬 ${footer}</i>`,
   ].join('\n');
 }
 
 export function formatClarification(blockId, bodyHtml, lang = 'ru') {
   const meta = getModuleMeta(blockId, lang);
-  return [
-    `💬 <b>${lang === 'en' ? 'Clarification' : 'Уточнение'}</b> · <i>${escapeHtml(meta.title)}</i>`,
-    divider(),
-    bodyHtml,
-  ].join('\n\n');
+  return [`💬 <b>${lang === 'en' ? 'Clarification' : 'Уточнение'}</b> · <i>${escapeHtml(meta.title)}</i>`, '', bodyHtml].join(
+    '\n'
+  );
 }
 
 export function formatClientProfile(data, lang = 'ru') {
@@ -285,28 +278,30 @@ export function formatClientProfile(data, lang = 'ru') {
   const rows = fields.map(([icon, k, v]) => `${icon} <b>${k}</b>\n${escapeHtml(String(v))}`).join('\n\n');
 
   return [
-    letterhead(lang === 'en' ? 'Profile Check' : 'Проверка профиля', lang),
-    divider(),
+    letterhead(lang === 'en' ? 'Profile check' : 'Проверка профиля', lang),
+    '',
     rows,
-    divider(),
-    `<i>${ONBOARDING_ICON.confirm} ${lang === 'en' ? 'Confirm to begin the session.' : 'Подтвердите, чтобы начать сессию.'}</i>`,
-  ].join('\n\n');
+    '',
+    `<i>${ONBOARDING_ICON.confirm} ${lang === 'en' ? 'Confirm to begin.' : 'Подтвердите, чтобы начать.'}</i>`,
+  ].join('\n');
 }
 
 export function formatSessionComplete(reportHtml, lang = 'ru') {
   return [
     letterhead(lang === 'en' ? 'Complete' : 'Завершено', lang),
-    divider(),
+    '',
     reportHtml,
-    divider(),
+    '',
     `<i>🎉 ${lang === 'en' ? 'Thank you for completing the full protocol.' : 'Спасибо за прохождение полного протокола.'}</i>`,
-  ].join('\n\n');
+  ]
+    .filter((line) => line !== undefined)
+    .join('\n');
 }
 
 export function formatWelcome(lang = 'ru') {
   return [
     letterhead(null, lang),
-    divider(),
+    '',
     `<i>${BRAND.tagline[lang === 'en' ? 'en' : 'ru']}</i>`,
     `<i>${BRAND.subtitle[lang === 'en' ? 'en' : 'ru']}</i>`,
     '',
@@ -314,7 +309,6 @@ export function formatWelcome(lang = 'ru') {
   ].join('\n');
 }
 
-/** @deprecated — используйте formatInitStep с ключом шага */
 export function onboardingHeader(step, total, label, lang = 'ru') {
   return formatInitStep(step, total, 'gender', lang);
 }

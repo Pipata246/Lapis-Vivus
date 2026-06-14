@@ -84,7 +84,7 @@ export async function buildVisionContentParts(textPayload, files) {
 
   // Добавляем текст из файлов к основному сообщению
   if (textParts.length > 0) {
-    parts[0].text += '\n\n<b>Прикреплённые материалы</b>\n\n' + textParts.join('\n\n— — —\n\n');
+    parts[0].text += '\n\n<b>Прикреплённые материалы</b>\n\n' + textParts.join('\n\n');
   }
 
   if (skipped.length > 0) {

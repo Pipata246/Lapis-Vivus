@@ -2,7 +2,7 @@
  * Форматирование итогового профиля пользователя
  */
 
-import { letterhead, divider } from '../ui/brand.js';
+import { letterhead } from '../ui/brand.js';
 
 export function formatProfileSummary(profile) {
   if (!profile || !profile.blocks) {
@@ -13,8 +13,8 @@ export function formatProfileSummary(profile) {
   const blocks = profile.blocks || [];
 
   const lines = [
-    letterhead('Final Report'),
-    divider(),
+    letterhead('Итоговый отчёт'),
+    '',
     '<b>Данные клиента</b>',
     '',
     `Пол\n${userData.gender_label || '—'}`,
@@ -26,7 +26,7 @@ export function formatProfileSummary(profile) {
     `Место рождения\n${userData.birth_place || '—'}`,
     '',
     `Завершение\n${formatDate(profile.completed_at)}`,
-    divider(),
+    '',
     '<b>Пройденные модули</b>',
     '',
   ];
@@ -45,7 +45,6 @@ export function formatProfileSummary(profile) {
     lines.push('');
   });
 
-  lines.push(divider());
   lines.push('<i>Полный протокол сессии завершён.</i>');
 
   return lines.join('\n');
