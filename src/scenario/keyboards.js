@@ -12,11 +12,13 @@ export function menuKeyboard(lang = 'ru') {
 }
 
 export function genderKeyboard(lang = 'ru') {
+  const male = lang === 'en' ? '👨 Male' : '👨 Мужской';
+  const female = lang === 'en' ? '👩 Female' : '👩 Женский';
   return {
     inline_keyboard: [
       [
-        { text: 'Мужской', callback_data: cb('gender', 'male') },
-        { text: 'Женский', callback_data: cb('gender', 'female') },
+        { text: male, callback_data: cb('gender', 'male') },
+        { text: female, callback_data: cb('gender', 'female') },
       ],
       [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
     ],
@@ -35,11 +37,11 @@ export function birthTimeKeyboard(lang = 'ru') {
 export function confirmKeyboard(lang = 'ru') {
   return {
     inline_keyboard: [
+      [{ text: btn(lang, 'confirm'), callback_data: cb('confirm_yes') }],
       [
-        { text: btn(lang, 'confirm'), callback_data: cb('confirm_yes') },
         { text: btn(lang, 'editData'), callback_data: cb('confirm_edit') },
+        { text: btn(lang, 'cancel'), callback_data: cb('menu') },
       ],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -53,8 +55,10 @@ export function blockPrepKeyboard(blockId, collectedData = {}, lang = 'ru') {
   }
 
   rows.push([{ text: btn(lang, 'runStage'), callback_data: cb('run_block') }]);
-  rows.push([{ text: btn(lang, 'skipStage'), callback_data: cb('skip_block') }]);
-  rows.push([{ text: btn(lang, 'cancel'), callback_data: cb('menu') }]);
+  rows.push([
+    { text: btn(lang, 'skipStage'), callback_data: cb('skip_block') },
+    { text: btn(lang, 'cancel'), callback_data: cb('menu') },
+  ]);
 
   return { inline_keyboard: rows };
 }

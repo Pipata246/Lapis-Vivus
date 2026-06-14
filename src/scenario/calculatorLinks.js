@@ -186,9 +186,7 @@ export function formatCalculatorLinksText(blockId, collectedData = {}) {
     return '';
   }
 
-  const lines = links.map(
-    (link) => `· ${link.label}${link.note ? ` — ${link.note}` : ''}`
-  );
+  const lines = links.map((link) => `· ${link.label}${link.note ? ` — ${link.note}` : ''}`);
 
   const hasGeocult = links.some((l) => l.url.includes('geocult.ru'));
   let note = '';
@@ -199,10 +197,10 @@ export function formatCalculatorLinksText(blockId, collectedData = {}) {
   }
 
   return [
-    '<b>Инструменты расчёта</b>',
+    '🔗 <b>Инструменты расчёта</b>',
     lines.join('\n'),
     note,
-    '<i>Сохраните результат и приложите файл, если модуль требует исходных данных.</i>',
+    '<i>📎 Сохраните результат и приложите файл, если модуль требует данных.</i>',
   ]
     .filter(Boolean)
     .join('\n');

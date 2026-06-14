@@ -53,6 +53,7 @@ import {
   formatInitStep,
   formatModulePrep,
   formatSessionComplete,
+  formatSessionStart,
   formatWelcome,
   section,
   divider,
@@ -72,8 +73,20 @@ function scheduleChatFilesCleanup(chatId) {
   });
 }
 
-function genderLabel(value) {
+function genderLabel(value, lang = 'ru') {
+  if (lang === 'en') {
+    return value === 'male' ? 'Male' : 'Female';
+  }
   return value === 'male' ? 'Мужской' : 'Женский';
+}
+
+async function resolveLang(from) {
+  try {
+    const { getUserLanguage } = await import('../db/users.js');
+    return await getUserLanguage(from.id);
+  } catch {
+    return from.language_code?.startsWith('ru') ? 'ru' : 'en';
+  }
 }
 
 function formatProfile(data, lang = 'ru') {
@@ -152,7 +165,7 @@ async function blockPrepText(session, chatId) {
   const materials = [fileLine, textLine].filter(Boolean).join('\n');
   const sections = [
     calcBlock || null,
-    materials ? section('Материалы', materials) : null,
+    materials ? section('Материалы', materials, '📎') : null,
   ];
 
   return formatModulePrep(block.id, session.block_index, sections, 'ru');
@@ -243,25 +256,19 @@ function resumePrompt(session, lang = 'en') {
   
   const messages = {
     [STEPS.GENDER]: {
-      text: formatInitStep(1, 4, 'Идентификация', 'Укажите биологический пол для корректной интерпретации систем.', lang),
+      text: formatInitStep(1, 4, 'gender', lang),
       keyboard: genderKeyboard(lang),
     },
     [STEPS.BIRTH_DATE]: {
-      text: formatInitStep(2, 4, 'Дата рождения', 'Формат · ДД.ММ.ГГГГ', lang),
+      text: formatInitStep(2, 4, 'birth_date', lang),
       keyboard: textInputKeyboard(lang),
     },
     [STEPS.BIRTH_TIME]: {
-      text: formatInitStep(
-        3,
-        4,
-        'Время рождения',
-        `Формат · ЧЧ:ММ. Если неизвестно — «${btn(lang, 'timeUnknown')}».`,
-        lang
-      ),
+      text: formatInitStep(3, 4, 'birth_time', lang),
       keyboard: birthTimeKeyboard(lang),
     },
     [STEPS.BIRTH_PLACE]: {
-      text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', lang),
+      text: formatInitStep(4, 4, 'birth_place', lang),
       keyboard: textInputKeyboard(lang),
     },
     [STEPS.CONFIRM]: {
@@ -269,19 +276,19 @@ function resumePrompt(session, lang = 'en') {
       keyboard: confirmKeyboard(lang),
     },
     [STEPS.BLOCK_PREP]: {
-      text: '<i>Подготовка модуля…</i>',
+      text: '⏳ <i>Подготовка модуля…</i>',
       keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data, lang),
     },
     [STEPS.BLOCK_FAILED]: {
-      text: `<i>Модуль ${session.last_block_id ?? ''} не выполнен.</i>\nПовторите или вернитесь в меню.`,
+      text: `⚠️ <i>Модуль ${session.last_block_id ?? ''} не выполнен.</i>\nПовторите или вернитесь в меню.`,
       keyboard: blockFailedKeyboard(lang),
     },
     [STEPS.BLOCK_RUNNING]: {
-      text: '<i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
+      text: '⏳ <i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
       keyboard: runningKeyboard(lang),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `<i>Модуль ${session.last_block_id ?? ''} завершён.</i>\nЗадайте вопрос или перейдите дальше.`,
+      text: `✓ <i>Модуль ${session.last_block_id ?? ''} завершён.</i>\nЗадайте вопрос или перейдите дальше.`,
       keyboard: nextBlockKeyboard(lang),
     },
     [STEPS.COMPLETED]: {
@@ -348,9 +355,9 @@ export async function handleCallback(from, callbackData) {
 
     case 'links': {
       const linksText = [
-        letterhead('Reference Tools', 'ru'),
+        letterhead('Калькуляторы', 'ru'),
         divider(),
-        '<b>Инструменты расчёта</b>',
+        '🔗 <b>Инструменты расчёта</b>',
         '<i>Выберите ресурс в кнопках ниже.</i>',
       ].join('\n');
 
@@ -389,6 +396,8 @@ export async function handleCallback(from, callbackData) {
       console.log(`[start] userId=${from.id}, начинаем новый анализ`);
 
       scheduleChatFilesCleanup(chat.id);
+      const userLang = await resolveLang(from);
+
       await upsertSession(from.id, chat.id, {
         step: STEPS.GENDER,
         collected_data: {},
@@ -399,48 +408,31 @@ export async function handleCallback(from, callbackData) {
 
       console.log(`[start] step установлен в ${STEPS.GENDER}`);
 
-      const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
-
       return {
-        text: formatInitStep(
-          1,
-          4,
-          userLang === 'ru' ? 'Идентификация' : 'Identification',
-          userLang === 'ru'
-            ? 'Укажите биологический пол для корректной интерпретации систем.'
-            : 'Specify biological gender for accurate system interpretation.',
-          userLang
-        ),
-        keyboard: genderKeyboard(),
+        text: formatSessionStart(userLang),
+        keyboard: genderKeyboard(userLang),
       };
     }
 
     case 'gender': {
       console.log(`[gender] userId=${from.id}, session.step=${session.step}, expected=${STEPS.GENDER}`);
-      
+
       if (session.step !== STEPS.GENDER) {
         console.log(`[gender] Неверный шаг, возвращаем safeResumePrompt`);
         return await safeResumePrompt(session, from.id);
       }
-      
+
+      const userLang = await resolveLang(from);
       console.log(`[gender] Сохраняем пол: ${parsed.value}`);
       const data = mergeCollectedData(session, {
         gender: parsed.value,
-        gender_label: genderLabel(parsed.value),
+        gender_label: genderLabel(parsed.value, userLang),
       });
       await updateSession(from.id, { step: STEPS.BIRTH_DATE, collected_data: data });
 
-      const userLang = from.language_code?.startsWith('ru') ? 'ru' : 'en';
-
       return {
-        text: formatInitStep(
-          2,
-          4,
-          userLang === 'ru' ? 'Дата рождения' : 'Birth date',
-          userLang === 'ru' ? 'Формат · ДД.ММ.ГГГГ' : 'Format · DD.MM.YYYY',
-          userLang
-        ),
-        keyboard: textInputKeyboard(),
+        text: formatInitStep(2, 4, 'birth_date', userLang),
+        keyboard: textInputKeyboard(userLang),
       };
     }
 
@@ -448,15 +440,17 @@ export async function handleCallback(from, callbackData) {
       if (session.step !== STEPS.BIRTH_TIME) {
         return await safeResumePrompt(session, from.id);
       }
+      const userLang = await resolveLang(from);
       const data = mergeCollectedData(session, { birth_time: 'неизвестно' });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
       return {
-        text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', 'ru'),
-        keyboard: textInputKeyboard(),
+        text: formatInitStep(4, 4, 'birth_place', userLang),
+        keyboard: textInputKeyboard(userLang),
       };
     }
 
-    case 'confirm_edit':
+    case 'confirm_edit': {
+      const userLang = await resolveLang(from);
       await updateSession(from.id, {
         step: STEPS.GENDER,
         collected_data: {},
@@ -464,9 +458,10 @@ export async function handleCallback(from, callbackData) {
         last_block_id: null,
       });
       return {
-        text: formatInitStep(1, 4, 'Идентификация', 'Укажите биологический пол для корректной интерпретации систем.', 'ru'),
-        keyboard: genderKeyboard(),
+        text: formatInitStep(1, 4, 'gender', userLang),
+        keyboard: genderKeyboard(userLang),
       };
+    }
 
     case 'confirm_yes': {
       if (session.step !== STEPS.CONFIRM) {
@@ -842,24 +837,22 @@ async function runCurrentBlock(from, chatId) {
 }
 
 export async function handleText(from, rawText) {
-  const { chat, session: initialSession } = await ensureSession(from);
-  
-  // Перечитываем сессию из БД чтобы убедиться что у нас актуальное состояние
+  const { chat } = await ensureSession(from);
   const session = await getSession(from.id);
   const step = session.step;
+  const lang = await resolveLang(from);
 
   if (!TEXT_INPUT_STEPS.has(step)) {
     if (step === STEPS.BLOCK_RUNNING) {
       return {
-        text: '<i>Выполняется расчёт этапа. Пожалуйста, подождите.</i>',
-        keyboard: runningKeyboard(),
+        text: '⏳ <i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
+        keyboard: runningKeyboard(lang),
       };
     }
-    // Убираем хинты для BLOCK_REVIEW — там текст разрешён
     const hints = {
-      [STEPS.GENDER]: 'На этом шаге выберите пол с помощью кнопок.',
-      [STEPS.CONFIRM]: 'Подтвердите данные кнопкой ниже.',
-      [STEPS.BLOCK_FAILED]: 'Повторите этап или вернитесь в главное меню.',
+      [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
+      [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
+      [STEPS.BLOCK_FAILED]: '↻ Повторите модуль или вернитесь в меню.',
     };
     return await rejectWrongInput(session, hints[step] ?? REJECT_TEXT, from.id);
   }
@@ -867,40 +860,34 @@ export async function handleText(from, rawText) {
   switch (step) {
     case STEPS.BIRTH_DATE: {
       const v = validateBirthDate(rawText);
-      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard() };
+      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_date: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_TIME, collected_data: data });
       return {
-        text: formatInitStep(
-          3,
-          4,
-          'Время рождения',
-          `Формат · ЧЧ:ММ. Если неизвестно — «${btn('ru', 'timeUnknown')}».`,
-          'ru'
-        ),
-        keyboard: birthTimeKeyboard(),
+        text: formatInitStep(3, 4, 'birth_time', lang),
+        keyboard: birthTimeKeyboard(lang),
       };
     }
 
     case STEPS.BIRTH_TIME: {
       const v = validateBirthTime(rawText);
-      if (!v.ok) return { text: v.error, keyboard: birthTimeKeyboard() };
+      if (!v.ok) return { text: v.error, keyboard: birthTimeKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_time: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
       return {
-        text: formatInitStep(4, 4, 'Место рождения', 'Город или населённый пункт.', 'ru'),
-        keyboard: textInputKeyboard(),
+        text: formatInitStep(4, 4, 'birth_place', lang),
+        keyboard: textInputKeyboard(lang),
       };
     }
 
     case STEPS.BIRTH_PLACE: {
       const v = validateBirthPlace(rawText);
-      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard() };
+      if (!v.ok) return { text: v.error, keyboard: textInputKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_place: v.value });
       await updateSession(from.id, { step: STEPS.CONFIRM, collected_data: data });
       return {
-        text: `${formatProfile(data)}\n\n<i>Проверьте данные перед началом анализа.</i>`,
-        keyboard: confirmKeyboard(),
+        text: formatProfile(data, lang),
+        keyboard: confirmKeyboard(lang),
       };
     }
 
