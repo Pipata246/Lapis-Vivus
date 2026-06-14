@@ -67,21 +67,18 @@ function envFlag(name, defaultValue = false) {
   return raw === '1' || raw === 'true' || raw === 'yes';
 }
 
-/** Настройки сборки промпта для ИИ */
+/** Настройки сборки промпта для ИИ (единственная env-переменная — PROMPTS_USE_DB) */
 export function loadPromptConfig() {
   return {
-    /** 1 = читать prompts из Supabase, 0 = только локальные файлы */
+    /** 1 = Supabase, 0 = src/prompts/* */
     useDb: envFlag('PROMPTS_USE_DB', true),
-    /** full = весь blocks (~180k), single = только секция текущего блока */
-    blocksMode: process.env.PROMPTS_BLOCKS_MODE?.trim().toLowerCase() === 'single' ? 'single' : 'full',
-    includeGlossary: envFlag('PROMPTS_INCLUDE_GLOSSARY', true),
-    includeBibliography: envFlag('PROMPTS_INCLUDE_BIBLIOGRAPHY', true),
-    /** Ссылки на сайты-калькуляторы — для кнопок бота, не для ИИ */
-    includeCalculators: envFlag('PROMPTS_INCLUDE_CALCULATORS', false),
-    /** summary = сжимать прошлые ответы ассистента в контексте */
-    chatHistoryMode:
-      process.env.CHAT_AI_HISTORY_MODE?.trim().toLowerCase() === 'full' ? 'full' : 'summary',
-    debug: envFlag('PROMPTS_DEBUG', false),
+    blocksMode: 'single',
+    includeGlossary: true,
+    includeBibliography: true,
+    bibliographyMode: 'single',
+    includeCalculators: false,
+    chatHistoryMode: 'summary',
+    debug: false,
   };
 }
 

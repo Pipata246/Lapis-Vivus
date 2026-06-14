@@ -15,6 +15,7 @@ const CALCULATORS_PATH = path.join(__dirname, 'calculators.txt');
 
 const promptCache = new Map();
 let blockSectionsCache = null;
+let bibliographySectionsCache = null;
 
 function readLocalFile(primaryPath, legacyPath = null) {
   try {
@@ -35,6 +36,48 @@ export function resolveBlockSectionKey(blockId) {
   if (/^3C_\d/.test(blockId)) return blockId;
   if (blockId === '3C') return '3C';
   return blockId.split('.')[0];
+}
+
+/** 2B.1 → 2b, 3C_1 → 3c_1 — ключ для секции bibliography (# Шаг: 1A) */
+export function resolveBibliographySectionKey(blockId) {
+  return resolveBlockSectionKey(blockId)?.toLowerCase() ?? null;
+}
+
+function parseBibliographySections(bibliographyText) {
+  const map = new Map();
+  const re = /^# Шаг:\s*(\S+)/gim;
+  const starts = [];
+  let match;
+
+  while ((match = re.exec(bibliographyText)) !== null) {
+    starts.push({ key: match[1].toLowerCase(), index: match.index });
+  }
+
+  for (let i = 0; i < starts.length; i += 1) {
+    const end = starts[i + 1]?.index ?? bibliographyText.length;
+    map.set(starts[i].key, bibliographyText.slice(starts[i].index, end).trim());
+  }
+
+  return map;
+}
+
+function extractBibliographySection(bibliographyText, blockId) {
+  const cfg = loadPromptConfig();
+  if (cfg.bibliographyMode === 'full' || !blockId) {
+    return bibliographyText;
+  }
+
+  const sections = bibliographySectionsCache ?? parseBibliographySections(bibliographyText);
+  bibliographySectionsCache = sections;
+
+  const key = resolveBibliographySectionKey(blockId);
+  const section = sections.get(key);
+  if (!section) {
+    console.warn(`[Prompts] Секция bibliography ${blockId} (key=${key}) не найдена, fallback full`);
+    return bibliographyText;
+  }
+
+  return `# ACTIVE_BIBLIOGRAPHY_ONLY · step ${key}\n${section}`;
 }
 
 function parseBlockSections(blocksText) {
@@ -114,15 +157,13 @@ async function initializePromptsInDB() {
     }
 
     const systemPrompt = readLocalFile(SYSTEM_PROMPT_PATH);
-    const corePrompt = readLocalFile(CORE_PATH);
     const blocksPrompt = readLocalFile(BLOCKS_PATH, BLOCKS_LEGACY_PATH);
     const glossary = readLocalFile(GLOSSARY_PATH);
     const bibliography = readLocalFile(BIBLIOGRAPHY_PATH);
     const calculators = readLocalFile(CALCULATORS_PATH);
-    const combinedSystem = `${systemPrompt}\n\n${corePrompt}`;
 
     if (!hasSystem) {
-      await supabase.from('prompts').upsert({ id: 'system', content: combinedSystem }, { onConflict: 'id' });
+      await supabase.from('prompts').upsert({ id: 'system', content: systemPrompt }, { onConflict: 'id' });
     }
     if (!hasBlocks) {
       await supabase.from('prompts').upsert({ id: 'blocks', content: blocksPrompt }, { onConflict: 'id' });
@@ -164,15 +205,12 @@ async function loadBlocksText() {
 }
 
 async function loadSystemCoreText() {
-  return loadPromptPart('system', () => {
-    const system = readLocalFile(SYSTEM_PROMPT_PATH);
-    const core = readLocalFile(CORE_PATH);
-    return `${system}\n\n${core}`;
-  });
+  // prompts.system в Supabase = lapis-system.txt (1:1, без lapis-core)
+  return loadPromptPart('system', () => readLocalFile(SYSTEM_PROMPT_PATH));
 }
 
 /**
- * @param {{ blockId?: string }} [options] — blockId для режима PROMPTS_BLOCKS_MODE=single
+ * @param {{ blockId?: string }} [options] — blockId для single-секции blocks/bibliography
  */
 export async function getSystemPrompt(options = {}) {
   const key = cacheKey(options);
@@ -193,7 +231,11 @@ export async function getSystemPrompt(options = {}) {
     parts.glossary = await loadPromptPart('glossary', () => readLocalFile(GLOSSARY_PATH));
   }
   if (cfg.includeBibliography) {
-    parts.bibliography = await loadPromptPart('bibliography', () => readLocalFile(BIBLIOGRAPHY_PATH));
+    const bibliographyFull = await loadPromptPart('bibliography', () => readLocalFile(BIBLIOGRAPHY_PATH));
+    parts.bibliography =
+      cfg.bibliographyMode === 'single' && options.blockId
+        ? extractBibliographySection(bibliographyFull, options.blockId)
+        : bibliographyFull;
   }
   if (cfg.includeCalculators) {
     parts.calculators = await loadPromptPart('calculators', () => readLocalFile(CALCULATORS_PATH));
@@ -216,6 +258,7 @@ export async function getSystemPrompt(options = {}) {
 export function clearPromptCache() {
   promptCache.clear();
   blockSectionsCache = null;
+  bibliographySectionsCache = null;
 }
 
 export async function updatePrompt(promptId, content, adminId) {
