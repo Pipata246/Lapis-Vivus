@@ -17,6 +17,7 @@ import {
   getBlockUserTitle,
 } from '../scenario/constants.js';
 import { buildVisionContentParts } from './telegramFiles.js';
+import { compressMessagesForAI } from '../ai/contextMessages.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
 const lastAiCallByUser = new Map();
@@ -159,8 +160,8 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
     ? await buildVisionContentParts(userText, files)
     : userText;
 
-  const sessionMessages = await getChatMessagesForAI(chatId, sessionStartAt);
-  const systemPrompt = await getSystemPrompt();
+  const sessionMessages = compressMessagesForAI(await getChatMessagesForAI(chatId, sessionStartAt));
+  const systemPrompt = await getSystemPrompt({ blockId });
   const baseMessages = [
     { role: 'system', content: systemPrompt },
     ...sessionMessages,

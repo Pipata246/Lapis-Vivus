@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getSupabase } from '../db/supabase.js';
+import { loadPromptConfig } from '../config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.join(__dirname, 'lapis-system.txt');
@@ -12,204 +13,242 @@ const GLOSSARY_PATH = path.join(__dirname, 'glossary.txt');
 const BIBLIOGRAPHY_PATH = path.join(__dirname, 'bibliography.txt');
 const CALCULATORS_PATH = path.join(__dirname, 'calculators.txt');
 
-let cachedPrompt = null;
+const promptCache = new Map();
+let blockSectionsCache = null;
 
-/**
- * Инициализация промптов в БД из файлов (только при первом запуске)
- */
+function readLocalFile(primaryPath, legacyPath = null) {
+  try {
+    return readFileSync(primaryPath, 'utf8');
+  } catch {
+    if (legacyPath) return readFileSync(legacyPath, 'utf8');
+    throw new Error(`Файл промпта не найден: ${primaryPath}`);
+  }
+}
+
+/** 2B.1 → 2B, 3C_1 → 3C_1, 1A → 1A */
+export function resolveBlockSectionKey(blockId) {
+  if (!blockId) return null;
+  if (/^2B\./.test(blockId)) return '2B';
+  if (/^2G\./.test(blockId)) return '2G';
+  if (/^3B\./.test(blockId)) return '3B';
+  if (/^3\./.test(blockId)) return '3';
+  if (/^3C_\d/.test(blockId)) return blockId;
+  if (blockId === '3C') return '3C';
+  return blockId.split('.')[0];
+}
+
+function parseBlockSections(blocksText) {
+  const map = new Map();
+  const re = /^# ITERATIVE_BLOCK_([^\s:]+):/gm;
+  const starts = [];
+  let match;
+
+  while ((match = re.exec(blocksText)) !== null) {
+    starts.push({ key: match[1], index: match.index });
+  }
+
+  for (let i = 0; i < starts.length; i += 1) {
+    const end = starts[i + 1]?.index ?? blocksText.length;
+    map.set(starts[i].key, blocksText.slice(starts[i].index, end).trim());
+  }
+
+  return map;
+}
+
+function extractBlockSection(blocksText, blockId) {
+  const sections = blockSectionsCache ?? parseBlockSections(blocksText);
+  blockSectionsCache = sections;
+
+  const key = resolveBlockSectionKey(blockId);
+  const section = sections.get(key);
+  if (!section) {
+    console.warn(`[Prompts] Секция блока ${blockId} (key=${key}) не найдена, fallback на full blocks`);
+    return blocksText;
+  }
+
+  const stepHint =
+    blockId.includes('.') || blockId.includes('_')
+      ? `\n\n# SERVER_STEP: ${blockId} (поквартальный/подшаг текущей итерации)\n`
+      : '';
+
+  return `# ACTIVE_BLOCK_ONLY mode · section ${key}\n${stepHint}${section}`;
+}
+
+function cacheKey(options = {}) {
+  const cfg = loadPromptConfig();
+  return JSON.stringify({
+    ...cfg,
+    blockId: options.blockId ?? null,
+  });
+}
+
+function logPromptStats(parts, total) {
+  const cfg = loadPromptConfig();
+  if (!cfg.debug) return;
+
+  console.log('[Prompts] ── сборка промпта ──');
+  for (const [name, text] of Object.entries(parts)) {
+    console.log(`  ${name}: ${text.length.toLocaleString()} chars (~${Math.round(text.length / 4)} tok)`);
+  }
+  console.log(`  TOTAL: ${total.length.toLocaleString()} chars (~${Math.round(total.length / 4)} tok)`);
+  console.log(`  source: ${cfg.useDb ? 'DB' : 'files'}, blocks: ${cfg.blocksMode}`);
+}
+
 async function initializePromptsInDB() {
   const supabase = getSupabase();
-  
+
   try {
-    // Проверяем есть ли уже промпты в БД
     const { data: existing } = await supabase
       .from('prompts')
       .select('id, content')
       .in('id', ['system', 'blocks', 'glossary', 'bibliography', 'calculators']);
-    
-    // Если промпты уже есть и не пустые - не перезаписываем
-    const hasSystem = existing?.some(p => p.id === 'system' && p.content.length > 100);
-    const hasBlocks = existing?.some(p => p.id === 'blocks' && p.content.length > 100);
-    const hasGlossary = existing?.some(p => p.id === 'glossary' && p.content.length > 100);
-    const hasBibliography = existing?.some(p => p.id === 'bibliography' && p.content.length > 100);
-    const hasCalculators = existing?.some(p => p.id === 'calculators' && p.content.length > 100);
-    
+
+    const hasSystem = existing?.some((p) => p.id === 'system' && p.content.length > 100);
+    const hasBlocks = existing?.some((p) => p.id === 'blocks' && p.content.length > 100);
+    const hasGlossary = existing?.some((p) => p.id === 'glossary' && p.content.length > 100);
+    const hasBibliography = existing?.some((p) => p.id === 'bibliography' && p.content.length > 100);
+    const hasCalculators = existing?.some((p) => p.id === 'calculators' && p.content.length > 100);
+
     if (hasSystem && hasBlocks && hasGlossary && hasBibliography && hasCalculators) {
-      return; // Промпты уже инициализированы
+      return;
     }
-    
-    // Читаем файлы
-    const systemPrompt = readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
-    const corePrompt = readFileSync(CORE_PATH, 'utf8');
-    const blocksPrompt = readFileSync(BLOCKS_PATH, 'utf8');
-    const glossary = readFileSync(GLOSSARY_PATH, 'utf8');
-    const bibliography = readFileSync(BIBLIOGRAPHY_PATH, 'utf8');
-    const calculators = readFileSync(CALCULATORS_PATH, 'utf8');
-    
-    // Объединяем system и core в один промпт (БЕЗ глоссария и библиографии - они отдельно)
-    const combinedSystem = systemPrompt + '\n\n' + corePrompt;
-    
-    // Обновляем в БД
+
+    const systemPrompt = readLocalFile(SYSTEM_PROMPT_PATH);
+    const corePrompt = readLocalFile(CORE_PATH);
+    const blocksPrompt = readLocalFile(BLOCKS_PATH, BLOCKS_LEGACY_PATH);
+    const glossary = readLocalFile(GLOSSARY_PATH);
+    const bibliography = readLocalFile(BIBLIOGRAPHY_PATH);
+    const calculators = readLocalFile(CALCULATORS_PATH);
+    const combinedSystem = `${systemPrompt}\n\n${corePrompt}`;
+
     if (!hasSystem) {
-      await supabase
-        .from('prompts')
-        .upsert({ id: 'system', content: combinedSystem }, { onConflict: 'id' });
-      console.log('[Prompts] Системный промпт инициализирован в БД');
+      await supabase.from('prompts').upsert({ id: 'system', content: combinedSystem }, { onConflict: 'id' });
     }
-    
     if (!hasBlocks) {
-      await supabase
-        .from('prompts')
-        .upsert({ id: 'blocks', content: blocksPrompt }, { onConflict: 'id' });
-      console.log('[Prompts] Блоки инициализированы в БД');
+      await supabase.from('prompts').upsert({ id: 'blocks', content: blocksPrompt }, { onConflict: 'id' });
     }
-    
     if (!hasGlossary) {
-      await supabase
-        .from('prompts')
-        .upsert({ id: 'glossary', content: glossary }, { onConflict: 'id' });
-      console.log('[Prompts] Глоссарий инициализирован в БД');
+      await supabase.from('prompts').upsert({ id: 'glossary', content: glossary }, { onConflict: 'id' });
     }
-    
     if (!hasBibliography) {
-      await supabase
-        .from('prompts')
-        .upsert({ id: 'bibliography', content: bibliography }, { onConflict: 'id' });
-      console.log('[Prompts] Библиография инициализирована в БД');
+      await supabase.from('prompts').upsert({ id: 'bibliography', content: bibliography }, { onConflict: 'id' });
     }
-    
     if (!hasCalculators) {
-      await supabase
-        .from('prompts')
-        .upsert({ id: 'calculators', content: calculators }, { onConflict: 'id' });
-      console.log('[Prompts] Калькуляторы инициализированы в БД');
+      await supabase.from('prompts').upsert({ id: 'calculators', content: calculators }, { onConflict: 'id' });
     }
   } catch (err) {
     console.error('[Prompts] Ошибка инициализации:', err.message);
-    // Fallback на файлы
   }
 }
 
-/**
- * Загрузка промпта из БД
- */
-async function loadPromptFromDB(promptId) {
-  const supabase = getSupabase();
-  
-  try {
-    const { data, error } = await supabase
-      .from('prompts')
-      .select('content')
-      .eq('id', promptId)
-      .single();
-    
-    if (error) throw error;
-    return data?.content || null;
-  } catch (err) {
-    console.error(`[Prompts] Ошибка загрузки ${promptId}:`, err.message);
-    return null;
-  }
-}
+async function loadPromptPart(promptId, fileLoader) {
+  const cfg = loadPromptConfig();
 
-/**
- * Системный промпт — загружается из БД с fallback на файлы.
- * Объединяет system + blocks.
- */
-export async function getSystemPrompt() {
-  if (cachedPrompt) {
-    return cachedPrompt;
-  }
-  
-  // Инициализируем БД при первом запросе
-  await initializePromptsInDB();
-  
-  // Загружаем из БД
-  let systemPrompt = await loadPromptFromDB('system');
-  let blocksPrompt = await loadPromptFromDB('blocks');
-  let glossary = await loadPromptFromDB('glossary');
-  let bibliography = await loadPromptFromDB('bibliography');
-  let calculators = await loadPromptFromDB('calculators');
-  
-  // Fallback на файлы если в БД пусто
-  if (!systemPrompt || systemPrompt.length < 100) {
-    console.warn('[Prompts] Системный промпт не найден в БД, используем файлы');
-    const systemFile = readFileSync(SYSTEM_PROMPT_PATH, 'utf8');
-    const coreFile = readFileSync(CORE_PATH, 'utf8');
-    systemPrompt = systemFile + '\n\n' + coreFile;
-  }
-  
-  if (!blocksPrompt || blocksPrompt.length < 100) {
-    console.warn('[Prompts] Блоки не найдены в БД, используем файлы');
+  if (cfg.useDb) {
+    const supabase = getSupabase();
     try {
-      blocksPrompt = readFileSync(BLOCKS_PATH, 'utf8');
-    } catch {
-      blocksPrompt = readFileSync(BLOCKS_LEGACY_PATH, 'utf8');
+      const { data, error } = await supabase.from('prompts').select('content').eq('id', promptId).single();
+      if (!error && data?.content && data.content.length >= 100) {
+        return data.content;
+      }
+    } catch (err) {
+      console.warn(`[Prompts] DB ${promptId}: ${err.message}, fallback file`);
     }
   }
-  
-  if (!glossary || glossary.length < 100) {
-    console.warn('[Prompts] Глоссарий не найден в БД, используем файлы');
-    glossary = readFileSync(GLOSSARY_PATH, 'utf8');
-  }
-  
-  if (!bibliography || bibliography.length < 100) {
-    console.warn('[Prompts] Библиография не найдена в БД, используем файлы');
-    bibliography = readFileSync(BIBLIOGRAPHY_PATH, 'utf8');
-  }
-  
-  if (!calculators || calculators.length < 100) {
-    console.warn('[Prompts] Калькуляторы не найдены в БД, используем файлы');
-    calculators = readFileSync(CALCULATORS_PATH, 'utf8');
-  }
-  
-  cachedPrompt = systemPrompt + '\n\n' + glossary + '\n\n' + bibliography + '\n\n' + calculators + '\n\n' + blocksPrompt;
-  return cachedPrompt;
+
+  return fileLoader();
+}
+
+async function loadBlocksText() {
+  return loadPromptPart('blocks', () => readLocalFile(BLOCKS_PATH, BLOCKS_LEGACY_PATH));
+}
+
+async function loadSystemCoreText() {
+  return loadPromptPart('system', () => {
+    const system = readLocalFile(SYSTEM_PROMPT_PATH);
+    const core = readLocalFile(CORE_PATH);
+    return `${system}\n\n${core}`;
+  });
 }
 
 /**
- * Обновление промпта в БД (вызывается из админки)
+ * @param {{ blockId?: string }} [options] — blockId для режима PROMPTS_BLOCKS_MODE=single
  */
+export async function getSystemPrompt(options = {}) {
+  const key = cacheKey(options);
+  if (promptCache.has(key)) {
+    return promptCache.get(key);
+  }
+
+  const cfg = loadPromptConfig();
+  if (cfg.useDb) {
+    await initializePromptsInDB();
+  }
+
+  const parts = {};
+
+  parts.system = await loadSystemCoreText();
+
+  if (cfg.includeGlossary) {
+    parts.glossary = await loadPromptPart('glossary', () => readLocalFile(GLOSSARY_PATH));
+  }
+  if (cfg.includeBibliography) {
+    parts.bibliography = await loadPromptPart('bibliography', () => readLocalFile(BIBLIOGRAPHY_PATH));
+  }
+  if (cfg.includeCalculators) {
+    parts.calculators = await loadPromptPart('calculators', () => readLocalFile(CALCULATORS_PATH));
+  }
+
+  const blocksFull = await loadBlocksText();
+  if (cfg.blocksMode === 'single' && options.blockId) {
+    parts.blocks = extractBlockSection(blocksFull, options.blockId);
+  } else {
+    parts.blocks = blocksFull;
+  }
+
+  const total = Object.values(parts).filter(Boolean).join('\n\n');
+  logPromptStats(parts, total);
+
+  promptCache.set(key, total);
+  return total;
+}
+
+export function clearPromptCache() {
+  promptCache.clear();
+  blockSectionsCache = null;
+}
+
 export async function updatePrompt(promptId, content, adminId) {
   if (!['system', 'blocks', 'glossary', 'bibliography', 'calculators'].includes(promptId)) {
     throw new Error('Некорректный ID промпта. Допустимые: system, blocks, glossary, bibliography, calculators');
   }
-  
+
   if (!content || content.trim().length < 10) {
     throw new Error('Промпт слишком короткий');
   }
-  
+
   const supabase = getSupabase();
-  
-  const { error } = await supabase
-    .from('prompts')
-    .upsert({
+  const { error } = await supabase.from('prompts').upsert(
+    {
       id: promptId,
       content: content.trim(),
       updated_by: adminId,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'id' });
-  
+    },
+    { onConflict: 'id' }
+  );
+
   if (error) {
     throw new Error(`Не удалось обновить промпт: ${error.message}`);
   }
-  
-  // Сбрасываем кэш
-  cachedPrompt = null;
+
+  clearPromptCache();
   console.log(`[Prompts] Промпт ${promptId} обновлен админом ${adminId}`);
 }
 
-/**
- * Получение информации о промпте
- */
 export async function getPromptInfo(promptId) {
   const supabase = getSupabase();
-  
-  const { data, error } = await supabase
-    .from('prompts')
-    .select('id, updated_at, updated_by')
-    .eq('id', promptId)
-    .single();
-  
+  const { data, error } = await supabase.from('prompts').select('id, updated_at, updated_by').eq('id', promptId).single();
   if (error) return null;
   return data;
 }

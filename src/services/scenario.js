@@ -676,19 +676,16 @@ export async function handleCallback(from, callbackData) {
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
 
       // Получаем контекст сессии
+      const { compressMessagesForAI } = await import('../ai/contextMessages.js');
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
-      
-      // Убираем ТОЛЬКО служебные сообщения "[служебно] запрос блока"
-      // НО СОХРАНЯЕМ полные ответы ассистента (с JSON и метакомментариями)
-      const cleanedMessages = sessionMessages.filter(msg => {
-        // Убираем служебные сообщения "[служебно] запрос блока"
-        if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return false;
-        }
-        return true;
-      });
 
-      const systemPrompt = await getSystemPrompt();
+      const cleanedMessages = compressMessagesForAI(
+        sessionMessages.filter(
+          (msg) => !(msg.role === 'user' && msg.content.includes('[служебно]'))
+        )
+      );
+
+      const systemPrompt = await getSystemPrompt({ blockId: session.last_block_id });
       const messages = [
         { role: 'system', content: systemPrompt },
         ...cleanedMessages,
@@ -943,19 +940,16 @@ export async function handleText(from, rawText) {
       const { getSystemPrompt } = await import('../prompts/loadSystemPrompt.js');
 
       // Получаем контекст сессии
+      const { compressMessagesForAI } = await import('../ai/contextMessages.js');
       const sessionMessages = await getChatMessagesForAI(chat.id, session.session_start_at);
-      
-      // Убираем ТОЛЬКО служебные сообщения "[служебно] запрос блока"
-      // НО СОХРАНЯЕМ полные ответы ассистента (с JSON и метакомментариями)
-      const cleanedMessages = sessionMessages.filter(msg => {
-        // Убираем служебные сообщения "[служебно] запрос блока"
-        if (msg.role === 'user' && msg.content.includes('[служебно]')) {
-          return false;
-        }
-        return true;
-      });
 
-      const systemPrompt = await getSystemPrompt();
+      const cleanedMessages = compressMessagesForAI(
+        sessionMessages.filter(
+          (msg) => !(msg.role === 'user' && msg.content.includes('[служебно]'))
+        )
+      );
+
+      const systemPrompt = await getSystemPrompt({ blockId: session.last_block_id });
       const messages = [
         { role: 'system', content: systemPrompt },
         ...cleanedMessages,
