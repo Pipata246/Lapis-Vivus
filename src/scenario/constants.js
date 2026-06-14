@@ -16,140 +16,141 @@ export const STEPS = {
 };
 
 /**
- * Фиксированный стек v3.0_ORACLE_PREMIUM / v26.90 — порядок строго из реестра блоков.
+ * Фиксированный стек v3.1 / EXECUTION_ENGINE_V3.1 — порядок строго из реестра блоков.
+ * 24 логических блока → 36 шагов бота (2B, 2G, 3, 3B поквартально).
  * Сервер сам выбирает block_index; модель не выбирает блок.
  */
 export const BLOCK_STACK = [
   {
     id: '1A',
     title: 'Universal Genetic Matrix Processor',
-    description: 'ITERATIVE_BLOCK_1A: UNIVERSAL GENETIC MATRIX PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_1A: UNIVERSAL GENETIC MATRIX PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '1B',
     title: 'Universal Digital Psychomatrix Processor',
-    description: 'ITERATIVE_BLOCK_1B: UNIVERSAL DIGITAL PSYCHOMATRIX PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_1B: UNIVERSAL DIGITAL AND GEOMETRIC MATRICES PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '1C',
     title: 'Cognitive Filters and Cognitive Metabolism Processor',
-    description: 'ITERATIVE_BLOCK_1C: COGNITIVE FILTERS AND COGNITIVE METABOLISM PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_1C: COGNITIVE FILTERS AND COGNITIVE METABOLISM PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: true,
   },
   {
     id: '1D',
     title: 'Dual-Contour Tzolkin Sieve',
-    description: 'ITERATIVE_BLOCK_1D: DUAL-CONTOUR TZOLKIN SIEVE // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_1D: TWIN-CIRCUIT TZOLKIN SIEVE // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '1E',
     title: 'Somatic Integration Processor',
-    description: 'ITERATIVE_BLOCK_1E: SOMATIC INTEGRATION PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_1E: UNIVERSAL SOMATIC INTEGRATION PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '2A',
     title: 'Universal Wu-Xing Syntax Processor',
-    description: 'ITERATIVE_BLOCK_2A: UNIVERSAL WU-XING SYNTAX PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_2A: UNIVERSAL SYNTACTIC PROCESSOR U-SIN // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '2B.1',
     title: 'Universal Vedic Natal Conveyor (Step 1/4)',
-    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR — Retorts 1-3 [Mesha, Vrishabha, Mithuna]',
+    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR [SIDEREAL RADIX] — Retorts 1-3 [Mesha, Vrishabha, Mithuna] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2B.2',
     title: 'Universal Vedic Natal Conveyor (Step 2/4)',
-    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR — Retorts 4-6 [Karka, Simha, Kanya]',
+    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR [SIDEREAL RADIX] — Retorts 4-6 [Karka, Simha, Kanya] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2B.3',
     title: 'Universal Vedic Natal Conveyor (Step 3/4)',
-    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR — Retorts 7-9 [Tula, Vrishchika, Dhanu]',
+    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR [SIDEREAL RADIX] — Retorts 7-9 [Tula, Vrishchika, Dhanu] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2B.4',
     title: 'Universal Vedic Natal Conveyor (Step 4/4)',
-    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR — Retorts 10-12 [Makara, Kumbha, Meena]',
+    description: 'ITERATIVE_BLOCK_2B: UNIVERSAL VEDIC NATAL CONVEYOR [SIDEREAL RADIX] — Retorts 10-12 [Makara, Kumbha, Meena] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2G.1',
     title: 'Universal Vedic Dynamic Conveyor (Step 1/4)',
-    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR — Bhava Dynamics 1-3',
+    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR [DASHA & GOCHARA] — Bhava Dynamics 1-3 // EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2G.2',
     title: 'Universal Vedic Dynamic Conveyor (Step 2/4)',
-    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR — Bhava Dynamics 4-6',
+    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR [DASHA & GOCHARA] — Bhava Dynamics 4-6 // EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2G.3',
     title: 'Universal Vedic Dynamic Conveyor (Step 3/4)',
-    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR — Bhava Dynamics 7-9',
+    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR [DASHA & GOCHARA] — Bhava Dynamics 7-9 // EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '2G.4',
     title: 'Universal Vedic Dynamic Conveyor (Step 4/4)',
-    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR — Bhava Dynamics 10-12',
+    description: 'ITERATIVE_BLOCK_2G: UNIVERSAL VEDIC DYNAMIC CONVEYOR [DASHA & GOCHARA] — Bhava Dynamics 10-12 // EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3.1',
     title: 'Universal Tropical Natal Conveyor (Step 1/4)',
-    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR — Retorts 1-3 [Aries, Taurus, Gemini]',
+    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR [RADIX CHART] — Retorts 1-3 [Aries, Taurus, Gemini] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3.2',
     title: 'Universal Tropical Natal Conveyor (Step 2/4)',
-    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR — Retorts 4-6 [Cancer, Leo, Virgo]',
+    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR [RADIX CHART] — Retorts 4-6 [Cancer, Leo, Virgo] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3.3',
     title: 'Universal Tropical Natal Conveyor (Step 3/4)',
-    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR — Retorts 7-9 [Libra, Scorpio, Sagittarius]',
+    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR [RADIX CHART] — Retorts 7-9 [Libra, Scorpio, Sagittarius] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3.4',
     title: 'Universal Tropical Natal Conveyor (Step 4/4)',
-    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR — Retorts 10-12 [Capricorn, Aquarius, Pisces]',
+    description: 'ITERATIVE_BLOCK_3: UNIVERSAL TROPICAL NATAL CONVEYOR [RADIX CHART] — Retorts 10-12 [Capricorn, Aquarius, Pisces] // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3B.1',
     title: 'Universal Tropical Transit Conveyor (Step 1/4)',
-    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR — Transits: Aries, Taurus, Gemini',
+    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR [TIME DYNAMICS] — Transits: Aries, Taurus, Gemini // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3B.2',
     title: 'Universal Tropical Transit Conveyor (Step 2/4)',
-    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR — Transits: Cancer, Leo, Virgo',
+    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR [TIME DYNAMICS] — Transits: Cancer, Leo, Virgo // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3B.3',
     title: 'Universal Tropical Transit Conveyor (Step 3/4)',
-    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR — Transits: Libra, Scorpio, Sagittarius',
+    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR [TIME DYNAMICS] — Transits: Libra, Scorpio, Sagittarius // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
     id: '3B.4',
     title: 'Universal Tropical Transit Conveyor (Step 4/4)',
-    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR — Transits: Capricorn, Aquarius, Pisces',
+    description: 'ITERATIVE_BLOCK_3B: UNIVERSAL TROPICAL TRANSIT CONVEYOR [TIME DYNAMICS] — Transits: Capricorn, Aquarius, Pisces // SWISS_EPH_V3.1',
     requiresExternal: true,
   },
   {
@@ -167,73 +168,73 @@ export const BLOCK_STACK = [
   {
     id: '3C_3',
     title: 'Chirological Chrono Projections',
-    description: 'ITERATIVE_BLOCK_3C_3: CHIROLOGICAL CHRONO PROJECTIONS // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_3C_3: CHRONO-NAVIGATION PROCESSOR OF LONG COUNT [MAYA MACROCYCLIC TIMER] // EXECUTION_ENGINE_V3.1',
     requiresExternal: true,
   },
   {
     id: '3C',
     title: 'Midpoints and Lots Processor',
-    description: 'ITERATIVE_BLOCK_3C: UNIVERSAL MIDPOINTS AND LOTS PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_3C: UNIVERSAL MIDPOINTS AND ARABIC PARTS PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: true,
   },
   {
     id: '4',
     title: 'Universal Graph Processor',
-    description: 'ITERATIVE_BLOCK_4: UNIVERSAL GRAPH PROCESSOR [Neo4j SYNTAX] // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4: UNIVERSAL GRAPH PROCESSOR [NEO4J SYNTAX] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4A',
     title: 'San Bao Conveyor',
-    description: 'ITERATIVE_BLOCK_4A: SAN BAO CONVEYOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4A: THREE TREASURES TRANSMUTATION CONVEYOR [SAN BAO] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4B',
     title: 'Universal Gnostic Processor',
-    description: 'ITERATIVE_BLOCK_4B: UNIVERSAL GNOSTIC PROCESSOR [KENOMY INDEX] // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4B: UNIVERSAL GNOSTIC PROCESSOR [KENOMA INDEX] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4E',
     title: 'Universal Sufi Nafsa Reductor',
-    description: 'ITERATIVE_BLOCK_4E: UNIVERSAL SUFI NAFSA REDUCTOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4E: UNIVERSAL SUFI NAFS REDUCTION PROCESSOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4C',
     title: 'Universal Alchemical Catalyst',
-    description: 'ITERATIVE_BLOCK_4C: UNIVERSAL ALCHEMICAL CATALYST // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4C: UNIVERSAL ALCHEMICAL CATALYST [PYROLYSIS_ENGINE_V3.1]',
     requiresExternal: false,
   },
   {
     id: '4G',
     title: 'Cut-Up Processor',
-    description: 'ITERATIVE_BLOCK_4G: CUT-UP PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4G: PROCESSOR OF SEMANTIC CUT-UP AND LINGUISTIC REDUCTION [BURROUGHS ENGINE] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4F',
     title: 'Advaita Quantum Annihilation Processor',
-    description: 'ITERATIVE_BLOCK_4F: ADVAITA QUANTUM ANNIHILATION PROCESSOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4F: ADVAITA PROCESSOR OF QUANTUM ANNIHILATION [MAHA VAKYA-LOCK] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '4D',
     title: 'Universal Singular Summator',
-    description: 'ITERATIVE_BLOCK_4D: UNIVERSAL SINGULAR SUMMATOR [SUPERMANIFEST] // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_4D: UNIVERSAL SYNTACTIC SUMMATOR [OVERMANIFEST] // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '5A',
     title: 'Universal Strategic Protocol Generator',
-    description: 'ITERATIVE_BLOCK_5A: UNIVERSAL STRATEGIC PROTOCOL GENERATOR // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_5A: UNIVERSAL STRATEGIC PROTOCOL GENERATOR // EXECUTION_ENGINE_V3.1',
     requiresExternal: false,
   },
   {
     id: '5B',
     title: 'Universal Dao Body Reactor',
-    description: 'ITERATIVE_BLOCK_5B: UNIVERSAL DAO BODY REACTOR [NEIDAN PRACTICES] // RUNTIME: v3.0_ORACLE_PREMIUM',
+    description: 'ITERATIVE_BLOCK_5B: UNIVERSAL SOMATIC TAOIST REACTOR [INTERNAL ALCHEMY / NEIDAN / BUILD_2026]',
     requiresExternal: false,
   },
 ];
@@ -250,7 +251,7 @@ export function getBlockUserTitle(blockId, lang = 'ru') {
 /** Индекс блока 4 — с него в контекст подмешиваются метакомментарии прошлых блоков */
 export const SYNTHESIS_BLOCK_INDEX = BLOCK_STACK.findIndex((b) => b.id === '4');
 
-/** Имена JSON-артефактов из OUTPUT_PORT реестра v3.0 (v26.75 для финальных блоков) */
+/** Имена JSON-артефактов из OUTPUT_PORT реестра v3.1 (v26.75 для финальных блоков) */
 const ARTIFACT_BY_BLOCK = {
   '1A': 'block_1a_invariant',
   '1B': 'block_1b_invariant',

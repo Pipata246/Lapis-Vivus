@@ -6,7 +6,8 @@ import { getSupabase } from '../db/supabase.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SYSTEM_PROMPT_PATH = path.join(__dirname, 'lapis-system.txt');
 const CORE_PATH = path.join(__dirname, 'lapis-core.txt');
-const BLOCKS_PATH = path.join(__dirname, 'lapis-blocks.txt');
+const BLOCKS_PATH = path.join(__dirname, 'lapis-blocks-v31.txt');
+const BLOCKS_LEGACY_PATH = path.join(__dirname, 'lapis-blocks.txt');
 const GLOSSARY_PATH = path.join(__dirname, 'glossary.txt');
 const BIBLIOGRAPHY_PATH = path.join(__dirname, 'bibliography.txt');
 const CALCULATORS_PATH = path.join(__dirname, 'calculators.txt');
@@ -139,7 +140,11 @@ export async function getSystemPrompt() {
   
   if (!blocksPrompt || blocksPrompt.length < 100) {
     console.warn('[Prompts] Блоки не найдены в БД, используем файлы');
-    blocksPrompt = readFileSync(BLOCKS_PATH, 'utf8');
+    try {
+      blocksPrompt = readFileSync(BLOCKS_PATH, 'utf8');
+    } catch {
+      blocksPrompt = readFileSync(BLOCKS_LEGACY_PATH, 'utf8');
+    }
   }
   
   if (!glossary || glossary.length < 100) {

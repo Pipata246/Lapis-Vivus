@@ -62,6 +62,7 @@ function buildBlockMandate(block, blockIndex) {
     '',
     '⚠️ ОБЯЗАТЕЛЬНЫЕ ПОЛЯ В JSON (EN snake_case, значения RU):',
     '  • "block_id", "remaining_blocks_in_stack", "four_level_conceptual_output"',
+    '  • four_level: biophysical_analysis, cognitive_psychology_analysis, hermetic_alchemy_analysis, non_dual_advaita_analysis',
     '',
     '⛔️ КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО В ЭТОМ ANSWER:',
     `  • Выполнять блоки: ${forbidden.join(', ')}`,
@@ -104,7 +105,7 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
 
   return {
     mode: 'lapis_vivus_telegram_operator',
-    protocol: 'v26.90',
+    protocol: 'v3.1_EXECUTION_ENGINE',
     server_assigned_block: block.id,
     next_block: nextBlock ? nextBlock.id : 'STACK_COMPLETE',
     next_block_description: nextBlock ? nextBlock.description : 'All blocks completed',

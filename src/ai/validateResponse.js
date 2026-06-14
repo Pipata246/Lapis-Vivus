@@ -1,7 +1,7 @@
 import { BLOCK_IDS, jsonArtifactPatterns } from '../scenario/constants.js';
 
 /**
- * Проверка ответа блока — v26.90 (JSON + профанский комментарий) и legacy v26.30.
+ * Проверка ответа блока — v3.1 EXECUTION_ENGINE (JSON + профанский комментарий) и legacy v26.30.
  */
 export function validateBlockResponse(text, expectedBlockId) {
   const issues = [];
@@ -26,6 +26,10 @@ export function validateBlockResponse(text, expectedBlockId) {
 
   if (!hasOldMeta && !hasProfan && afterJson.length < 80) {
     issues.push('нет развёрнутого текста после JSON (ПРОФАНСКИЙ КОММЕНТАРИЙ или метакомментарии)');
+  }
+
+  if (!/four_level_conceptual_output|biophysical_analysis/i.test(text)) {
+    issues.push('нет four_level_conceptual_output в JSON (v3.1)');
   }
 
   if (hasOldMeta && (!/Уровень_1/i.test(text) || !/Уровень_5/i.test(text))) {
