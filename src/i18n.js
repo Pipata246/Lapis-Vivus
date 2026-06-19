@@ -21,6 +21,7 @@ const translations = {
       `Telegram ID\n{telegramId}\n\n` +
       `Name\n{name}\n\n` +
       `Language\n{language}\n\n` +
+      `Subscription\n{subscriptionStatus}\n\n` +
       `Registered\n{createdAt}`,
     editProfile: 'Edit profile',
 
@@ -76,6 +77,7 @@ const translations = {
       `Telegram ID\n{telegramId}\n\n` +
       `Имя\n{name}\n\n` +
       `Язык\n{language}\n\n` +
+      `Подписка\n{subscriptionStatus}\n\n` +
       `Регистрация\n{createdAt}`,
     editProfile: 'Редактировать профиль',
 

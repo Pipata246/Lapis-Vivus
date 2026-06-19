@@ -17,6 +17,16 @@ import {
   getAdminKeyboard,
 } from './navigation.js';
 import {
+  formatSubscriptionStatus,
+  formatSubscriptionCatalog,
+  formatCheckout,
+  formatPaymentPending,
+  getPlanById,
+  getSubscriptionCatalogKeyboard,
+  getCheckoutKeyboard,
+  getPaymentPendingKeyboard,
+} from './ui/paymentStub.js';
+import {
   getUserLanguage,
   setUserLanguage,
   getUserProfile,
@@ -180,6 +190,7 @@ function registerHandlers(bot) {
               telegramId: profile.id,
               name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
               language: getLanguageName(profile.language || 'en'),
+              subscriptionStatus: formatSubscriptionStatus(lang),
               createdAt: new Date(profile.created_at).toLocaleDateString(),
               sessions: '-',
             });
@@ -192,6 +203,13 @@ function registerHandlers(bot) {
             console.error('Error loading profile:', err.message);
             await ctx.reply(t(lang, 'errorOccurred'));
           }
+          break;
+
+        case 'subscription':
+          await ctx.editMessageText(formatSubscriptionCatalog(lang), {
+            parse_mode: 'HTML',
+            reply_markup: getSubscriptionCatalogKeyboard(lang),
+          }).catch(() => {});
           break;
           
         case 'settings':
@@ -228,6 +246,37 @@ function registerHandlers(bot) {
           await ctx.reply(lang === 'ru' ? 'Неизвестное действие.' : 'Unknown action.');
       }
       
+      return;
+    }
+
+    // Заглушки оплаты ЮKassa (удалить после подключения магазина)
+    if (callbackData.startsWith('pay:')) {
+      const parts = callbackData.split(':');
+      const action = parts[1];
+      const planId = parts[2];
+      const plan = getPlanById(planId);
+
+      if (!plan) {
+        await ctx.reply(lang === 'ru' ? 'Тариф не найден.' : 'Plan not found.').catch(() => {});
+        return;
+      }
+
+      if (action === 'select') {
+        await ctx.editMessageText(formatCheckout(plan, lang), {
+          parse_mode: 'HTML',
+          reply_markup: getCheckoutKeyboard(plan, lang),
+        }).catch(() => {});
+        return;
+      }
+
+      if (action === 'confirm') {
+        await ctx.editMessageText(formatPaymentPending(plan, lang), {
+          parse_mode: 'HTML',
+          reply_markup: getPaymentPendingKeyboard(lang),
+        }).catch(() => {});
+        return;
+      }
+
       return;
     }
     

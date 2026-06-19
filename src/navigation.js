@@ -17,11 +17,7 @@ export function getMainMenuKeyboard(lang) {
   };
 }
 
-export function getProfileKeyboard(lang) {
-  return {
-    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }]],
-  };
-}
+export { getProfileKeyboard } from './ui/paymentStub.js';
 
 export function getSettingsKeyboard(lang) {
   return {
