@@ -1,0 +1,22 @@
+[Unit]
+Description=Lapis Vivus Python Compute API
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/lapis-compute
+Environment=PYTHONPATH=/opt/lapis-compute
+EnvironmentFile=/opt/lapis-compute/.env
+ExecStart=/opt/lapis-compute/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8080 --workers 1
+Restart=always
+RestartSec=5
+TimeoutStartSec=30
+
+# Автоперезапуск при падении / OOM
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

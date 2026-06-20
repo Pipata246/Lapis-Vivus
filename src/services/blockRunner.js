@@ -18,6 +18,7 @@ import {
 } from '../scenario/constants.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 import { compressMessagesForAI } from '../ai/contextMessages.js';
+import { fetchPrecomputedForBlock, SERVER_COMPUTE_BLOCKS } from './computeClient.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
 const lastAiCallByUser = new Map();
@@ -40,17 +41,30 @@ function resolveEffectiveFiles(block, chatId, files) {
   );
 }
 
-function buildBlockMandate(block, blockIndex) {
+function buildBlockMandate(block, blockIndex, precomputed = null) {
   const step = blockIndex + 1;
   const total = BLOCK_STACK.length;
   const forbidden = BLOCK_IDS.filter((id) => id !== block.id);
   const remaining = remainingBlocksAfter(blockIndex);
+
+  const precomputedSection =
+    precomputed && block.id === '1A'
+      ? [
+          '',
+          '🧬 СЕРВЕРНЫЙ РАСЧЁТ HUMAN DESIGN УЖЕ ВЫПОЛНЕН (Swiss Ephemeris / VPS)',
+          '⛔️ ЗАПРЕЩЕНО пересчитывать тип, профиль, ворота, каналы, центры, крест',
+          '✅ Используй precomputed.bodygraph.tropical как единственный источник фактуры',
+          '✅ Твоя задача — интерпретация по протоколу блока 1A и four_level_conceptual_output',
+          '',
+        ].join('\n')
+      : '';
 
   return [
     '═══════════════════════════════════════════════════════════════',
     '⚠️ АБСОЛЮТНАЯ КОМАНДА ОПЕРАТОРА (сервер жёстко фиксирует шаг)',
     '═══════════════════════════════════════════════════════════════',
     '',
+    precomputedSection,
     `ШАГ ${step} ИЗ ${total}`,
     `ЕДИНСТВЕННЫЙ АКТИВНЫЙ БЛОК: ${block.id}`,
     '',
@@ -98,13 +112,13 @@ function buildCompletedContext(completedBlocks, blockIndex) {
   };
 }
 
-function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) {
+function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, precomputed = null) {
   const block = BLOCK_STACK[blockIndex];
   const nextBlock = BLOCK_STACK[blockIndex + 1];
   const data = session.collected_data ?? {};
   const userBlockText = data.block_user_text?.[block.id] || null;
 
-  return {
+  const payload = {
     mode: 'lapis_vivus_telegram_operator',
     protocol: 'v3.1_EXECUTION_ENGINE',
     server_assigned_block: block.id,
@@ -131,10 +145,22 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount) 
     },
     past_blocks_context: buildCompletedContext(completedBlocks, blockIndex),
     execution_instruction:
-      `STRICT: Execute ONLY ${block.description}. ` +
-      `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remainingBlocksAfter(blockIndex)}. ` +
-      'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.',
+      precomputed && block.id === '1A'
+        ? `STRICT: Block 1A — Human Design already computed on server. ` +
+          `Use precomputed.bodygraph ONLY. Do NOT recalculate astronomy. ` +
+          `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remainingBlocksAfter(blockIndex)}. ` +
+          'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
+        : `STRICT: Execute ONLY ${block.description}. ` +
+          `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remainingBlocksAfter(blockIndex)}. ` +
+          'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.',
   };
+
+  if (precomputed) {
+    payload.precomputed = precomputed;
+    payload.compute_source = 'lapis_vps_python';
+  }
+
+  return payload;
 }
 
 function buildUserMessage(mandate, operatorPayload) {
@@ -150,9 +176,9 @@ function enforceRateLimit(userId) {
   lastAiCallByUser.set(userId, now);
 }
 
-async function callModelWithValidation(operatorPayload, files, blockId, chatId, sessionStartAt) {
+async function callModelWithValidation(operatorPayload, files, blockId, chatId, sessionStartAt, precomputed = null) {
   const blockIndex = BLOCK_STACK.findIndex((b) => b.id === blockId);
-  const mandate = buildBlockMandate(BLOCK_STACK[blockIndex], blockIndex);
+  const mandate = buildBlockMandate(BLOCK_STACK[blockIndex], blockIndex, precomputed);
   const userText = buildUserMessage(mandate, operatorPayload);
 
   const useVision = files.length > 0;
@@ -212,7 +238,19 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   const data = session.collected_data ?? {};
   const userBlockText = data.block_user_text?.[block.id] || null;
 
-  if (block.requiresExternal && effectiveFiles.length === 0 && !userBlockText) {
+  const needsServerCompute = SERVER_COMPUTE_BLOCKS.has(block.id);
+  let precomputed = null;
+
+  if (needsServerCompute) {
+    precomputed = await fetchPrecomputedForBlock(block.id, data);
+    if (!precomputed) {
+      throw new Error(
+        'Compute-сервис не настроен. Задайте COMPUTE_API_URL и COMPUTE_API_SECRET на Vercel.',
+      );
+    }
+  }
+
+  if (block.requiresExternal && effectiveFiles.length === 0 && !userBlockText && !precomputed) {
     throw new Error(
       `Для блока ${block.id} нужен хотя бы один прикреплённый файл или текст с данными.`
     );
@@ -223,7 +261,8 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     session,
     blockIndex,
     completedBlocks,
-    effectiveFiles.length
+    effectiveFiles.length,
+    precomputed,
   );
 
   const answer = await callModelWithValidation(
@@ -231,7 +270,8 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     effectiveFiles,
     block.id,
     chatId,
-    session.session_start_at
+    session.session_start_at,
+    precomputed,
   );
   const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
 

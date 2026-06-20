@@ -61,6 +61,18 @@ export function loadAiConfig() {
   return { gptunnelApiKey, gptunnelModel, useWalletBalance };
 }
 
+/** Python compute-сервис на VPS (Human Design и др.) */
+export function loadComputeConfig() {
+  const apiUrl = process.env.COMPUTE_API_URL?.trim().replace(/\/$/, '') ?? '';
+  const apiSecret = process.env.COMPUTE_API_SECRET?.trim() ?? '';
+
+  return {
+    enabled: Boolean(apiUrl && apiSecret),
+    apiUrl,
+    apiSecret,
+  };
+}
+
 function envFlag(name, defaultValue = false) {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === '') return defaultValue;

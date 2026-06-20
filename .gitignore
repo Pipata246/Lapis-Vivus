@@ -4,3 +4,6 @@ node_modules/
 .env.*.local
 *.log
 .DS_Store
+compute-service/venv/
+compute-service/.env
+compute-service/ephe/*.se1
