@@ -15,17 +15,18 @@ import {
   getLanguageKeyboard,
   getHelpKeyboard,
   getAdminKeyboard,
+  getTopupCancelKeyboard,
+  getPaymentLinkKeyboard,
+  getShopKeyboard,
 } from './navigation.js';
 import {
-  formatSubscriptionStatus,
-  formatSubscriptionCatalog,
-  formatCheckout,
-  formatPaymentPending,
-  getPlanById,
-  getSubscriptionCatalogKeyboard,
-  getCheckoutKeyboard,
-  getPaymentPendingKeyboard,
-} from './ui/paymentStub.js';
+  formatBalanceRub,
+  formatTopupPrompt,
+  formatTopupInvalidAmount,
+  formatPaymentLinkMessage,
+  formatShopStub,
+} from './ui/wallet.js';
+import { createTopupPayment, parseTopupAmount } from './services/topup.js';
 import {
   getUserLanguage,
   setUserLanguage,
@@ -41,6 +42,17 @@ const processingCallbacks = new Map();
 const processingMessages = new Map();
 const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
+
+async function buildProfileText(userId, lang) {
+  const profile = await getUserProfile(userId);
+  return t(lang, 'profileInfo', {
+    telegramId: profile.id,
+    name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
+    language: getLanguageName(profile.language || 'en'),
+    balance: formatBalanceRub(profile.balance_rub ?? 0, lang),
+    createdAt: new Date(profile.created_at).toLocaleDateString(),
+  });
+}
 
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
@@ -184,17 +196,9 @@ function registerHandlers(bot) {
           
         case 'profile':
           try {
-            const profile = await getUserProfile(userId);
-            
-            const profileText = t(lang, 'profileInfo', {
-              telegramId: profile.id,
-              name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
-              language: getLanguageName(profile.language || 'en'),
-              subscriptionStatus: formatSubscriptionStatus(lang),
-              createdAt: new Date(profile.created_at).toLocaleDateString(),
-              sessions: '-',
-            });
-            
+            await updateSession(userId, { ui_mode: null });
+            const profileText = await buildProfileText(userId, lang);
+
             await ctx.editMessageText(profileText, {
               parse_mode: 'HTML',
               reply_markup: getProfileKeyboard(lang),
@@ -205,10 +209,37 @@ function registerHandlers(bot) {
           }
           break;
 
-        case 'subscription':
-          await ctx.editMessageText(formatSubscriptionCatalog(lang), {
+        case 'topup':
+          try {
+            await updateSession(userId, { ui_mode: 'topup' });
+            await ctx.editMessageText(formatTopupPrompt(lang), {
+              parse_mode: 'HTML',
+              reply_markup: getTopupCancelKeyboard(lang),
+            }).catch(() => {});
+          } catch (err) {
+            console.error('Error starting topup:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
+          break;
+
+        case 'topup_cancel':
+          try {
+            await updateSession(userId, { ui_mode: null });
+            const profileText = await buildProfileText(userId, lang);
+            await ctx.editMessageText(profileText, {
+              parse_mode: 'HTML',
+              reply_markup: getProfileKeyboard(lang),
+            }).catch(() => {});
+          } catch (err) {
+            console.error('Error canceling topup:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
+          break;
+
+        case 'shop':
+          await ctx.editMessageText(formatShopStub(lang), {
             parse_mode: 'HTML',
-            reply_markup: getSubscriptionCatalogKeyboard(lang),
+            reply_markup: getShopKeyboard(lang),
           }).catch(() => {});
           break;
           
@@ -249,37 +280,6 @@ function registerHandlers(bot) {
       return;
     }
 
-    // Заглушки оплаты ЮKassa (удалить после подключения магазина)
-    if (callbackData.startsWith('pay:')) {
-      const parts = callbackData.split(':');
-      const action = parts[1];
-      const planId = parts[2];
-      const plan = getPlanById(planId);
-
-      if (!plan) {
-        await ctx.reply(lang === 'ru' ? 'Тариф не найден.' : 'Plan not found.').catch(() => {});
-        return;
-      }
-
-      if (action === 'select') {
-        await ctx.editMessageText(formatCheckout(plan, lang), {
-          parse_mode: 'HTML',
-          reply_markup: getCheckoutKeyboard(plan, lang),
-        }).catch(() => {});
-        return;
-      }
-
-      if (action === 'confirm') {
-        await ctx.editMessageText(formatPaymentPending(plan, lang), {
-          parse_mode: 'HTML',
-          reply_markup: getPaymentPendingKeyboard(lang),
-        }).catch(() => {});
-        return;
-      }
-
-      return;
-    }
-    
     // Обработка смены языка
     if (callbackData.startsWith('lang:')) {
       const newLang = callbackData.split(':')[1];
@@ -468,6 +468,49 @@ function registerHandlers(bot) {
         await ctx.reply(`Ошибка · ${err.message}`);
       }
       
+      return;
+    }
+
+    const sessionForTopup = await getSession(userId);
+    if (sessionForTopup?.ui_mode === 'topup') {
+      const parsed = parseTopupAmount(text);
+      if (!parsed.ok) {
+        const hint =
+          parsed.error === 'min'
+            ? formatTopupInvalidAmount(lang, { min: parsed.min })
+            : parsed.error === 'max'
+              ? formatTopupInvalidAmount(lang, { max: parsed.max })
+              : formatTopupInvalidAmount(lang);
+        await ctx.reply(hint, { reply_markup: getTopupCancelKeyboard(lang) }).catch(() => {});
+        return;
+      }
+
+      try {
+        await ctx.sendChatAction('typing').catch(() => {});
+        const payment = await createTopupPayment(userId, parsed.amountRub, lang);
+
+        if (!payment.confirmationUrl) {
+          throw new Error(lang === 'ru' ? 'Не получена ссылка на оплату.' : 'Payment link missing.');
+        }
+
+        await updateSession(userId, { ui_mode: null });
+
+        await ctx.reply(formatPaymentLinkMessage(parsed.amountRub, lang), {
+          parse_mode: 'HTML',
+          reply_markup: getPaymentLinkKeyboard(payment.confirmationUrl, lang),
+        });
+      } catch (err) {
+        console.error('Topup error:', err.message);
+        await ctx
+          .reply(
+            lang === 'ru'
+              ? `Не удалось создать платёж · ${err.message}`
+              : `Failed to create payment · ${err.message}`,
+            { reply_markup: getTopupCancelKeyboard(lang) },
+          )
+          .catch(() => {});
+      }
+
       return;
     }
     

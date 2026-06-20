@@ -6,6 +6,9 @@
     },
     "api/register-webhook.js": {
       "maxDuration": 30
+    },
+    "api/yookassa-webhook.js": {
+      "maxDuration": 30
     }
   }
 }

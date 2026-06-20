@@ -73,6 +73,23 @@ export function loadComputeConfig() {
   };
 }
 
+/** ЮKassa — пополнение баланса */
+export function loadYooKassaConfig() {
+  const shopId = process.env.YOOKASSA_SHOP_ID?.trim() ?? '';
+  const secretKey = process.env.YOOKASSA_SECRET_KEY?.trim() ?? '';
+  const returnUrl = process.env.YOOKASSA_RETURN_URL?.trim() ?? '';
+
+  return {
+    enabled: Boolean(shopId && secretKey),
+    shopId,
+    secretKey,
+    returnUrl,
+  };
+}
+
+export const TOPUP_MIN_RUB = 50;
+export const TOPUP_MAX_RUB = 100_000;
+
 function envFlag(name, defaultValue = false) {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === '') return defaultValue;

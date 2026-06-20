@@ -17,7 +17,7 @@ export function getMainMenuKeyboard(lang) {
   };
 }
 
-export { getProfileKeyboard } from './ui/paymentStub.js';
+export { getProfileKeyboard, getTopupCancelKeyboard, getPaymentLinkKeyboard } from './ui/wallet.js';
 
 export function getSettingsKeyboard(lang) {
   return {
@@ -54,5 +54,11 @@ export function getAdminKeyboard(lang) {
       [{ text: t(lang, 'editCalculators'), callback_data: 'admin:edit_calculators' }],
       [{ text: btn(lang, 'close'), callback_data: 'admin:close' }],
     ],
+  };
+}
+
+export function getShopKeyboard(lang) {
+  return {
+    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:profile' }]],
   };
 }
