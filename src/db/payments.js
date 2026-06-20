@@ -62,3 +62,22 @@ export async function creditBalanceForPayment(yookassaPaymentId) {
     balanceRub: row.balance_rub ?? null,
   };
 }
+
+export async function getPendingPaymentsForUser(userId) {
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, yookassa_payment_id, amount_rub, status, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .not('yookassa_payment_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error) {
+    throw new Error(`Не удалось загрузить платежи: ${error.message}`);
+  }
+
+  return data ?? [];
+}

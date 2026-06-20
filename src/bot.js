@@ -27,6 +27,7 @@ import {
   formatUserProfileCard,
 } from './ui/wallet.js';
 import { createTopupPayment, parseTopupAmount } from './services/topup.js';
+import { syncUserPendingPayments } from './services/paymentNotify.js';
 import {
   getUserLanguage,
   setUserLanguage,
@@ -44,6 +45,7 @@ const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
 
 async function buildProfileText(userId, lang) {
+  await syncUserPendingPayments(userId);
   const profile = await getUserProfile(userId);
   return formatUserProfileCard(profile, lang);
 }
