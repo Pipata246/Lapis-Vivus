@@ -141,3 +141,22 @@ export async function getPendingPaymentsForUser(userId) {
 
   return data ?? [];
 }
+
+/** Все pending-платежи с id ЮKassa (для cron). */
+export async function getAllPendingPayments(limit = 50) {
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select('id, yookassa_payment_id, user_id, amount_rub, status, created_at')
+    .eq('status', 'pending')
+    .not('yookassa_payment_id', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Не удалось загрузить pending-платежи: ${error.message}`);
+  }
+
+  return data ?? [];
+}

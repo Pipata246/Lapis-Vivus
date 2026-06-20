@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "crons": [
+    {
+      "path": "/api/sync-payments",
+      "schedule": "*/2 * * * *"
+    }
+  ],
   "functions": {
     "api/webhook.js": {
       "maxDuration": 60
@@ -9,6 +15,9 @@
     },
     "api/yookassa-webhook.js": {
       "maxDuration": 30
+    },
+    "api/sync-payments.js": {
+      "maxDuration": 60
     }
   }
 }
