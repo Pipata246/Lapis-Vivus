@@ -7,7 +7,7 @@ import {
   handleFile,
   sendScenarioReply,
 } from './services/scenario.js';
-import { t, getLanguageName } from './i18n.js';
+import { t } from './i18n.js';
 import {
   getMainMenuKeyboard,
   getProfileKeyboard,
@@ -20,11 +20,11 @@ import {
   getShopKeyboard,
 } from './navigation.js';
 import {
-  formatBalanceRub,
   formatTopupPrompt,
   formatTopupInvalidAmount,
   formatPaymentLinkMessage,
   formatShopStub,
+  formatUserProfileCard,
 } from './ui/wallet.js';
 import { createTopupPayment, parseTopupAmount } from './services/topup.js';
 import {
@@ -45,13 +45,7 @@ const MESSAGE_DEBOUNCE_MS = 500;
 
 async function buildProfileText(userId, lang) {
   const profile = await getUserProfile(userId);
-  return t(lang, 'profileInfo', {
-    telegramId: profile.id,
-    name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'N/A',
-    language: getLanguageName(profile.language || 'en'),
-    balance: formatBalanceRub(profile.balance_rub ?? 0, lang),
-    createdAt: new Date(profile.created_at).toLocaleDateString(),
-  });
+  return formatUserProfileCard(profile, lang);
 }
 
 function registerHandlers(bot) {

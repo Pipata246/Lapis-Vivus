@@ -16,13 +16,6 @@ const translations = {
     close: btn('en', 'close'),
 
     profileTitle: 'Client Profile',
-    profileInfo:
-      `${letterhead('Client Profile', 'en')}\n\n` +
-      `Telegram ID\n{telegramId}\n\n` +
-      `Name\n{name}\n\n` +
-      `Language\n{language}\n\n` +
-      `Balance\n{balance}\n\n` +
-      `Registered\n{createdAt}`,
     editProfile: 'Edit profile',
 
     settingsTitle: 'Settings',
@@ -72,13 +65,6 @@ const translations = {
     close: btn('ru', 'close'),
 
     profileTitle: 'Профиль клиента',
-    profileInfo:
-      `${letterhead('Профиль клиента', 'ru')}\n\n` +
-      `Telegram ID\n{telegramId}\n\n` +
-      `Имя\n{name}\n\n` +
-      `Язык\n{language}\n\n` +
-      `Баланс\n{balance}\n\n` +
-      `Регистрация\n{createdAt}`,
     editProfile: 'Редактировать профиль',
 
     settingsTitle: 'Настройки',
