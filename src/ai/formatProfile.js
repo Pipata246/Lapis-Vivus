@@ -45,7 +45,7 @@ export function formatProfileSummary(profile) {
     lines.push('');
   });
 
-  lines.push('<i>Полный протокол сессии завершён.</i>');
+  lines.push('<i>Накопительный протокол · обновляются только пройденные модули.</i>');
 
   return lines.join('\n');
 }

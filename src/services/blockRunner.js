@@ -6,7 +6,8 @@ import {
   formatBlockForUser,
 } from '../ai/formatResponse.js';
 import { getSystemPrompt } from '../prompts/loadSystemPrompt.js';
-import { saveBlockResult, getCompletedBlocks } from '../db/blockResults.js';
+import { saveBlockResult, getCompletedBlocksForSession } from '../db/blockResults.js';
+import { mergeBlockIntoUserProfile } from '../db/userAnalysisProfile.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 import { getBlockFiles } from '../db/files.js';
 import {
@@ -269,7 +270,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     );
   }
 
-  const completedBlocks = await getCompletedBlocks(chatId);
+  const completedBlocks = await getCompletedBlocksForSession(chatId, session.session_start_at);
   const operatorPayload = buildOperatorPayload(
     session,
     blockIndex,
@@ -295,6 +296,17 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     responseText: answer,
     jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
   });
+
+  try {
+    await mergeBlockIntoUserProfile(userId, {
+      blockId: block.id,
+      jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
+      responseText: answer,
+      userData: session.collected_data,
+    });
+  } catch (err) {
+    console.error('[profile] merge block failed:', err.message);
+  }
 
   await saveChatMessages(chatId, [
     { role: 'user', content: `[служебно] запрос блока ${block.id}` },

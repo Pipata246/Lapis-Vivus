@@ -33,7 +33,7 @@ import {
   goalTreeKeyboard,
 } from '../scenario/keyboards.js';
 import { getOrCreateUserChat } from '../db/chats.js';
-import { upsertUserFromTelegram, saveUserProfile } from '../db/users.js';
+import { upsertUserFromTelegram } from '../db/users.js';
 import {
   getSession,
   createSessionIfMissing,
@@ -59,7 +59,12 @@ import {
   section,
   letterhead,
 } from '../ui/brand.js';
-import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
+import { getCompletedBlocksForSession, saveBlockResult } from '../db/blockResults.js';
+import {
+  loadUserAnalysisProfile,
+  profileForSummary,
+  mergeBlockIntoUserProfile,
+} from '../db/userAnalysisProfile.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
 import {
   TREE_ROOT,
@@ -100,18 +105,20 @@ async function finalizeAnalysisSession(from, chat, session, lang) {
 
   let profileSummary = '';
   try {
-    const completedBlocks = await getCompletedBlocks(chat.id);
-    const profile = {
-      completed_at: new Date().toISOString(),
-      user_data: session.collected_data,
-      blocks: completedBlocks.map((block) => ({
-        block_id: block.block_id,
-        json_payload: block.json_payload,
-        completed_at: block.created_at,
-      })),
-    };
-    await saveUserProfile(from.id, profile);
-    profileSummary = formatProfileSummary(profile);
+    const sessionBlocks = await getCompletedBlocksForSession(chat.id, session.session_start_at);
+
+    for (const block of sessionBlocks) {
+      await mergeBlockIntoUserProfile(from.id, {
+        blockId: block.block_id,
+        jsonPayload: block.json_payload,
+        responseText: block.response_text,
+        completedAt: block.created_at,
+        userData: session.collected_data,
+      });
+    }
+
+    const mergedProfile = await loadUserAnalysisProfile(from.id);
+    profileSummary = formatProfileSummary(profileForSummary(mergedProfile));
   } catch (err) {
     console.error('Ошибка сохранения профиля:', err.message);
     profileSummary =

@@ -63,5 +63,51 @@ export async function getCompletedBlocks(chatId) {
     block_id: row.block_id,
     response_text: row.response_text,
     json_payload: row.json_payload ?? null,
+    created_at: row.created_at ?? null,
   }));
+}
+
+/** Блоки текущей сессии (с session_start_at), последняя запись на block_id. */
+export async function getCompletedBlocksForSession(chatId, sessionStartAt) {
+  const supabase = getSupabase();
+
+  let query = supabase
+    .from('analysis_block_results')
+    .select('block_id, response_text, json_payload, created_at')
+    .eq('chat_id', chatId)
+    .order('created_at', { ascending: true });
+
+  if (sessionStartAt) {
+    query = query.gte('created_at', sessionStartAt);
+  }
+
+  let { data, error } = await query;
+
+  if (error && /json_payload/i.test(error.message)) {
+    let fallback = supabase
+      .from('analysis_block_results')
+      .select('block_id, response_text, created_at')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+    if (sessionStartAt) {
+      fallback = fallback.gte('created_at', sessionStartAt);
+    }
+    ({ data, error } = await fallback);
+  }
+
+  if (error) {
+    throw new Error(`Не удалось загрузить блоки сессии: ${error.message}`);
+  }
+
+  const latestByBlock = new Map();
+  for (const row of data ?? []) {
+    latestByBlock.set(row.block_id, {
+      block_id: row.block_id,
+      response_text: row.response_text,
+      json_payload: row.json_payload ?? null,
+      created_at: row.created_at ?? null,
+    });
+  }
+
+  return [...latestByBlock.values()];
 }
