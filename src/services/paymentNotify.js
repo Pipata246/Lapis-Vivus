@@ -45,9 +45,13 @@ export async function syncUserPendingPayments(userId) {
 
     try {
       const remote = await fetchYooKassaPayment(payment.yookassa_payment_id);
+      console.log('[payment-sync] status:', remote.status, payment.yookassa_payment_id);
+
       if (remote.status !== 'succeeded') continue;
 
       const result = await creditBalanceForPayment(payment.yookassa_payment_id);
+      console.log('[payment-sync] credit result:', result);
+
       if (result.credited && result.userId) {
         synced += 1;
         lastCredited = result;

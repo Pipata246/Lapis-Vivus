@@ -1,5 +1,5 @@
 import { creditBalanceForPayment } from '../src/db/payments.js';
-import { notifyUserTopup, syncUserPendingPayments } from '../src/services/paymentNotify.js';
+import { notifyUserTopup } from '../src/services/paymentNotify.js';
 import { fetchYooKassaPayment } from '../src/services/yookassa.js';
 
 export default async function handler(req, res) {
