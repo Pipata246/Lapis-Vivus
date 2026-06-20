@@ -8,7 +8,7 @@ ALTER TABLE public.user_sessions
   ADD COLUMN IF NOT EXISTS goal_tree_path JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 COMMENT ON COLUMN public.user_sessions.session_mode IS
-  'full = полный маршрут 36 модулей; targeted = один модуль после diagnostic tree';
+  'full = полный маршрут; targeted = один модуль после diagnostic tree';
 COMMENT ON COLUMN public.user_sessions.target_block_id IS
   'ID целевого блока (1A–1E) при session_mode = targeted';
 COMMENT ON COLUMN public.user_sessions.goal_tree_path IS

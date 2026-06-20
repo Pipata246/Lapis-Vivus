@@ -498,7 +498,7 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'start_full': {
-      console.log(`[start_full] userId=${from.id}, full 36-module session`);
+      console.log(`[start_full] userId=${from.id}, full session`);
 
       scheduleChatFilesCleanup(chat.id);
       const userLang = await resolveLang(from);

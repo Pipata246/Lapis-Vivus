@@ -13,8 +13,8 @@ export const BRAND = {
     en: 'Personal protocol of deep analysis',
   },
   subtitle: {
-    ru: '36 модулей · индивидуальный маршрут',
-    en: '36 modules · individual route',
+    ru: 'Индивидуальный маршрут',
+    en: 'Individual route',
   },
 };
 
@@ -158,7 +158,7 @@ export function progressLine(step, total = SESSION_TOTAL, lang = 'ru') {
   const pct = Math.min(100, Math.round((step / total) * 100));
   const num = String(step).padStart(2, '0');
   const label = lang === 'en' ? 'Progress' : 'Прогресс';
-  return `<i>${label} · ${num}/${total} · ${pct}%</i>`;
+  return `<i>${label} · ${num} · ${pct}%</i>`;
 }
 
 export function section(title, body, icon = '') {

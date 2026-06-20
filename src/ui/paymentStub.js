@@ -17,17 +17,17 @@ export const SUBSCRIPTION_PLANS = [
       en: 'Full analysis session',
     },
     description: {
-      ru: 'Разовый доступ ко всем 36 модулям Lapis Vivus — от карты происхождения до протокола интеграции.',
-      en: 'One-time access to all 36 Lapis Vivus modules — from origin mapping to integration protocol.',
+      ru: 'Разовый доступ ко всем модулям Lapis Vivus — от карты происхождения до протокола интеграции.',
+      en: 'One-time access to all Lapis Vivus modules — from origin mapping to integration protocol.',
     },
     features: {
       ru: [
-        '36 модулей · полный маршрут сессии',
+        'Полный маршрут сессии',
         'Персональный профиль рождения',
         'Сохранение результатов в профиле',
       ],
       en: [
-        '36 modules · full session route',
+        'Full session route',
         'Personal birth profile',
         'Results saved to profile',
       ],
