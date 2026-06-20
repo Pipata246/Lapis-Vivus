@@ -30,6 +30,7 @@ import {
   blockPrepKeyboard,
   linksKeyboard,
   textInputKeyboard,
+  goalTreeKeyboard,
 } from '../scenario/keyboards.js';
 import { getOrCreateUserChat } from '../db/chats.js';
 import { upsertUserFromTelegram, saveUserProfile } from '../db/users.js';
@@ -60,9 +61,80 @@ import {
 } from '../ui/brand.js';
 import { getCompletedBlocks, saveBlockResult } from '../db/blockResults.js';
 import { saveChatMessages, getChatMessagesForAI } from '../db/chats.js';
+import {
+  TREE_ROOT,
+  formatTreeStepMessage,
+  formatAfterGoalIntro,
+  resolveTreeChoice,
+  resolveBlockIndex,
+  isTargetedSession,
+} from '../scenario/diagnosticTree.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
+}
+
+function showGoalTree(nodeId, lang) {
+  const head = lang === 'en' ? 'Your focus' : 'Ваш запрос';
+  return {
+    text: [letterhead(head, lang), '', formatTreeStepMessage(nodeId, lang)].join('\n'),
+    keyboard: goalTreeKeyboard(nodeId, lang),
+  };
+}
+
+function reviewKeyboard(session, lang) {
+  return nextBlockKeyboard(lang, isTargetedSession(session.collected_data));
+}
+
+async function persistSessionData(userId, collectedData) {
+  return updateSession(userId, {
+    collected_data: collectedData,
+    session_mode: collectedData.session_mode ?? 'full',
+    target_block_id: collectedData.target_block_id ?? null,
+    goal_tree_path: collectedData.goal_path ?? [],
+  });
+}
+
+async function finalizeAnalysisSession(from, chat, session, lang) {
+  await updateSession(from.id, { step: STEPS.COMPLETED });
+
+  let profileSummary = '';
+  try {
+    const completedBlocks = await getCompletedBlocks(chat.id);
+    const profile = {
+      completed_at: new Date().toISOString(),
+      user_data: session.collected_data,
+      blocks: completedBlocks.map((block) => ({
+        block_id: block.block_id,
+        json_payload: block.json_payload,
+        completed_at: block.created_at,
+      })),
+    };
+    await saveUserProfile(from.id, profile);
+    profileSummary = formatProfileSummary(profile);
+  } catch (err) {
+    console.error('Ошибка сохранения профиля:', err.message);
+    profileSummary =
+      lang === 'en'
+        ? '<i>Profile saved. Summary temporarily unavailable.</i>'
+        : '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
+  }
+
+  const completionMessage = formatSessionComplete(profileSummary, lang);
+  const messageParts = splitTelegramMessages(completionMessage);
+
+  return {
+    text: messageParts[0],
+    extraMessages: messageParts.slice(1),
+    keyboard: completedKeyboard(lang),
+  };
+}
+
+function resolveStartBlockIndex(collectedData) {
+  if (isTargetedSession(collectedData) && collectedData.target_block_id) {
+    return resolveBlockIndex(collectedData.target_block_id);
+  }
+  return 0;
 }
 
 /** Не блокируем ответ пользователю — очистка файлов в фоне */
@@ -254,6 +326,9 @@ function resumePrompt(session, lang = 'en') {
   const step = session.step;
   
   const messages = {
+    [STEPS.GOAL_TREE]: {
+      ...showGoalTree(session.collected_data?.goal_tree_node ?? TREE_ROOT, lang),
+    },
     [STEPS.GENDER]: {
       text: formatInitStep(1, 4, 'gender', lang),
       keyboard: genderKeyboard(lang),
@@ -288,7 +363,7 @@ function resumePrompt(session, lang = 'en') {
     },
     [STEPS.BLOCK_REVIEW]: {
       text: `✓ <i>Модуль ${session.last_block_id ?? ''} завершён.</i>\nЗадайте вопрос или перейдите дальше.`,
-      keyboard: nextBlockKeyboard(lang),
+      keyboard: reviewKeyboard(session, lang),
     },
     [STEPS.COMPLETED]: {
       text: formatSessionComplete('', lang),
@@ -392,25 +467,110 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'start': {
-      console.log(`[start] userId=${from.id}, начинаем новый анализ`);
+      console.log(`[start] userId=${from.id}, targeted session via diagnostic tree`);
+
+      scheduleChatFilesCleanup(chat.id);
+      const userLang = await resolveLang(from);
+
+      await upsertSession(from.id, chat.id, {
+        step: STEPS.GOAL_TREE,
+        collected_data: {
+          session_mode: 'targeted',
+          goal_tree_node: TREE_ROOT,
+          goal_path: [],
+        },
+        block_index: 0,
+        last_block_id: null,
+        session_start_at: new Date().toISOString(),
+        session_mode: 'targeted',
+        target_block_id: null,
+        goal_tree_path: [],
+      });
+
+      return showGoalTree(TREE_ROOT, userLang);
+    }
+
+    case 'start_full': {
+      console.log(`[start_full] userId=${from.id}, full 36-module session`);
 
       scheduleChatFilesCleanup(chat.id);
       const userLang = await resolveLang(from);
 
       await upsertSession(from.id, chat.id, {
         step: STEPS.GENDER,
-        collected_data: {},
+        collected_data: { session_mode: 'full', goal_path: [] },
         block_index: 0,
         last_block_id: null,
         session_start_at: new Date().toISOString(),
+        session_mode: 'full',
+        target_block_id: null,
+        goal_tree_path: [],
       });
-
-      console.log(`[start] step установлен в ${STEPS.GENDER}`);
 
       return {
         text: formatSessionStart(userLang),
         keyboard: genderKeyboard(userLang),
       };
+    }
+
+    case 'tree': {
+      const userLang = await resolveLang(from);
+
+      if (session.step !== STEPS.GOAL_TREE) {
+        return await safeResumePrompt(session, from.id);
+      }
+
+      const [nodeId, variantKey] = (parsed.value ?? '').split(':');
+      const choice = resolveTreeChoice(nodeId, variantKey);
+      if (!choice.ok) {
+        return { text: choice.error, keyboard: goalTreeKeyboard(nodeId, userLang) };
+      }
+
+      const goalPath = [...(session.collected_data?.goal_path ?? []), choice.pathEntry];
+
+      if (!choice.done) {
+        const data = mergeCollectedData(session, {
+          goal_tree_node: choice.nextNode,
+          goal_path: goalPath,
+        });
+        await persistSessionData(from.id, data);
+        return showGoalTree(choice.nextNode, userLang);
+      }
+
+      const data = mergeCollectedData(session, {
+        session_mode: 'targeted',
+        goal_tree_node: null,
+        goal_path: goalPath,
+        target_block_id: choice.targetBlock,
+        block_variant: choice.blockVariant,
+        goal_leaf_label: choice.leafLabel,
+        goal_maslow: choice.maslow,
+      });
+
+      await persistSessionData(from.id, data);
+      await updateSession(from.id, {
+        step: STEPS.GENDER,
+        target_block_id: choice.targetBlock,
+      });
+
+      return {
+        text: [
+          letterhead(userLang === 'en' ? 'Your focus' : 'Ваш запрос', userLang),
+          '',
+          formatAfterGoalIntro(userLang),
+          '',
+          formatInitStep(1, 4, 'gender', userLang),
+        ].join('\n'),
+        keyboard: genderKeyboard(userLang),
+      };
+    }
+
+    case 'finish_session': {
+      const userLang = await resolveLang(from);
+      if (session.step !== STEPS.BLOCK_REVIEW || !isTargetedSession(session.collected_data)) {
+        return await safeResumePrompt(session, from.id);
+      }
+      return finalizeAnalysisSession(from, chat, session, userLang);
     }
 
     case 'gender': {
@@ -450,11 +610,32 @@ export async function handleCallback(from, callbackData) {
 
     case 'confirm_edit': {
       const userLang = await resolveLang(from);
+      const targeted = isTargetedSession(session.collected_data);
+
+      if (targeted) {
+        await upsertSession(from.id, chat.id, {
+          step: STEPS.GOAL_TREE,
+          collected_data: {
+            session_mode: 'targeted',
+            goal_tree_node: TREE_ROOT,
+            goal_path: [],
+          },
+          block_index: 0,
+          last_block_id: null,
+          target_block_id: null,
+          goal_tree_path: [],
+        });
+        return showGoalTree(TREE_ROOT, userLang);
+      }
+
       await updateSession(from.id, {
         step: STEPS.GENDER,
-        collected_data: {},
+        collected_data: { session_mode: 'full', goal_path: [] },
         block_index: 0,
         last_block_id: null,
+        session_mode: 'full',
+        target_block_id: null,
+        goal_tree_path: [],
       });
       return {
         text: formatInitStep(1, 4, 'gender', userLang),
@@ -466,10 +647,12 @@ export async function handleCallback(from, callbackData) {
       if (session.step !== STEPS.CONFIRM) {
         return await safeResumePrompt(session, from.id);
       }
+      const blockIndex = resolveStartBlockIndex(session.collected_data ?? {});
       await updateSession(from.id, {
-        block_index: 0,
+        block_index: blockIndex,
         last_block_id: null,
         step: STEPS.BLOCK_PREP,
+        target_block_id: session.collected_data?.target_block_id ?? null,
       });
       session = await getSession(from.id);
       return await showBlockPrep(session, chat.id);
@@ -516,46 +699,15 @@ export async function handleCallback(from, callbackData) {
       // Переход к следующему блоку
       const nextIndex = session.block_index + 1;
       
-      if (nextIndex >= BLOCK_STACK.length) {
-        console.log('[skip_block] Это был последний блок, завершаем');
-        await updateSession(from.id, { step: STEPS.COMPLETED });
-        
-        // Сохраняем итоговый профиль пользователя
-        let profileSummary = '';
-        try {
-          const completedBlocks = await getCompletedBlocks(chat.id);
-          const profile = {
-            completed_at: new Date().toISOString(),
-            user_data: session.collected_data,
-            blocks: completedBlocks.map((b) => ({
-              block_id: b.block_id,
-              json_payload: b.json_payload,
-              completed_at: b.created_at,
-            })),
-          };
-          await saveUserProfile(from.id, profile);
-          
-          profileSummary = formatProfileSummary(profile);
-        } catch (err) {
-          console.error('Ошибка сохранения профиля:', err.message);
-          profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
-        }
-        
-        const completionMessage = formatSessionComplete(profileSummary, 'ru');
-        const messageParts = splitTelegramMessages(completionMessage);
-        
-        return {
-          text: messageParts[0],
-          extraMessages: messageParts.slice(1),
-          keyboard: completedKeyboard(),
-        };
+      if (nextIndex >= BLOCK_STACK.length || isTargetedSession(session.collected_data)) {
+        console.log('[skip_block] Завершение сессии (targeted или последний блок)');
+        const userLang = await resolveLang(from);
+        return finalizeAnalysisSession(from, chat, session, userLang);
       }
 
-      // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обновляем индекс блока И очищаем блочные данные
-      // чтобы следующий блок начался с чистого состояния
+      // Переход к следующему блоку (полная сессия)
       console.log(`[skip_block] Переходим к блоку с индексом ${nextIndex}`);
-      
-      // Очищаем данные пропущенного блока из collected_data
+
       const cleanedData = { ...session.collected_data };
       if (cleanedData.block_user_text && cleanedData.block_user_text[block.id]) {
         delete cleanedData.block_user_text[block.id];
@@ -698,9 +850,10 @@ export async function handleCallback(from, callbackData) {
         console.log(`[quick_question] Получен ответ от ИИ, длина: ${aiResponse.length}`);
       } catch (err) {
         console.error('Ошибка ИИ на quick question:', err.message);
+        const qLang = await resolveLang(from);
         return {
           text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
-          keyboard: nextBlockKeyboard(),
+          keyboard: reviewKeyboard(session, qLang),
         };
       }
 
@@ -720,7 +873,7 @@ export async function handleCallback(from, callbackData) {
       return {
         text: chunks[0],
         extraMessages: chunks.slice(1),
-        keyboard: nextBlockKeyboard(),
+        keyboard: reviewKeyboard(session, await resolveLang(from)),
       };
     }
 
@@ -731,46 +884,18 @@ export async function handleCallback(from, callbackData) {
         console.log(`[next_block] Неверный шаг, ожидался BLOCK_REVIEW`);
         return await safeResumePrompt(session, from.id);
       }
+
+      const userLang = await resolveLang(from);
+
+      if (isTargetedSession(session.collected_data)) {
+        return finalizeAnalysisSession(from, chat, session, userLang);
+      }
       
       const nextIndex = session.block_index + 1;
       console.log(`[next_block] Переход к блоку с индексом ${nextIndex}/${BLOCK_STACK.length}`);
       
       if (nextIndex >= BLOCK_STACK.length) {
-        console.log(`[next_block] Это был последний блок, завершаем анализ`);
-        await updateSession(from.id, { step: STEPS.COMPLETED });
-        
-        // Сохраняем итоговый профиль пользователя
-        let profileSummary = '';
-        try {
-          const completedBlocks = await getCompletedBlocks(chat.id);
-          const profile = {
-            completed_at: new Date().toISOString(),
-            user_data: session.collected_data,
-            blocks: completedBlocks.map((block) => ({
-              block_id: block.block_id,
-              json_payload: block.json_payload,
-              completed_at: block.created_at,
-            })),
-          };
-          await saveUserProfile(from.id, profile);
-          
-          // Форматируем профиль для вывода пользователю
-          profileSummary = formatProfileSummary(profile);
-        } catch (err) {
-          console.error('Ошибка сохранения профиля:', err.message);
-          profileSummary = '<i>Профиль сохранён. Итоговый отчёт временно недоступен.</i>';
-        }
-        
-        const completionMessage = formatSessionComplete(profileSummary, 'ru');
-        
-        // Разбиваем на части если сообщение слишком длинное
-        const messageParts = splitTelegramMessages(completionMessage);
-        
-        return {
-          text: messageParts[0],
-          extraMessages: messageParts.slice(1),
-          keyboard: completedKeyboard(),
-        };
+        return finalizeAnalysisSession(from, chat, session, userLang);
       }
 
       await updateSession(from.id, {
@@ -811,7 +936,8 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
 
-    const parts = splitForTelegramWithKeyboard(userMessage, nextBlockKeyboard());
+    const lang = await resolveLang(from);
+    const parts = splitForTelegramWithKeyboard(userMessage, reviewKeyboard(session, lang));
 
     return {
       text: parts[0].text,
@@ -846,6 +972,7 @@ export async function handleText(from, rawText) {
       };
     }
     const hints = {
+      [STEPS.GOAL_TREE]: '🎯 На этом шаге выберите вариант кнопкой ниже.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: '↻ Повторите модуль или вернитесь в меню.',
@@ -964,7 +1091,7 @@ export async function handleText(from, rawText) {
         console.error('Ошибка ИИ на текстовый вопрос:', err.message);
         return {
           text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
-          keyboard: nextBlockKeyboard(),
+          keyboard: reviewKeyboard(session, lang),
         };
       }
 
@@ -984,7 +1111,7 @@ export async function handleText(from, rawText) {
       return {
         text: chunks[0],
         extraMessages: chunks.slice(1),
-        keyboard: nextBlockKeyboard(),
+        keyboard: reviewKeyboard(session, lang),
       };
     }
 

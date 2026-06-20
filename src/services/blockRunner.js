@@ -117,19 +117,21 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
   const nextBlock = BLOCK_STACK[blockIndex + 1];
   const data = session.collected_data ?? {};
   const userBlockText = data.block_user_text?.[block.id] || null;
+  const targeted = data.session_mode === 'targeted';
+  const remaining = targeted ? 0 : remainingBlocksAfter(blockIndex);
 
   const payload = {
     mode: 'lapis_vivus_telegram_operator',
     protocol: 'v3.1_EXECUTION_ENGINE',
     server_assigned_block: block.id,
-    next_block: nextBlock ? nextBlock.id : 'STACK_COMPLETE',
-    next_block_description: nextBlock ? nextBlock.description : 'All blocks completed',
-    step: `${blockIndex + 1}/${BLOCK_STACK.length}`,
+    next_block: targeted || !nextBlock ? 'STACK_COMPLETE' : nextBlock.id,
+    next_block_description: targeted || !nextBlock ? 'Targeted session complete after this block' : nextBlock.description,
+    step: targeted ? `1/1` : `${blockIndex + 1}/${BLOCK_STACK.length}`,
     fixed_stack_order: BLOCK_IDS,
     current_block: block.id,
     block_task: block.description,
     json_artifact: jsonArtifactName(block.id),
-    remaining_blocks_in_stack: remainingBlocksAfter(blockIndex),
+    remaining_blocks_in_stack: remaining,
     forbidden_blocks_in_this_answer: BLOCK_IDS.filter((id) => id !== block.id),
     request_date: new Date().toISOString().slice(0, 10),
     universal_input: {
@@ -148,16 +150,27 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
       precomputed && block.id === '1A'
         ? `STRICT: Block 1A — Human Design already computed on server. ` +
           `Use precomputed.bodygraph ONLY. Do NOT recalculate astronomy. ` +
-          `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remainingBlocksAfter(blockIndex)}. ` +
+          `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
           'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
         : `STRICT: Execute ONLY ${block.description}. ` +
-          `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remainingBlocksAfter(blockIndex)}. ` +
+          `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
           'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.',
   };
 
   if (precomputed) {
     payload.precomputed = precomputed;
     payload.compute_source = 'lapis_vps_python';
+  }
+
+  if (data.session_mode === 'targeted' && data.target_block_id) {
+    payload.user_goal = {
+      session_mode: 'targeted',
+      target_block_id: data.target_block_id,
+      block_variant: data.block_variant ?? null,
+      goal_path: data.goal_path ?? [],
+      goal_leaf_label: data.goal_leaf_label ?? null,
+      goal_maslow: data.goal_maslow ?? null,
+    };
   }
 
   return payload;

@@ -3,6 +3,7 @@ import { getModuleMeta } from '../ui/modules.js';
 
 export const STEPS = {
   MENU: 'menu',
+  GOAL_TREE: 'goal_tree',
   GENDER: 'gender',
   BIRTH_DATE: 'birth_date',
   BIRTH_TIME: 'birth_time',

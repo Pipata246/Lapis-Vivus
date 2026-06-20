@@ -2,9 +2,30 @@ import { CALLBACK_PREFIX } from './constants.js';
 import { calculatorUrlButtons } from './calculatorLinks.js';
 import { getMainMenuKeyboard } from '../navigation.js';
 import { btn } from '../ui/brand.js';
+import { getTreeNode } from './diagnosticTree.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
+}
+
+function treeCb(nodeId, variantKey) {
+  return `${CALLBACK_PREFIX}:tree:${nodeId}:${variantKey}`;
+}
+
+export function goalTreeKeyboard(nodeId, lang = 'ru') {
+  const node = getTreeNode(nodeId);
+  if (!node) {
+    return menuKeyboard(lang);
+  }
+
+  const code = lang === 'en' ? 'en' : 'ru';
+  const rows = Object.entries(node.variants).map(([key, variant]) => [
+    { text: variant.short[code], callback_data: treeCb(nodeId, key) },
+  ]);
+
+  rows.push([{ text: btn(lang, 'cancel'), callback_data: cb('menu') }]);
+
+  return { inline_keyboard: rows };
 }
 
 export function menuKeyboard(lang = 'ru') {
@@ -63,7 +84,20 @@ export function blockPrepKeyboard(blockId, collectedData = {}, lang = 'ru') {
   return { inline_keyboard: rows };
 }
 
-export function nextBlockKeyboard(lang = 'ru') {
+export function nextBlockKeyboard(lang = 'ru', targeted = false) {
+  if (targeted) {
+    return {
+      inline_keyboard: [
+        [
+          { text: btn(lang, 'howApply'), callback_data: cb('quick_question', '0') },
+          { text: btn(lang, 'moreDetail'), callback_data: cb('quick_question', '1') },
+        ],
+        [{ text: btn(lang, 'whatMeans'), callback_data: cb('quick_question', '2') }],
+        [{ text: btn(lang, 'finishSession'), callback_data: cb('finish_session') }],
+      ],
+    };
+  }
+
   return {
     inline_keyboard: [
       [

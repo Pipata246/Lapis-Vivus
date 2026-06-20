@@ -3,6 +3,7 @@
  */
 
 import { getModuleMeta, SESSION_TOTAL } from './modules.js';
+import { formatGoalSummary } from '../scenario/diagnosticTree.js';
 
 export const BRAND = {
   name: 'Lapis Vivus',
@@ -76,6 +77,8 @@ export const BTN = {
     runStage: 'Запустить модуль',
     skipStage: 'Пропустить',
     nextStage: 'Следующий модуль',
+    finishSession: 'Завершить сессию',
+    fullSession: 'Полная сессия · 36 модулей',
     retryStage: 'Повторить',
     newAnalysis: 'Новая сессия',
     usefulLinks: 'Калькуляторы',
@@ -102,6 +105,8 @@ export const BTN = {
     runStage: 'Run module',
     skipStage: 'Skip',
     nextStage: 'Next module',
+    finishSession: 'Finish session',
+    fullSession: 'Full session · 36 modules',
     retryStage: 'Retry',
     newAnalysis: 'New session',
     usefulLinks: 'Calculators',
@@ -268,6 +273,8 @@ export function formatClarification(blockId, bodyHtml, lang = 'ru') {
 }
 
 export function formatClientProfile(data, lang = 'ru') {
+  const goalSummary = formatGoalSummary(data, lang);
+
   const fields = [
     [ONBOARDING_ICON.gender, lang === 'en' ? 'Gender' : 'Пол', data.gender_label ?? '—'],
     [ONBOARDING_ICON.birth_date, lang === 'en' ? 'Birth date' : 'Дата', data.birth_date ?? '—'],
@@ -280,6 +287,7 @@ export function formatClientProfile(data, lang = 'ru') {
   return [
     letterhead(lang === 'en' ? 'Profile check' : 'Проверка профиля', lang),
     '',
+    ...(goalSummary ? [goalSummary, ''] : []),
     rows,
     '',
     `<i>${ONBOARDING_ICON.confirm} ${lang === 'en' ? 'Confirm to begin.' : 'Подтвердите, чтобы начать.'}</i>`,

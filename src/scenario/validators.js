@@ -45,6 +45,8 @@ const PLACE_BLOCKLIST = new Set([
 
 const ALLOWED_CALLBACK_ACTIONS = new Set([
   'start',
+  'start_full',
+  'tree',
   'gender',
   'time_unknown',
   'confirm_yes',
@@ -57,6 +59,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'menu',
   'links',
   'quick_question',
+  'finish_session',
 ]);
 
 function parseDateParts(dateStr) {
@@ -79,6 +82,16 @@ export function parseCallbackData(data) {
   }
 
   const parts = data.split(':');
+
+  if (parts.length === 4 && parts[1] === 'tree') {
+    const nodeId = parts[2];
+    const variant = parts[3];
+    if (!/^shag_[0-9]+$/.test(nodeId) || (variant !== 'a' && variant !== 'b')) {
+      return null;
+    }
+    return { action: 'tree', value: `${nodeId}:${variant}` };
+  }
+
   if (parts.length < 2 || parts.length > 3) {
     return null;
   }
@@ -99,7 +112,7 @@ export function parseCallbackData(data) {
     return null;
   }
 
-  if (action !== 'gender' && action !== 'quick_question' && value !== null) {
+  if (action !== 'gender' && action !== 'quick_question' && action !== 'tree' && action !== 'finish_session' && value !== null) {
     return null;
   }
 
@@ -251,6 +264,7 @@ export function hasAnalysisProgress(session) {
   const data = session.collected_data ?? {};
   if (data.birth_date || data.gender) return true;
   const activeSteps = new Set([
+    'goal_tree',
     'gender',
     'birth_date',
     'birth_time',

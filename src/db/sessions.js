@@ -57,6 +57,9 @@ export async function resetSession(userId, chatId) {
     collected_data: {},
     last_block_id: null,
     session_start_at: new Date().toISOString(),
+    session_mode: 'full',
+    target_block_id: null,
+    goal_tree_path: [],
   });
 }
 
@@ -71,6 +74,9 @@ export async function createSessionIfMissing(userId, chatId) {
     collected_data: {},
     last_block_id: null,
     session_start_at: new Date().toISOString(),
+    session_mode: 'full',
+    target_block_id: null,
+    goal_tree_path: [],
   });
 }
 
