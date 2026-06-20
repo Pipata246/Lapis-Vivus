@@ -38,6 +38,15 @@ export const DIAGNOSTIC_TREE = {
         },
         nextNode: 'shag_2',
       },
+      c: {
+        id: 'c',
+        short: { ru: 'C · Полный протокол · 36', en: 'C · Full protocol · 36' },
+        full: {
+          ru: 'Полный маршрут · все 36 модулей последовательно (классическая сессия Lapis Vivus).',
+          en: 'Full route · all 36 modules in sequence (classic Lapis Vivus session).',
+        },
+        sessionModeFull: true,
+      },
     },
   },
   shag_1: {
@@ -232,6 +241,16 @@ export function resolveTreeChoice(nodeId, variantKey) {
     };
   }
 
+  if (variant.sessionModeFull) {
+    return {
+      ok: true,
+      done: true,
+      sessionModeFull: true,
+      pathEntry,
+      leafLabel: variant.full.ru,
+    };
+  }
+
   if (variant.nextNode) {
     return {
       ok: true,
@@ -268,6 +287,12 @@ export function formatTreeStepMessage(nodeId, lang = 'ru') {
 }
 
 export function formatGoalSummary(data, lang = 'ru') {
+  if (data?.session_mode === 'full' && data?.goal_leaf_label) {
+    const code = lang === 'en' ? 'en' : 'ru';
+    const label = code === 'en' ? 'Session focus' : 'Фокус сессии';
+    return `${label}\n<b>${code === 'en' ? 'Full protocol · 36 modules' : 'Полный протокол · 36 модулей'}</b>\n<i>${data.goal_leaf_label}</i>`;
+  }
+
   if (!data?.target_block_id) return '';
 
   const code = lang === 'en' ? 'en' : 'ru';

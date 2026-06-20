@@ -8,7 +8,6 @@ export function getMainMenuKeyboard(lang) {
   return {
     inline_keyboard: [
       [{ text: btn(lang, 'startAnalysis'), callback_data: 'lv:start' }],
-      [{ text: btn(lang, 'fullSession'), callback_data: 'lv:start_full' }],
       [{ text: btn(lang, 'myProfile'), callback_data: 'nav:profile' }],
       [
         { text: btn(lang, 'settings'), callback_data: 'nav:settings' },

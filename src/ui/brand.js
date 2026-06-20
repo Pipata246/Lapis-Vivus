@@ -63,7 +63,7 @@ const BTN_EMOJI = {
 
 export const BTN = {
   ru: {
-    startAnalysis: 'Начать сессию',
+    startAnalysis: 'Запустить протокол',
     myProfile: 'Мой профиль',
     settings: 'Настройки',
     help: 'Справка',
@@ -78,7 +78,6 @@ export const BTN = {
     skipStage: 'Пропустить',
     nextStage: 'Следующий модуль',
     finishSession: 'Завершить сессию',
-    fullSession: 'Полная сессия · 36 модулей',
     retryStage: 'Повторить',
     newAnalysis: 'Новая сессия',
     usefulLinks: 'Калькуляторы',
@@ -91,7 +90,7 @@ export const BTN = {
     languageRu: 'Русский',
   },
   en: {
-    startAnalysis: 'Begin session',
+    startAnalysis: 'Launch protocol',
     myProfile: 'My profile',
     settings: 'Settings',
     help: 'Help',
@@ -106,7 +105,6 @@ export const BTN = {
     skipStage: 'Skip',
     nextStage: 'Next module',
     finishSession: 'Finish session',
-    fullSession: 'Full session · 36 modules',
     retryStage: 'Retry',
     newAnalysis: 'New session',
     usefulLinks: 'Calculators',

@@ -86,7 +86,7 @@ export function parseCallbackData(data) {
   if (parts.length === 4 && parts[1] === 'tree') {
     const nodeId = parts[2];
     const variant = parts[3];
-    if (!/^shag_[0-9]+$/.test(nodeId) || (variant !== 'a' && variant !== 'b')) {
+    if (!/^shag_[0-9]+$/.test(nodeId) || !/^[abc]$/.test(variant)) {
       return null;
     }
     return { action: 'tree', value: `${nodeId}:${variant}` };

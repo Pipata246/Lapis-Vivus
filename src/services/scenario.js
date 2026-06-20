@@ -537,6 +537,34 @@ export async function handleCallback(from, callbackData) {
         return showGoalTree(choice.nextNode, userLang);
       }
 
+      if (choice.sessionModeFull) {
+        const data = mergeCollectedData(session, {
+          session_mode: 'full',
+          goal_tree_node: null,
+          goal_path: goalPath,
+          goal_leaf_label: choice.leafLabel,
+          target_block_id: null,
+          block_variant: null,
+          goal_maslow: null,
+        });
+        await persistSessionData(from.id, data);
+        await updateSession(from.id, {
+          step: STEPS.GENDER,
+          session_mode: 'full',
+          target_block_id: null,
+        });
+        return {
+          text: [
+            letterhead(userLang === 'en' ? 'Full protocol' : 'Полный протокол', userLang),
+            '',
+            formatAfterGoalIntro(userLang),
+            '',
+            formatInitStep(1, 4, 'gender', userLang),
+          ].join('\n'),
+          keyboard: genderKeyboard(userLang),
+        };
+      }
+
       const data = mergeCollectedData(session, {
         session_mode: 'targeted',
         goal_tree_node: null,
@@ -610,37 +638,21 @@ export async function handleCallback(from, callbackData) {
 
     case 'confirm_edit': {
       const userLang = await resolveLang(from);
-      const targeted = isTargetedSession(session.collected_data);
 
-      if (targeted) {
-        await upsertSession(from.id, chat.id, {
-          step: STEPS.GOAL_TREE,
-          collected_data: {
-            session_mode: 'targeted',
-            goal_tree_node: TREE_ROOT,
-            goal_path: [],
-          },
-          block_index: 0,
-          last_block_id: null,
-          target_block_id: null,
-          goal_tree_path: [],
-        });
-        return showGoalTree(TREE_ROOT, userLang);
-      }
-
-      await updateSession(from.id, {
-        step: STEPS.GENDER,
-        collected_data: { session_mode: 'full', goal_path: [] },
+      await upsertSession(from.id, chat.id, {
+        step: STEPS.GOAL_TREE,
+        collected_data: {
+          session_mode: 'targeted',
+          goal_tree_node: TREE_ROOT,
+          goal_path: [],
+        },
         block_index: 0,
         last_block_id: null,
-        session_mode: 'full',
         target_block_id: null,
         goal_tree_path: [],
+        session_mode: 'targeted',
       });
-      return {
-        text: formatInitStep(1, 4, 'gender', userLang),
-        keyboard: genderKeyboard(userLang),
-      };
+      return showGoalTree(TREE_ROOT, userLang);
     }
 
     case 'confirm_yes': {

@@ -39,10 +39,10 @@ const translations = {
       '<b>Session structure</b>\n' +
       '36 modules across 5 parts — from origin mapping to integration protocol.\n\n' +
       '<b>How to begin</b>\n' +
-      '1. Start session from the main menu\n' +
-      '2. Complete the profile protocol\n' +
-      '3. Initiate each module in sequence\n' +
-      '4. Review interpretation and proceed\n\n' +
+      '1. Tap «Launch protocol» in the main menu\n' +
+      '2. Choose your session focus (or full route · 36 modules)\n' +
+      '3. Complete your birth profile\n' +
+      '4. Run the module and review the interpretation\n\n' +
       '<b>Support</b>\nContact the administrator for technical assistance.',
 
     adminPanel: 'Administrator',
@@ -95,10 +95,10 @@ const translations = {
       '<b>Структура сессии</b>\n' +
       '36 модулей в 5 частях — от карты происхождения до протокола интеграции.\n\n' +
       '<b>Как начать</b>\n' +
-      '1. Начните сессию из главного меню\n' +
-      '2. Пройдите протокол профиля\n' +
-      '3. Инициируйте модули по порядку\n' +
-      '4. Изучите интерпретацию и двигайтесь дальше\n\n' +
+      '1. Нажмите «Запустить протокол» в главном меню\n' +
+      '2. Выберите фокус сессии (или полный маршрут · 36 модулей)\n' +
+      '3. Заполните профиль рождения\n' +
+      '4. Запустите модуль и изучите интерпретацию\n\n' +
       '<b>Поддержка</b>\nПо техническим вопросам — администратор.',
 
     adminPanel: 'Администратор',
