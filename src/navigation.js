@@ -1,5 +1,5 @@
 import { t } from './i18n.js';
-import { btn } from './ui/brand.js';
+import { btn, SUPPORT } from './ui/brand.js';
 
 /**
  * Главное меню
@@ -39,8 +39,15 @@ export function getLanguageKeyboard(lang) {
 }
 
 export function getHelpKeyboard(lang) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const contactLabel =
+    code === 'en' ? `💬 Support · ${SUPPORT.telegramMention}` : `💬 Поддержка · ${SUPPORT.telegramMention}`;
+
   return {
-    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }]],
+    inline_keyboard: [
+      [{ text: contactLabel, url: SUPPORT.telegramUrl }],
+      [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
+    ],
   };
 }
 

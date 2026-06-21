@@ -1,6 +1,6 @@
 // Multilingual support for Lapis Vivus Bot
 
-import { BRAND, btn, formatWelcome, letterhead } from './ui/brand.js';
+import { btn, formatWelcome, formatHelp, letterhead } from './ui/brand.js';
 
 const translations = {
   en: {
@@ -26,17 +26,7 @@ const translations = {
     languageChanged: 'Language changed to English',
 
     helpTitle: 'About',
-    helpText:
-      `${letterhead('About', 'en')}\n\n` +
-      `<i>${BRAND.tagline.en}</i>\n\n` +
-      '<b>Session structure</b>\n' +
-      'Five parts — from origin mapping to integration protocol.\n\n' +
-      '<b>How to begin</b>\n' +
-      '1. Tap «Launch protocol» in the main menu\n' +
-      '2. Choose your session focus (or full route)\n' +
-      '3. Complete your birth profile\n' +
-      '4. Run the module and review the interpretation\n\n' +
-      '<b>Support</b>\nContact the administrator for technical assistance.',
+    helpText: formatHelp('en'),
 
     adminPanel: 'Administrator',
     adminText: 'Select an action:',
@@ -75,17 +65,7 @@ const translations = {
     languageChanged: 'Язык изменён на русский',
 
     helpTitle: 'О системе',
-    helpText:
-      `${letterhead('О системе', 'ru')}\n\n` +
-      `<i>${BRAND.tagline.ru}</i>\n\n` +
-      '<b>Структура сессии</b>\n' +
-      'Пять частей — от карты происхождения до протокола интеграции.\n\n' +
-      '<b>Как начать</b>\n' +
-      '1. Нажмите «Запустить протокол» в главном меню\n' +
-      '2. Выберите фокус сессии (или полный маршрут)\n' +
-      '3. Заполните профиль рождения\n' +
-      '4. Запустите модуль и изучите интерпретацию\n\n' +
-      '<b>Поддержка</b>\nПо техническим вопросам — администратор.',
+    helpText: formatHelp('ru'),
 
     adminPanel: 'Администратор',
     adminText: 'Выберите действие:',

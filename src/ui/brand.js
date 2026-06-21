@@ -18,6 +18,12 @@ export const BRAND = {
   },
 };
 
+export const SUPPORT = {
+  telegram: 'nikitok_m',
+  telegramUrl: 'https://t.me/nikitok_m',
+  telegramMention: '@nikitok_m',
+};
+
 export const PART_ICON = {
   I: '🌱',
   II: '☯️',
@@ -312,6 +318,114 @@ export function formatWelcome(lang = 'ru') {
     `<i>${BRAND.subtitle[lang === 'en' ? 'en' : 'ru']}</i>`,
     '',
     lang === 'en' ? 'Choose an action:' : 'Выберите действие:',
+  ].join('\n');
+}
+
+/** Экран «Справка» — премиальный стиль, контакт поддержки. */
+export function formatHelp(lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const contact = `<a href="${SUPPORT.telegramUrl}">${SUPPORT.telegramMention}</a>`;
+
+  if (code === 'en') {
+    return [
+      letterhead('Help', lang),
+      '',
+      `<i>${BRAND.tagline.en}</i>`,
+      `<i>${BRAND.subtitle.en}</i>`,
+      '',
+      section(
+        'About',
+        'Lapis Vivus is a personal route through interpretation modules — from your origin map to an integration protocol. Each step is built on your birth profile and session focus.',
+        '✨',
+      ),
+      '',
+      section(
+        'Session structure',
+        'Five parts — origin, polarity, essence, connections, integration. You may choose a focus or follow the full route module by module.',
+        '🗺',
+      ),
+      '',
+      section(
+        'How to begin',
+        [
+          '1. Tap «Launch protocol» in the main menu',
+          '2. Complete your birth profile (date, time, place)',
+          '3. Choose a session focus or the full route',
+          '4. Run modules in order and ask clarifying questions',
+        ].join('\n'),
+        '▶',
+      ),
+      '',
+      section(
+        'Profile & balance',
+        '«My profile» shows your balance, birth data, and progress. Top up via YooKassa — each invoice is valid for 10 minutes.',
+        '👤',
+      ),
+      '',
+      section(
+        'Commands',
+        [
+          '/start — main menu',
+          '/profile — profile and balance',
+          '/protocol — launch protocol',
+          '/settings — language',
+          '/help — this guide',
+        ].join('\n'),
+        '⚙️',
+      ),
+      '',
+      section('Support', `For service questions, contact ${contact}.`, '💬'),
+    ].join('\n');
+  }
+
+  return [
+    letterhead('Справка', lang),
+    '',
+    `<i>${BRAND.tagline.ru}</i>`,
+    `<i>${BRAND.subtitle.ru}</i>`,
+    '',
+    section(
+      'О проекте',
+      'Lapis Vivus — индивидуальный маршрут через модули интерпретации: от карты происхождения до протокола интеграции. Каждый шаг строится на вашем профиле рождения и выбранном фокусе сессии.',
+      '✨',
+    ),
+    '',
+    section(
+      'Структура сессии',
+      'Пять частей — происхождение, полярность, сущность, связи, интеграция. Можно выбрать фокус или пройти полный маршрут модуль за модулем.',
+      '🗺',
+    ),
+    '',
+    section(
+      'Как начать',
+      [
+        '1. Нажмите «Запустить протокол» в главном меню',
+        '2. Заполните профиль рождения (дата, время, место)',
+        '3. Выберите фокус сессии или полный маршрут',
+        '4. Запускайте модули по очереди и задавайте уточняющие вопросы',
+      ].join('\n'),
+      '▶',
+    ),
+    '',
+    section(
+      'Профиль и баланс',
+      'В «Мой профиль» — баланс, данные рождения и прогресс. Пополнение через ЮKassa; счёт на оплату действует 10 минут.',
+      '👤',
+    ),
+    '',
+    section(
+      'Команды',
+      [
+        '/start — главное меню',
+        '/profile — профиль и баланс',
+        '/protocol — запустить протокол',
+        '/settings — язык интерфейса',
+        '/help — эта справка',
+      ].join('\n'),
+      '⚙️',
+    ),
+    '',
+    section('Поддержка', `По вопросам работы сервиса — ${contact}.`, '💬'),
   ].join('\n');
 }
 
