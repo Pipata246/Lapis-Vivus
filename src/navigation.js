@@ -1,5 +1,5 @@
 import { t } from './i18n.js';
-import { btn, SUPPORT } from './ui/brand.js';
+import { btn, SUPPORT, COMMUNITY } from './ui/brand.js';
 import { getLegalDocsKeyboard } from './ui/legal.js';
 
 /**
@@ -49,9 +49,14 @@ export function getHelpKeyboard(lang) {
   const code = lang === 'en' ? 'en' : 'ru';
   const contactLabel =
     code === 'en' ? `💬 Support · ${SUPPORT.telegramMention}` : `💬 Поддержка · ${SUPPORT.telegramMention}`;
+  const communityLabel =
+    code === 'en'
+      ? `👥 Community · ${COMMUNITY.telegramMention}`
+      : `👥 Сообщество · ${COMMUNITY.telegramMention}`;
 
   const rows = [
     ...getLegalDocsKeyboard(lang),
+    [{ text: communityLabel, url: COMMUNITY.telegramUrl }],
     [{ text: contactLabel, url: SUPPORT.telegramUrl }],
     [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
   ];

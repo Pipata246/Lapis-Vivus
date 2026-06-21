@@ -92,6 +92,12 @@ export const TOPUP_MAX_RUB = 100_000;
 /** Срок жизни счёта на оплату (минуты). */
 export const PAYMENT_TTL_MINUTES = 10;
 
+/** Канал/группа сообщества для обязательной подписки (getChatMember). */
+export function loadCommunityConfig() {
+  const chatId = process.env.COMMUNITY_CHAT_ID?.trim() || '@LapisVivus';
+  return { chatId };
+}
+
 /** Публичный URL сайта (страницы legal/, webhook). SITE_URL или VERCEL_URL. */
 export function loadSiteConfig() {
   const explicit = process.env.SITE_URL?.trim().replace(/\/$/, '') ?? '';

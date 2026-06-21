@@ -43,6 +43,7 @@ import {
   formatLegalGateMessage,
   getLegalGateKeyboard,
 } from './ui/legal.js';
+import { isUserInCommunity } from './services/communityGate.js';
 
 let botInstance = null;
 
@@ -256,6 +257,17 @@ function registerHandlers(bot) {
 
     try {
     if (callbackData === 'nav:legal_accept') {
+      const subscribed = await isUserInCommunity(ctx.telegram, userId);
+      if (!subscribed) {
+        await ctx
+          .editMessageText(formatLegalGateMessage(lang, { needSubscription: true }), {
+            parse_mode: 'HTML',
+            reply_markup: getLegalGateKeyboard(lang),
+          })
+          .catch(() => sendLegalGate(ctx, lang));
+        return;
+      }
+
       await acceptLegalDocuments(userId);
       await ctx
         .editMessageText(t(lang, 'welcome'), {

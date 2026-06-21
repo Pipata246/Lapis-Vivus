@@ -1,4 +1,4 @@
-import { letterhead } from './brand.js';
+import { letterhead, COMMUNITY } from './brand.js';
 import { loadSiteConfig } from '../config.js';
 
 const LABELS = {
@@ -25,24 +25,43 @@ export function getLegalDocUrls() {
   };
 }
 
-export function formatLegalGateMessage(lang = 'ru') {
+export function formatLegalGateMessage(lang = 'ru', { needSubscription = false } = {}) {
   const code = lang === 'en' ? 'en' : 'ru';
+  const community = `<a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>`;
+
   if (code === 'en') {
-    return [
+    const lines = [
       letterhead('Agreement', lang),
       '',
-      'To continue using Lapis Vivus, please read the documents below and confirm your consent to personal data processing and the terms of the public offer.',
+      'To continue using Lapis Vivus:',
       '',
-      '<i>After reading, tap «I accept».</i>',
-    ].join('\n');
+      '1. Read the documents below',
+      `2. Join the community ${community}`,
+      '3. Tap «I accept»',
+      '',
+      '<i>Subscription is verified automatically when you accept.</i>',
+    ];
+    if (needSubscription) {
+      lines.push('', `⚠️ <b>Join ${community} first, then tap «I accept» again.</b>`);
+    }
+    return lines.join('\n');
   }
-  return [
+
+  const lines = [
     letterhead('Согласие', lang),
     '',
-    'Для продолжения работы с Lapis Vivus необходимо ознакомиться с документами ниже и подтвердить согласие на обработку персональных данных и условия публичной оферты.',
+    'Для продолжения работы с Lapis Vivus:',
     '',
-    '<i>После ознакомления нажмите «Принимаю».</i>',
-  ].join('\n');
+    '1. Ознакомьтесь с документами ниже',
+    `2. Подпишитесь на сообщество ${community}`,
+    '3. Нажмите «Принимаю»',
+    '',
+    '<i>Подписка проверяется автоматически при нажатии «Принимаю».</i>',
+  ];
+  if (needSubscription) {
+    lines.push('', `⚠️ <b>Сначала подпишитесь на ${community}, затем снова нажмите «Принимаю».</b>`);
+  }
+  return lines.join('\n');
 }
 
 function legalLinkRows(lang) {
@@ -60,10 +79,20 @@ function legalLinkRows(lang) {
   ];
 }
 
-/** Экран до принятия: ссылки + кнопка «Принимаю». */
+function communityLinkRow(lang) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const label =
+    code === 'en'
+      ? `👥 Join community · ${COMMUNITY.telegramMention}`
+      : `👥 Подписаться · ${COMMUNITY.telegramMention}`;
+  return [{ text: label, url: COMMUNITY.telegramUrl }];
+}
+
+/** Экран до принятия: документы + сообщество + «Принимаю». */
 export function getLegalGateKeyboard(lang) {
   const code = lang === 'en' ? 'en' : 'ru';
   const rows = legalLinkRows(lang);
+  rows.push(communityLinkRow(lang));
   rows.push([{ text: LABELS[code].accept, callback_data: 'nav:legal_accept' }]);
   return { inline_keyboard: rows };
 }

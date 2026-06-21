@@ -24,6 +24,12 @@ export const SUPPORT = {
   telegramMention: '@nikitok_m',
 };
 
+export const COMMUNITY = {
+  telegram: 'LapisVivus',
+  telegramUrl: 'https://t.me/LapisVivus',
+  telegramMention: '@LapisVivus',
+};
+
 export const PART_ICON = {
   I: '🌱',
   II: '☯️',
@@ -375,7 +381,7 @@ export function formatHelp(lang = 'ru') {
         '⚙️',
       ),
       '',
-      section('Support', `For service questions, contact ${contact}.`, '💬'),
+      section('Support', `For service questions, contact ${contact}. Community — <a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>.`, '💬'),
     ].join('\n');
   }
 
@@ -427,7 +433,7 @@ export function formatHelp(lang = 'ru') {
       '⚙️',
     ),
     '',
-    section('Поддержка', `По вопросам работы сервиса — ${contact}.`, '💬'),
+    section('Поддержка', `По вопросам работы сервиса — ${contact}. Сообщество — <a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>.`, '💬'),
   ].join('\n');
 }
 
