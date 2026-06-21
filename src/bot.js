@@ -33,6 +33,7 @@ import {
   getUserProfile,
   isAdmin,
 } from './db/users.js';
+import { expireStalePayments } from './db/payments.js';
 import { getSession, updateSession } from './db/sessions.js';
 
 let botInstance = null;
@@ -44,6 +45,7 @@ const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
 
 async function buildProfileText(userId, lang) {
+  await expireStalePayments();
   const profile = await getUserProfile(userId);
   return formatUserProfileCard(profile, lang);
 }

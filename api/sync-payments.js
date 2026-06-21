@@ -12,8 +12,9 @@ function authorizeRequest(req) {
 }
 
 /**
- * Фоновая проверка pending-платежей в ЮKassa.
- * Vercel Cron каждые 2 мин + можно вызвать вручную: ?key=WEBHOOK_SECRET
+ * Проверка pending-платежей в ЮKassa.
+ * Вызов вручную или внешним cron (cron-job.org): GET /api/sync-payments?key=CRON_SECRET
+ * Vercel Hobby не поддерживает cron чаще 1 раза в день — в vercel.json cron убран.
  */
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {

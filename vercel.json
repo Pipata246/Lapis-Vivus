@@ -1,11 +1,5 @@
 {
   "version": 2,
-  "crons": [
-    {
-      "path": "/api/sync-payments",
-      "schedule": "*/2 * * * *"
-    }
-  ],
   "functions": {
     "api/webhook.js": {
       "maxDuration": 60

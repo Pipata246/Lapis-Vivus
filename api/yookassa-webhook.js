@@ -1,5 +1,5 @@
 import { processSuccessfulPayment } from '../src/services/paymentNotify.js';
-import { markPaymentUnpaidByYookassaId } from '../src/db/payments.js';
+import { expireStalePayments, markPaymentUnpaidByYookassaId } from '../src/db/payments.js';
 
 function parseNotificationBody(req) {
   const raw = req.body;
@@ -32,6 +32,8 @@ export default async function handler(req, res) {
   }
 
   try {
+    await expireStalePayments();
+
     const body = parseNotificationBody(req);
     const event = body.event;
     const yookassaPaymentId = body.object?.id;
