@@ -44,6 +44,13 @@ import {
   getLegalGateKeyboard,
 } from './ui/legal.js';
 import { isUserInCommunity } from './services/communityGate.js';
+import { isPrivateChat, isGroupChat, getBotUser } from './services/chatContext.js';
+import {
+  formatGroupRules,
+  formatGroupStartHint,
+  formatGroupWelcome,
+  getOpenBotKeyboard,
+} from './ui/groupChat.js';
 
 let botInstance = null;
 
@@ -97,8 +104,64 @@ async function ensureLegalOrGate(ctx, lang) {
 }
 
 function registerHandlers(bot) {
+  bot.on('new_chat_members', async (ctx) => {
+    if (!isGroupChat(ctx)) return;
+
+    try {
+      const botUser = await getBotUser(ctx.telegram);
+      const newcomers = ctx.message.new_chat_members ?? [];
+      const botJoined = newcomers.some((m) => m.id === botUser.id);
+      const humans = newcomers.filter((m) => !m.is_bot);
+
+      const replyOpts = {
+        parse_mode: 'HTML',
+        reply_markup: getOpenBotKeyboard(botUser.username, 'ru'),
+      };
+
+      if (botJoined) {
+        await ctx.reply(formatGroupRules('ru'), replyOpts);
+        return;
+      }
+
+      if (humans.length > 0) {
+        const names = humans.map((m) => m.first_name);
+        await ctx.reply(formatGroupWelcome(names, 'ru'), replyOpts);
+      }
+    } catch (err) {
+      console.error('[group] new_chat_members:', err.message);
+    }
+  });
+
+  bot.command('rules', async (ctx) => {
+    if (!isGroupChat(ctx)) return;
+
+    try {
+      const botUser = await getBotUser(ctx.telegram);
+      await ctx.reply(formatGroupRules('ru'), {
+        parse_mode: 'HTML',
+        reply_markup: getOpenBotKeyboard(botUser.username, 'ru'),
+      });
+    } catch (err) {
+      console.error('[group] /rules:', err.message);
+    }
+  });
+
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
+
+    if (isGroupChat(ctx)) {
+      try {
+        const botUser = await getBotUser(ctx.telegram);
+        await ctx.reply(formatGroupStartHint('ru'), {
+          parse_mode: 'HTML',
+          reply_markup: getOpenBotKeyboard(botUser.username, 'ru'),
+        });
+      } catch (err) {
+        console.error('[group] /start:', err.message);
+      }
+      return;
+    }
+
     try {
       const userId = ctx.from.id;
       
@@ -128,7 +191,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('admin', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     
     try {
       const userId = ctx.from.id;
@@ -154,7 +217,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('profile', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
       await initUser(ctx.from);
       const userId = ctx.from.id;
@@ -173,7 +236,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('balance', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
       await initUser(ctx.from);
       const userId = ctx.from.id;
@@ -192,7 +255,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('protocol', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
@@ -207,7 +270,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('settings', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
@@ -224,7 +287,7 @@ function registerHandlers(bot) {
   });
 
   bot.command('help', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
@@ -240,7 +303,7 @@ function registerHandlers(bot) {
   });
 
   bot.on('callback_query', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const userId = ctx.from.id;
     const callbackData = ctx.callbackQuery.data ?? '';
@@ -578,7 +641,7 @@ function registerHandlers(bot) {
   });
 
   bot.on('text', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const text = ctx.message.text?.trim();
     if (!text) return;
@@ -723,7 +786,7 @@ function registerHandlers(bot) {
   });
 
   bot.on('photo', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
     if (!(await ensureLegalOrGate(ctx, lang))) return;
@@ -744,7 +807,7 @@ function registerHandlers(bot) {
   });
 
   bot.on('document', async (ctx) => {
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const document = ctx.message.document;
     if (!document?.file_id) return;
@@ -887,7 +950,7 @@ function registerHandlers(bot) {
 
   bot.on('message', async (ctx) => {
     if (ctx.message.text || ctx.message.photo || ctx.message.document) return;
-    if (!ctx.from?.id) return;
+    if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
     await ctx.reply(u(lang, 'unsupportedMessage'));

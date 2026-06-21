@@ -27,9 +27,21 @@ function requireEnv(name) {
   return value;
 }
 
-async function setCommands(botToken, commands, languageCode) {
+const GROUP_COMMANDS = {
+  ru: [
+    { command: 'start', description: 'О боте и как открыть личный чат' },
+    { command: 'rules', description: 'Правила беседы' },
+  ],
+  en: [
+    { command: 'start', description: 'About the bot and private chat' },
+    { command: 'rules', description: 'Community rules' },
+  ],
+};
+
+async function setCommands(botToken, commands, { languageCode, scope } = {}) {
   const body = { commands };
   if (languageCode) body.language_code = languageCode;
+  if (scope) body.scope = scope;
 
   const res = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
     method: 'POST',
@@ -49,11 +61,16 @@ async function main() {
     throw new Error('BOT_TOKEN имеет неверный формат.');
   }
 
-  await setCommands(botToken, COMMAND_SETS.ru, 'ru');
-  await setCommands(botToken, COMMAND_SETS.en, 'en');
+  await setCommands(botToken, COMMAND_SETS.ru, { languageCode: 'ru' });
+  await setCommands(botToken, COMMAND_SETS.en, { languageCode: 'en' });
   await setCommands(botToken, COMMAND_SETS.en);
 
-  console.log('Команды меню установлены (ru, en, default).');
+  const groupScope = { type: 'all_group_chats' };
+  await setCommands(botToken, GROUP_COMMANDS.ru, { languageCode: 'ru', scope: groupScope });
+  await setCommands(botToken, GROUP_COMMANDS.en, { languageCode: 'en', scope: groupScope });
+  await setCommands(botToken, GROUP_COMMANDS.ru, { scope: groupScope });
+
+  console.log('Команды меню установлены (личные чаты: ru, en; беседы: ru, en).');
   console.log('');
   console.log('Для BotFather вручную (@BotFather → /setcommands):');
   console.log('');
