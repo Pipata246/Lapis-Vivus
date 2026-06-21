@@ -3,13 +3,13 @@ import { loadSiteConfig } from '../config.js';
 
 const LABELS = {
   ru: {
-    privacy: 'Политика конфиденциальности',
-    offer: 'Публичная оферта',
+    privacy: 'Политика',
+    offer: 'Оферта',
     accept: '✓ Принимаю',
   },
   en: {
-    privacy: 'Privacy policy',
-    offer: 'Public offer',
+    privacy: 'Privacy',
+    offer: 'Offer',
     accept: '✓ I accept',
   },
 };
@@ -73,10 +73,7 @@ function legalLinkRows(lang) {
     return [];
   }
 
-  return [
-    [{ text: labels.privacy, url: urls.privacy }],
-    [{ text: labels.offer, url: urls.offer }],
-  ];
+  return [[{ text: labels.privacy, url: urls.privacy }, { text: labels.offer, url: urls.offer }]];
 }
 
 function communityLinkRow(lang) {
@@ -97,14 +94,7 @@ export function getLegalGateKeyboard(lang) {
   return { inline_keyboard: rows };
 }
 
-/** Документы для справки (+ принять + назад). */
-export function getLegalDocsKeyboard(lang, { includeAccept = true } = {}) {
-  const code = lang === 'en' ? 'en' : 'ru';
-  const rows = legalLinkRows(lang);
-
-  if (includeAccept) {
-    rows.push([{ text: LABELS[code].accept, callback_data: 'nav:legal_accept' }]);
-  }
-
-  return rows;
+/** Ссылки на документы для справки (без «Принимаю»). */
+export function getLegalDocsKeyboard(lang) {
+  return legalLinkRows(lang);
 }
