@@ -106,6 +106,66 @@ function registerHandlers(bot) {
     }
   });
 
+  bot.command('profile', async (ctx) => {
+    if (!ctx.from?.id) return;
+    try {
+      await initUser(ctx.from);
+      const userId = ctx.from.id;
+      const lang = await getUserLanguage(userId);
+      await updateSession(userId, { ui_mode: null });
+      await ctx.reply(await buildProfileText(userId, lang), {
+        parse_mode: 'HTML',
+        reply_markup: getProfileKeyboard(lang),
+      });
+    } catch (err) {
+      console.error('Ошибка /profile:', err.message);
+      await ctx.reply('Error loading profile.');
+    }
+  });
+
+  bot.command('protocol', async (ctx) => {
+    if (!ctx.from?.id) return;
+    try {
+      await initUser(ctx.from);
+      await ctx.sendChatAction('typing').catch(() => {});
+      const payload = await handleCallback(ctx.from, 'lv:start');
+      await sendScenarioReply(ctx, payload);
+    } catch (err) {
+      const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
+      await ctx.reply(`${t(lang, 'errorOccurred')}: ${err.message}`);
+    }
+  });
+
+  bot.command('settings', async (ctx) => {
+    if (!ctx.from?.id) return;
+    try {
+      await initUser(ctx.from);
+      const lang = await getUserLanguage(ctx.from.id);
+      await ctx.reply(`${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`, {
+        parse_mode: 'HTML',
+        reply_markup: getSettingsKeyboard(lang),
+      });
+    } catch (err) {
+      console.error('Ошибка /settings:', err.message);
+      await ctx.reply('Error loading settings.');
+    }
+  });
+
+  bot.command('help', async (ctx) => {
+    if (!ctx.from?.id) return;
+    try {
+      await initUser(ctx.from);
+      const lang = await getUserLanguage(ctx.from.id);
+      await ctx.reply(t(lang, 'helpText'), {
+        parse_mode: 'HTML',
+        reply_markup: getHelpKeyboard(lang),
+      });
+    } catch (err) {
+      console.error('Ошибка /help:', err.message);
+      await ctx.reply('Error loading help.');
+    }
+  });
+
   bot.on('callback_query', async (ctx) => {
     if (!ctx.from?.id) return;
 

@@ -40,8 +40,11 @@ ssh root@ВАШ_IP
 
 ```bash
 apt update && apt upgrade -y
-apt install -y python3 python3-venv python3-pip nginx curl git
+apt install -y python3 python3-venv python3-pip python3-dev nginx curl git \
+  build-essential pkg-config
 ```
+
+`build-essential` нужен для сборки `pyswisseph` (Swiss Ephemeris).
 
 ### 3. Загрузка проекта на сервер
 

@@ -1,4 +1,5 @@
 import { btn, escapeHtml, letterhead, section } from './brand.js';
+import { PAYMENT_TTL_MINUTES } from '../config.js';
 import { normalizeAnalysisProfile } from '../db/userAnalysisProfile.js';
 
 export function formatBalanceRub(amountRub, lang = 'ru') {
@@ -229,9 +230,10 @@ export function formatTopupInvalidAmount(lang, { min, max } = {}) {
 
 export function formatPaymentLinkMessage(amountRub, lang) {
   const amount = formatBalanceRub(amountRub, lang);
+  const ttl = PAYMENT_TTL_MINUTES;
   return lang === 'en'
-    ? `Amount · ${amount}\n\nTap the button below to pay via YooKassa.`
-    : `Сумма · ${amount}\n\nНажмите кнопку ниже для оплаты через ЮKassa.`;
+    ? `Amount · ${amount}\n\nPayment invoice is valid for ${ttl} minutes.`
+    : `Сумма · ${amount}\n\nСчет на оплату действует ${ttl} минут.`;
 }
 
 export function formatShopStub(lang) {

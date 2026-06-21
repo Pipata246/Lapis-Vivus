@@ -89,6 +89,8 @@ export function loadYooKassaConfig() {
 
 export const TOPUP_MIN_RUB = 50;
 export const TOPUP_MAX_RUB = 100_000;
+/** Срок жизни счёта на оплату (минуты). */
+export const PAYMENT_TTL_MINUTES = 10;
 
 function envFlag(name, defaultValue = false) {
   const raw = process.env[name]?.trim().toLowerCase();

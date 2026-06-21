@@ -1,4 +1,5 @@
 import { processSuccessfulPayment } from '../src/services/paymentNotify.js';
+import { markPaymentUnpaidByYookassaId } from '../src/db/payments.js';
 
 function parseNotificationBody(req) {
   const raw = req.body;
@@ -39,6 +40,12 @@ export default async function handler(req, res) {
 
     if (!yookassaPaymentId) {
       res.status(200).json({ ok: true, skipped: true, reason: 'no_payment_id' });
+      return;
+    }
+
+    if (event === 'payment.canceled') {
+      const closed = await markPaymentUnpaidByYookassaId(yookassaPaymentId);
+      res.status(200).json({ ok: true, closed, reason: 'canceled' });
       return;
     }
 

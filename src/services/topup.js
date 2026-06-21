@@ -1,5 +1,5 @@
 import { TOPUP_MAX_RUB, TOPUP_MIN_RUB } from '../config.js';
-import { attachYooKassaPaymentId, insertPendingPayment } from '../db/payments.js';
+import { attachYooKassaPaymentId, expireStalePayments, insertPendingPayment } from '../db/payments.js';
 import {
   createYooKassaPayment,
   newPaymentUuid,
@@ -27,6 +27,8 @@ export function parseTopupAmount(text) {
 }
 
 export async function createTopupPayment(userId, amountRub, lang = 'ru') {
+  await expireStalePayments();
+
   const paymentId = newPaymentUuid();
   await insertPendingPayment({ id: paymentId, userId, amountRub });
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vercel dev",
     "webhook:set": "node scripts/set-webhook.js",
+    "commands:set": "node scripts/set-commands.js",
     "test:ai": "node scripts/test-gptunnel.js",
     "models:list": "node scripts/list-models.js",
     "storage:init": "node scripts/init-storage.js"

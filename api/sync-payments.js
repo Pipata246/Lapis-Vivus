@@ -32,8 +32,10 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       ok: true,
+      expired: result.expired,
       pending_checked: result.pending,
       credited: result.credited,
+      ttl_minutes: result.ttlMinutes,
     });
   } catch (err) {
     console.error('[sync-payments]', err.message, err.stack);

@@ -1,12 +1,19 @@
+import { PAYMENT_TTL_MINUTES } from '../config.js';
 import { loadBotConfig } from '../config.js';
 import {
   creditBalanceForPayment,
+  expireStalePayments,
   getAllPendingPayments,
-  getPendingPaymentsForUser,
+  getPaymentByYookassaId,
+  markPaymentUnpaidByYookassaId,
 } from '../db/payments.js';
 import { getUserLanguage } from '../db/users.js';
 import { fetchYooKassaPayment } from './yookassa.js';
 import { formatTopupSuccessNotification } from '../ui/wallet.js';
+
+function isExpired(payment) {
+  return payment?.expires_at && new Date(payment.expires_at).getTime() <= Date.now();
+}
 
 export async function notifyUserTopup(userId, amountRub, balanceRub) {
   const { botToken } = loadBotConfig();
@@ -38,12 +45,37 @@ export async function notifyUserTopup(userId, amountRub, balanceRub) {
 }
 
 /**
- * Единая обработка успешного платежа: проверка в ЮKassa → БД → уведомление в TG.
- * @param {string} yookassaPaymentId
- * @param {'webhook'|'cron'|'sync'} source
+ * Обработка платежа: только pending в срок → succeeded + баланс + уведомление.
  */
 export async function processSuccessfulPayment(yookassaPaymentId, source = 'webhook') {
+  const local = await getPaymentByYookassaId(yookassaPaymentId);
+
+  if (!local) {
+    console.log(`[payment:${source}] unknown payment`, yookassaPaymentId);
+    return { credited: false, reason: 'not_found' };
+  }
+
+  if (local.status === 'unpaid') {
+    return { credited: false, reason: 'unpaid' };
+  }
+
+  if (local.status === 'succeeded') {
+    return { credited: false, reason: 'already_done' };
+  }
+
+  if (isExpired(local)) {
+    await expireStalePayments();
+    console.log(`[payment:${source}] expired → unpaid`, yookassaPaymentId);
+    return { credited: false, reason: 'expired' };
+  }
+
   const remote = await fetchYooKassaPayment(yookassaPaymentId);
+
+  if (remote.status === 'canceled') {
+    await markPaymentUnpaidByYookassaId(yookassaPaymentId);
+    console.log(`[payment:${source}] yookassa canceled → unpaid`, yookassaPaymentId);
+    return { credited: false, reason: 'canceled' };
+  }
 
   if (remote.status !== 'succeeded') {
     console.log(`[payment:${source}] skip ${yookassaPaymentId}, status=${remote.status}`);
@@ -57,15 +89,14 @@ export async function processSuccessfulPayment(yookassaPaymentId, source = 'webh
     console.log(
       `[payment:${source}] credited user=${result.userId} +${result.amountRub} balance=${result.balanceRub}`,
     );
-  } else {
-    console.log(`[payment:${source}] already credited or missing row`, yookassaPaymentId);
   }
 
   return { ...result, reason: result.credited ? 'credited' : 'already_done' };
 }
 
-/** Фоновая проверка всех pending-платежей (cron). */
+/** Закрыть просроченные + проверить активные pending в ЮKassa. */
 export async function syncAllPendingPayments(source = 'cron') {
+  const expired = await expireStalePayments();
   const pending = await getAllPendingPayments();
   let creditedCount = 0;
 
@@ -80,28 +111,5 @@ export async function syncAllPendingPayments(source = 'cron') {
     }
   }
 
-  return { pending: pending.length, credited: creditedCount };
-}
-
-/** @deprecated используйте syncAllPendingPayments / processSuccessfulPayment */
-export async function syncUserPendingPayments(userId) {
-  const pending = await getPendingPaymentsForUser(userId);
-  let synced = 0;
-  let lastCredited = null;
-
-  for (const payment of pending) {
-    if (!payment.yookassa_payment_id) continue;
-
-    try {
-      const result = await processSuccessfulPayment(payment.yookassa_payment_id, 'sync');
-      if (result.credited && result.userId) {
-        synced += 1;
-        lastCredited = result;
-      }
-    } catch (err) {
-      console.error('[payment-sync]', payment.yookassa_payment_id, err.message);
-    }
-  }
-
-  return { synced, credited: lastCredited };
+  return { expired, pending: pending.length, credited: creditedCount, ttlMinutes: PAYMENT_TTL_MINUTES };
 }
