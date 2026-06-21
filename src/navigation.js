@@ -47,17 +47,15 @@ export function getLanguageKeyboard(lang) {
 
 export function getHelpKeyboard(lang) {
   const code = lang === 'en' ? 'en' : 'ru';
-  const contactLabel =
-    code === 'en' ? `💬 Support · ${SUPPORT.telegramMention}` : `💬 Поддержка · ${SUPPORT.telegramMention}`;
-  const communityLabel =
-    code === 'en'
-      ? `👥 Community · ${COMMUNITY.telegramMention}`
-      : `👥 Сообщество · ${COMMUNITY.telegramMention}`;
+  const contactLabel = code === 'en' ? '💬 Support' : '💬 Поддержка';
+  const communityLabel = code === 'en' ? '👥 Community' : '👥 Сообщество';
 
   const rows = [
     ...getLegalDocsKeyboard(lang),
-    [{ text: communityLabel, url: COMMUNITY.telegramUrl }],
-    [{ text: contactLabel, url: SUPPORT.telegramUrl }],
+    [
+      { text: communityLabel, url: COMMUNITY.telegramUrl },
+      { text: contactLabel, url: SUPPORT.telegramUrl },
+    ],
     [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
   ];
 
