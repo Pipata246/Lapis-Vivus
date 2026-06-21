@@ -9,6 +9,7 @@ export function getMainMenuKeyboard(lang) {
     inline_keyboard: [
       [{ text: btn(lang, 'startAnalysis'), callback_data: 'lv:start' }],
       [{ text: btn(lang, 'myProfile'), callback_data: 'nav:profile' }],
+      [{ text: btn(lang, 'balance'), callback_data: 'nav:balance' }],
       [
         { text: btn(lang, 'settings'), callback_data: 'nav:settings' },
         { text: btn(lang, 'help'), callback_data: 'nav:help' },
@@ -17,7 +18,12 @@ export function getMainMenuKeyboard(lang) {
   };
 }
 
-export { getProfileKeyboard, getTopupCancelKeyboard, getPaymentLinkKeyboard } from './ui/wallet.js';
+export {
+  getProfileKeyboard,
+  getBalanceKeyboard,
+  getTopupCancelKeyboard,
+  getPaymentLinkKeyboard,
+} from './ui/wallet.js';
 
 export function getSettingsKeyboard(lang) {
   return {
@@ -66,6 +72,6 @@ export function getAdminKeyboard(lang) {
 
 export function getShopKeyboard(lang) {
   return {
-    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:profile' }]],
+    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:balance' }]],
   };
 }

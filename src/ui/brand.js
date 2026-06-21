@@ -43,6 +43,7 @@ export const ONBOARDING_ICON = {
 const BTN_EMOJI = {
   startAnalysis: '💎',
   myProfile: '👤',
+  balance: '💰',
   settings: '⚙️',
   help: '📖',
   back: '◀️',
@@ -71,6 +72,7 @@ export const BTN = {
   ru: {
     startAnalysis: 'Запустить протокол',
     myProfile: 'Мой профиль',
+    balance: 'Баланс',
     settings: 'Настройки',
     help: 'Справка',
     back: 'Назад',
@@ -98,6 +100,7 @@ export const BTN = {
   en: {
     startAnalysis: 'Launch protocol',
     myProfile: 'My profile',
+    balance: 'Balance',
     settings: 'Settings',
     help: 'Help',
     back: 'Back',
@@ -358,7 +361,7 @@ export function formatHelp(lang = 'ru') {
       '',
       section(
         'Profile & balance',
-        '«My profile» shows your balance, birth data, and progress. Top up via YooKassa — each invoice is valid for 10 minutes.',
+        '«My profile» — birth data and session progress. «Balance» — top up via YooKassa (invoice valid 10 minutes) and shop.',
         '👤',
       ),
       '',
@@ -366,7 +369,8 @@ export function formatHelp(lang = 'ru') {
         'Commands',
         [
           '/start — main menu',
-          '/profile — profile and balance',
+          '/profile — my profile',
+          '/balance — balance and top-up',
           '/protocol — launch protocol',
           '/settings — language',
           '/help — this guide',
@@ -407,18 +411,19 @@ export function formatHelp(lang = 'ru') {
       '▶',
     ),
     '',
-    section(
-      'Профиль и баланс',
-      'В «Мой профиль» — баланс, данные рождения и прогресс. Пополнение через ЮKassa; счёт на оплату действует 10 минут.',
-      '👤',
-    ),
+      section(
+        'Профиль и баланс',
+        '«Мой профиль» — данные рождения и прогресс сессии. «Баланс» — пополнение через ЮKassa (счёт 10 минут) и магазин.',
+        '👤',
+      ),
     '',
     section(
       'Команды',
       [
-        '/start — главное меню',
-        '/profile — профиль и баланс',
-        '/protocol — запустить протокол',
+          '/start — главное меню',
+          '/profile — мой профиль',
+          '/balance — баланс и пополнение',
+          '/protocol — запустить протокол',
         '/settings — язык интерфейса',
         '/help — эта справка',
       ].join('\n'),

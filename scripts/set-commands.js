@@ -5,14 +5,16 @@ const TOKEN_PATTERN = /^\d+:[A-Za-z0-9_-]{35,}$/;
 const COMMAND_SETS = {
   ru: [
     { command: 'start', description: 'Главное меню' },
-    { command: 'profile', description: 'Профиль и баланс' },
+    { command: 'profile', description: 'Мой профиль' },
+    { command: 'balance', description: 'Баланс' },
     { command: 'protocol', description: 'Запустить протокол' },
     { command: 'settings', description: 'Настройки' },
     { command: 'help', description: 'Справка' },
   ],
   en: [
     { command: 'start', description: 'Main menu' },
-    { command: 'profile', description: 'Profile and balance' },
+    { command: 'profile', description: 'My profile' },
+    { command: 'balance', description: 'Balance' },
     { command: 'protocol', description: 'Launch protocol' },
     { command: 'settings', description: 'Settings' },
     { command: 'help', description: 'Help' },

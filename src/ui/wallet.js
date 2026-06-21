@@ -57,7 +57,6 @@ export function formatUserProfileCard(profile, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   const analysisProfile = normalizeAnalysisProfile(profile.profile);
   const userData = analysisProfile.user_data ?? {};
-  const balanceRub = profile.balance_rub ?? 0;
   const displayName = formatDisplayName(profile);
   const modulesDone = countCompletedModules(analysisProfile);
   const birthLines = formatBirthProfileSummary(userData, lang);
@@ -75,17 +74,6 @@ export function formatUserProfileCard(profile, lang = 'ru') {
     }
     lines.push('');
   }
-
-  const balanceHint =
-    code === 'en'
-      ? 'Available for sessions and shop'
-      : 'Доступен для сессий и магазина';
-  lines.push(
-    `💰 <b>${code === 'en' ? 'Balance' : 'Баланс'}</b>`,
-    `<b>${escapeHtml(formatBalanceRub(balanceRub, lang))}</b>`,
-    `<i>${balanceHint}</i>`,
-    '',
-  );
 
   const identityRows = [];
   const nameLine = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
@@ -177,7 +165,30 @@ export function formatUserProfileCard(profile, lang = 'ru') {
   return lines.join('\n');
 }
 
+/** Экран «Баланс» — сумма и действия пополнения / магазина. */
+export function formatBalanceCard(profile, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const balanceRub = profile.balance_rub ?? 0;
+  const hint =
+    code === 'en'
+      ? 'Available for sessions and shop'
+      : 'Доступен для сессий и магазина';
+
+  return [
+    letterhead(code === 'en' ? 'Balance' : 'Баланс', lang),
+    '',
+    `<b>${escapeHtml(formatBalanceRub(balanceRub, lang))}</b>`,
+    `<i>${hint}</i>`,
+  ].join('\n');
+}
+
 export function getProfileKeyboard(lang) {
+  return {
+    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }]],
+  };
+}
+
+export function getBalanceKeyboard(lang) {
   const topUpLabel = lang === 'en' ? '💳 Top up' : '💳 Пополнить';
   const shopLabel = lang === 'en' ? '🛒 Shop' : '🛒 Магазин';
 
@@ -201,7 +212,7 @@ export function getPaymentLinkKeyboard(confirmationUrl, lang) {
   return {
     inline_keyboard: [
       [{ text: payLabel, url: confirmationUrl }],
-      [{ text: btn(lang, 'back'), callback_data: 'nav:profile' }],
+      [{ text: btn(lang, 'back'), callback_data: 'nav:balance' }],
     ],
   };
 }

@@ -11,6 +11,7 @@ import { t } from './i18n.js';
 import {
   getMainMenuKeyboard,
   getProfileKeyboard,
+  getBalanceKeyboard,
   getSettingsKeyboard,
   getLanguageKeyboard,
   getHelpKeyboard,
@@ -25,6 +26,7 @@ import {
   formatPaymentLinkMessage,
   formatShopStub,
   formatUserProfileCard,
+  formatBalanceCard,
 } from './ui/wallet.js';
 import { createTopupPayment, parseTopupAmount } from './services/topup.js';
 import {
@@ -45,9 +47,14 @@ const CALLBACK_DEBOUNCE_MS = 1000;
 const MESSAGE_DEBOUNCE_MS = 500;
 
 async function buildProfileText(userId, lang) {
-  await expireStalePayments();
   const profile = await getUserProfile(userId);
   return formatUserProfileCard(profile, lang);
+}
+
+async function buildBalanceText(userId, lang) {
+  await expireStalePayments();
+  const profile = await getUserProfile(userId);
+  return formatBalanceCard(profile, lang);
 }
 
 function registerHandlers(bot) {
@@ -122,6 +129,23 @@ function registerHandlers(bot) {
     } catch (err) {
       console.error('Ошибка /profile:', err.message);
       await ctx.reply('Error loading profile.');
+    }
+  });
+
+  bot.command('balance', async (ctx) => {
+    if (!ctx.from?.id) return;
+    try {
+      await initUser(ctx.from);
+      const userId = ctx.from.id;
+      const lang = await getUserLanguage(userId);
+      await updateSession(userId, { ui_mode: null });
+      await ctx.reply(await buildBalanceText(userId, lang), {
+        parse_mode: 'HTML',
+        reply_markup: getBalanceKeyboard(lang),
+      });
+    } catch (err) {
+      console.error('Ошибка /balance:', err.message);
+      await ctx.reply('Error loading balance.');
     }
   });
 
@@ -265,6 +289,21 @@ function registerHandlers(bot) {
           }
           break;
 
+        case 'balance':
+          try {
+            await updateSession(userId, { ui_mode: null });
+            const balanceText = await buildBalanceText(userId, lang);
+
+            await ctx.editMessageText(balanceText, {
+              parse_mode: 'HTML',
+              reply_markup: getBalanceKeyboard(lang),
+            }).catch(() => {});
+          } catch (err) {
+            console.error('Error loading balance:', err.message);
+            await ctx.reply(t(lang, 'errorOccurred'));
+          }
+          break;
+
         case 'topup':
           try {
             await updateSession(userId, { ui_mode: 'topup' });
@@ -281,10 +320,10 @@ function registerHandlers(bot) {
         case 'topup_cancel':
           try {
             await updateSession(userId, { ui_mode: null });
-            const profileText = await buildProfileText(userId, lang);
-            await ctx.editMessageText(profileText, {
+            const balanceText = await buildBalanceText(userId, lang);
+            await ctx.editMessageText(balanceText, {
               parse_mode: 'HTML',
-              reply_markup: getProfileKeyboard(lang),
+              reply_markup: getBalanceKeyboard(lang),
             }).catch(() => {});
           } catch (err) {
             console.error('Error canceling topup:', err.message);
