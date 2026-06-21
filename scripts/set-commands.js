@@ -61,23 +61,30 @@ async function main() {
     throw new Error('BOT_TOKEN имеет неверный формат.');
   }
 
-  await setCommands(botToken, COMMAND_SETS.ru, { languageCode: 'ru' });
-  await setCommands(botToken, COMMAND_SETS.en, { languageCode: 'en' });
-  await setCommands(botToken, COMMAND_SETS.en);
-
+  const privateScope = { type: 'all_private_chats' };
   const groupScope = { type: 'all_group_chats' };
+
+  await setCommands(botToken, COMMAND_SETS.ru, { languageCode: 'ru', scope: privateScope });
+  await setCommands(botToken, COMMAND_SETS.en, { languageCode: 'en', scope: privateScope });
+  await setCommands(botToken, COMMAND_SETS.en, { scope: privateScope });
+
   await setCommands(botToken, GROUP_COMMANDS.ru, { languageCode: 'ru', scope: groupScope });
   await setCommands(botToken, GROUP_COMMANDS.en, { languageCode: 'en', scope: groupScope });
   await setCommands(botToken, GROUP_COMMANDS.ru, { scope: groupScope });
 
-  console.log('Команды меню установлены (личные чаты: ru, en; беседы: ru, en).');
+  console.log('Команды меню установлены.');
   console.log('');
-  console.log('Для BotFather вручную (@BotFather → /setcommands):');
-  console.log('');
-  console.log('RU:');
+  console.log('Личный чат (all_private_chats):');
   for (const cmd of COMMAND_SETS.ru) {
-    console.log(`${cmd.command} - ${cmd.description}`);
+    console.log(`  /${cmd.command} — ${cmd.description}`);
   }
+  console.log('');
+  console.log('Беседа (all_group_chats):');
+  for (const cmd of GROUP_COMMANDS.ru) {
+    console.log(`  /${cmd.command} — ${cmd.description}`);
+  }
+  console.log('');
+  console.log('Повторите после смены списка: npm run commands:set');
 }
 
 main().catch((err) => {
