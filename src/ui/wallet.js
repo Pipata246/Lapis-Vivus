@@ -27,7 +27,7 @@ function formatDisplayName(profile) {
   return null;
 }
 
-function countCompletedModules(analysisProfile) {
+function countCompletedStages(analysisProfile) {
   const blocks = analysisProfile?.blocks ?? {};
   return Object.keys(blocks).filter((id) => blocks[id]?.json_payload || blocks[id]?.completed_at).length;
 }
@@ -58,7 +58,7 @@ export function formatUserProfileCard(profile, lang = 'ru') {
   const analysisProfile = normalizeAnalysisProfile(profile.profile);
   const userData = analysisProfile.user_data ?? {};
   const displayName = formatDisplayName(profile);
-  const modulesDone = countCompletedModules(analysisProfile);
+  const modulesDone = countCompletedStages(analysisProfile);
   const birthLines = formatBirthProfileSummary(userData, lang);
   const hasBirthProfile = birthLines.length > 0;
 
@@ -85,9 +85,12 @@ export function formatUserProfileCard(profile, lang = 'ru') {
     );
   }
   if (profile.username) {
-    identityRows.push(`Username · @${escapeHtml(profile.username)}`);
+    identityRows.push(
+      code === 'en'
+        ? `Telegram · @${escapeHtml(profile.username)}`
+        : `Telegram · @${escapeHtml(profile.username)}`,
+    );
   }
-  identityRows.push(`ID · <code>${profile.id}</code>`);
 
   lines.push(
     section(
@@ -118,12 +121,12 @@ export function formatUserProfileCard(profile, lang = 'ru') {
   if (modulesDone > 0) {
     protocolRows.push(
       code === 'en'
-        ? `Modules completed · ${modulesDone}`
-        : `Пройдено модулей · ${modulesDone}`,
+        ? `Steps completed · ${modulesDone}`
+        : `Пройдено этапов · ${modulesDone}`,
     );
   } else {
     protocolRows.push(
-      code === 'en' ? 'Modules completed · none yet' : 'Пройдено модулей · пока нет',
+      code === 'en' ? 'Steps completed · none yet' : 'Пройдено этапов · пока нет',
     );
   }
 
@@ -248,15 +251,20 @@ export function formatPaymentLinkMessage(amountRub, lang) {
 }
 
 export function formatShopStub(lang) {
-  return lang === 'en'
-    ? '👋 Hello! The shop will open here soon.'
-    : '👋 Привет! Магазин скоро откроется здесь.';
+  const code = lang === 'en' ? 'en' : 'ru';
+  return [
+    letterhead(code === 'en' ? 'Shop' : 'Магазин', lang),
+    '',
+    code === 'en'
+      ? '<i>The curated shop is opening soon. Your balance will be available here.</i>'
+      : '<i>Кураторский магазин скоро откроется. Баланс можно будет использовать здесь.</i>',
+  ].join('\n');
 }
 
 export function formatTopupSuccessNotification(amountRub, balanceRub, lang) {
   const amount = formatBalanceRub(amountRub, lang);
   const balance = formatBalanceRub(balanceRub, lang);
   return lang === 'en'
-    ? `✅ You topped up your balance by ${amount}.\n\nCurrent balance · ${balance}`
-    : `✅ Вы пополнили баланс на ${amount}.\n\nТекущий баланс · ${balance}`;
+    ? `Balance topped up · ${amount}\n\nCurrent balance · ${balance}`
+    : `Баланс пополнен · ${amount}\n\nТекущий баланс · ${balance}`;
 }

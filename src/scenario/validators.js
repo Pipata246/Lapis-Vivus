@@ -1,3 +1,5 @@
+import { u } from '../ui/userCopy.js';
+
 const DATE_RE = /^(0[1-9]|[12]\d|3[01])\.(0[1-9]|1[0-2])\.(19|20)\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PLACE_CHARS_RE = /^[\p{L}\s\-'.]+$/u;
@@ -107,7 +109,6 @@ export function parseCallbackData(data) {
     return null;
   }
 
-  // quick_question может иметь value (индекс вопроса)
   if (action === 'quick_question' && value === null) {
     return null;
   }
@@ -119,23 +120,20 @@ export function parseCallbackData(data) {
   return { action, value };
 }
 
-export function validateBirthDate(text) {
+export function validateBirthDate(text, lang = 'ru') {
   const trimmed = text?.trim();
   if (!DATE_RE.test(trimmed)) {
-    return { ok: false, error: 'Дата в формате ДД.ММ.ГГГГ, например 15.03.1990' };
+    return { ok: false, error: u(lang, 'dateFormat') };
   }
 
   const { day, month, year } = parseDateParts(trimmed);
 
   if (!isRealCalendarDate(day, month, year)) {
-    return { ok: false, error: 'Некорректная дата. Проверь день и месяц.' };
+    return { ok: false, error: u(lang, 'dateInvalid') };
   }
 
   if (year < MIN_BIRTH_YEAR) {
-    return {
-      ok: false,
-      error: `Год рождения не раньше ${MIN_BIRTH_YEAR}.`,
-    };
+    return { ok: false, error: u(lang, 'dateYearMin', { year: MIN_BIRTH_YEAR }) };
   }
 
   const today = new Date();
@@ -143,55 +141,43 @@ export function validateBirthDate(text) {
   const birth = new Date(year, month - 1, day);
 
   if (birth > todayStart) {
-    return {
-      ok: false,
-      error: 'Дата рождения не может быть в будущем. Укажи прошедшую дату.',
-    };
+    return { ok: false, error: u(lang, 'dateFuture') };
   }
 
   const ageDays = (todayStart - birth) / (24 * 60 * 60 * 1000);
   if (ageDays < 1) {
-    return { ok: false, error: 'Дата рождения должна быть минимум вчера.' };
+    return { ok: false, error: u(lang, 'dateTooRecent') };
   }
 
   return { ok: true, value: trimmed };
 }
 
-export function validateBirthTime(text) {
+export function validateBirthTime(text, lang = 'ru') {
   const trimmed = text?.trim();
   if (!TIME_RE.test(trimmed)) {
-    return { ok: false, error: 'Время в формате ЧЧ:ММ, например 14:30' };
+    return { ok: false, error: u(lang, 'timeFormat') };
   }
   return { ok: true, value: trimmed };
 }
 
-export function validateBirthPlace(text) {
+export function validateBirthPlace(text, lang = 'ru') {
   const trimmed = text?.trim().replace(/\s+/g, ' ');
   const normalized = trimmed.toLowerCase();
 
   if (!trimmed || trimmed.length < 2 || trimmed.length > 80) {
-    return {
-      ok: false,
-      error: 'Укажи город или населённый пункт (2–80 символов).',
-    };
+    return { ok: false, error: u(lang, 'placeLength') };
   }
 
   if (!PLACE_CHARS_RE.test(trimmed)) {
-    return {
-      ok: false,
-      error: 'Только буквы, пробелы, дефис и апостроф (например: Москва, Санкт-Петербург).',
-    };
+    return { ok: false, error: u(lang, 'placeChars') };
   }
 
   if (!/[\p{L}]/u.test(trimmed)) {
-    return { ok: false, error: 'В названии должны быть буквы.' };
+    return { ok: false, error: u(lang, 'placeLetters') };
   }
 
   if (PLACE_BLOCKLIST.has(normalized)) {
-    return {
-      ok: false,
-      error: 'Укажи реальный город или населённый пункт рождения.',
-    };
+    return { ok: false, error: u(lang, 'placeReal') };
   }
 
   const tokens = trimmed.split(/[\s\-]+/).filter(Boolean);
@@ -201,23 +187,19 @@ export function validateBirthPlace(text) {
   if (!hasMultiPart && single) {
     const singleNorm = single.toLowerCase();
     if (single.length < 3) {
-      return { ok: false, error: 'Слишком короткое название. Пример: Москва, Казань.' };
+      return { ok: false, error: u(lang, 'placeShort') };
     }
     if (
       single.length < 6 &&
       !SHORT_CITY_ALLOWLIST.has(singleNorm) &&
       !/^[\p{Lu}]/u.test(single)
     ) {
-      return {
-        ok: false,
-        error:
-          'Для одного слова укажи полное название города (от 6 букв) или с заглавной (Омск, Уфа).',
-      };
+      return { ok: false, error: u(lang, 'placeSingleWord') };
     }
   }
 
   if (/(.)\1{4,}/iu.test(trimmed)) {
-    return { ok: false, error: 'Некорректное название места.' };
+    return { ok: false, error: u(lang, 'placeInvalid') };
   }
 
   return { ok: true, value: trimmed };
@@ -242,9 +224,8 @@ export function getBlockFilesForRun(data, block) {
 
 export function saveBlockAttachment(data, blockId, fileInfo) {
   const attachments = { ...(data.block_attachments ?? {}) };
-  // fileInfo может быть строкой (старый формат) или объектом
-  const fileObj = typeof fileInfo === 'string' 
-    ? { file_id: fileInfo, type: 'photo' } 
+  const fileObj = typeof fileInfo === 'string'
+    ? { file_id: fileInfo, type: 'photo' }
     : fileInfo;
   const list = [...(attachments[blockId] ?? []), fileObj].slice(-5);
   attachments[blockId] = list;
@@ -258,7 +239,6 @@ export function hasRequiredFiles(data, block) {
   return getBlockFilesForRun(data, block).length > 0;
 }
 
-/** Есть ли незавершённый прогресс (не сбрасывать на меню). */
 export function hasAnalysisProgress(session) {
   if (!session) return false;
   const data = session.collected_data ?? {};

@@ -2,9 +2,9 @@ import {
   BLOCK_STACK,
   STEPS,
   TEXT_INPUT_STEPS,
-  REJECT_TEXT,
   CALLBACK_PREFIX,
 } from '../scenario/constants.js';
+import { rejectText, u, mapErrorToUser } from '../ui/userCopy.js';
 import { splitTelegramMessages, splitForTelegramWithKeyboard, TELEGRAM_PARSE_MODE, htmlToPlain, formatFollowUpForTelegram } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
@@ -118,7 +118,7 @@ async function finalizeAnalysisSession(from, chat, session, lang) {
     }
 
     const mergedProfile = await loadUserAnalysisProfile(from.id);
-    profileSummary = formatProfileSummary(profileForSummary(mergedProfile));
+    profileSummary = formatProfileSummary(profileForSummary(mergedProfile), lang);
   } catch (err) {
     console.error('Ошибка сохранения профиля:', err.message);
     profileSummary =
@@ -193,10 +193,10 @@ async function getEffectiveBlockFiles(chatId, block) {
   return files;
 }
 
-async function blockPrepText(session, chatId) {
+async function blockPrepText(session, chatId, lang = 'ru') {
   const block = currentBlock(session);
   if (!block) {
-    return '<i>Полный цикл анализа завершён.</i>';
+    return `<i>${u(lang, 'cycleComplete')}</i>`;
   }
 
   // Получаем файлы из БД
@@ -216,42 +216,51 @@ async function blockPrepText(session, chatId) {
     }
   }
 
+  const code = lang === 'en' ? 'en' : 'ru';
   let fileLine;
   if (ownFiles.length > 0) {
-    const fileNames = ownFiles.map((f) => f.file_name || 'Файл').join(', ');
-    fileLine = `Прикреплено файлов · ${ownFiles.length} (${fileNames})`;
-  } else if (inheritedFiles.length > 0) {
-    fileLine = `Используются материалы этапа 3 · ${inheritedFiles.length}. Можно добавить свои.`;
-  } else if (block.requiresExternal) {
+    const fileNames = ownFiles.map((f) => f.file_name || (code === 'en' ? 'File' : 'Файл')).join(', ');
     fileLine =
-      is3BBlockId(block.id)
-        ? 'Требуется файл или текстовое описание данных.'
-        : 'Требуется файл или текстовое описание — обязательно.';
+      code === 'en'
+        ? `Attached files · ${ownFiles.length} (${fileNames})`
+        : `Прикреплено файлов · ${ownFiles.length} (${fileNames})`;
+  } else if (inheritedFiles.length > 0) {
+    fileLine =
+      code === 'en'
+        ? `Using materials from step 3 · ${inheritedFiles.length}. You may add your own.`
+        : `Используются материалы этапа 3 · ${inheritedFiles.length}. Можно добавить свои.`;
+  } else if (block.requiresExternal) {
+    fileLine = u(lang, 'errorFileRequired');
   } else {
-    fileLine = 'Файл или текст — по необходимости.';
+    fileLine =
+      code === 'en'
+        ? 'File or text — if needed for this step.'
+        : 'Файл или текст — по необходимости.';
   }
 
   const userText = session.collected_data?.block_user_text?.[block.id];
   let textLine = null;
   if (userText) {
     const preview = userText.length > 100 ? `${userText.slice(0, 100)}…` : userText;
-    textLine = `Ваш текст · «${preview}»`;
+    textLine =
+      code === 'en' ? `Your text · «${preview}»` : `Ваш текст · «${preview}»`;
   }
 
   const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
 
   const materials = [fileLine, textLine].filter(Boolean).join('\n');
+  const materialsLabel = code === 'en' ? 'Materials' : 'Материалы';
   const sections = [
     calcBlock || null,
-    materials ? section('Материалы', materials, '📎') : null,
+    materials ? section(materialsLabel, materials, '◆') : null,
   ];
 
-  return formatModulePrep(block.id, session.block_index, sections, 'ru');
+  return formatModulePrep(block.id, session.block_index, sections, lang);
 }
 
-async function showBlockPrep(session, chatId) {
+async function showBlockPrep(session, chatId, lang = 'ru') {
   const block = currentBlock(session);
-  const text = await blockPrepText(session, chatId);
+  const text = await blockPrepText(session, chatId, lang);
   return {
     text,
     keyboard: blockPrepKeyboard(block?.id, session.collected_data),
@@ -357,19 +366,19 @@ function resumePrompt(session, lang = 'en') {
       keyboard: confirmKeyboard(lang),
     },
     [STEPS.BLOCK_PREP]: {
-      text: '⏳ <i>Подготовка модуля…</i>',
+      text: `<i>${u(lang, 'stagePreparing')}</i>`,
       keyboard: blockPrepKeyboard(currentBlock(session)?.id, session.collected_data, lang),
     },
     [STEPS.BLOCK_FAILED]: {
-      text: `⚠️ <i>Модуль ${session.last_block_id ?? ''} не выполнен.</i>\nПовторите или вернитесь в меню.`,
+      text: `<i>${u(lang, 'stageFailed')}</i>`,
       keyboard: blockFailedKeyboard(lang),
     },
     [STEPS.BLOCK_RUNNING]: {
-      text: '⏳ <i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
+      text: `<i>${u(lang, 'stageRunning')}</i>`,
       keyboard: runningKeyboard(lang),
     },
     [STEPS.BLOCK_REVIEW]: {
-      text: `✓ <i>Модуль ${session.last_block_id ?? ''} завершён.</i>\nЗадайте вопрос или перейдите дальше.`,
+      text: `<i>${u(lang, 'stageDone')}</i>`,
       keyboard: reviewKeyboard(session, lang),
     },
     [STEPS.COMPLETED]: {
@@ -410,8 +419,8 @@ export async function handleCallback(from, callbackData) {
   console.log(`[handleCallback] userId=${from.id}, callback="${callbackData}"`);
   
   let { chat, session } = await ensureSession(from);
+  const lang = await resolveLang(from);
   
-  // Перечитываем сессию из БД чтобы убедиться что у нас актуальное состояние
   session = await getSession(from.id);
   
   console.log(`[handleCallback] session.step=${session.step}, block_index=${session.block_index}`);
@@ -419,7 +428,7 @@ export async function handleCallback(from, callbackData) {
   const parsed = parseCallbackData(callbackData);
   if (!parsed) {
     console.error(`[handleCallback] Не удалось распарсить callback: ${callbackData}`);
-    return await rejectWrongInput(session, REJECT_TEXT, from.id);
+    return await rejectWrongInput(session, rejectText(lang), from.id);
   }
   
   console.log(`[handleCallback] parsed.action=${parsed.action}, parsed.value=${parsed.value}`);
@@ -468,7 +477,7 @@ export async function handleCallback(from, callbackData) {
       scheduleChatFilesCleanup(chat.id);
       const menu = await showMenu(lang);
       return {
-        text: lang === 'ru' ? 'Сессия сброшена. Можно начать новый анализ.' : 'Session reset. You can start a new analysis.',
+        text: u(lang, 'sessionReset'),
         keyboard: menu.keyboard,
       };
     }
@@ -528,7 +537,7 @@ export async function handleCallback(from, callbackData) {
       }
 
       const [nodeId, variantKey] = (parsed.value ?? '').split(':');
-      const choice = resolveTreeChoice(nodeId, variantKey);
+      const choice = resolveTreeChoice(nodeId, variantKey, userLang);
       if (!choice.ok) {
         return { text: choice.error, keyboard: goalTreeKeyboard(nodeId, userLang) };
       }
@@ -674,7 +683,7 @@ export async function handleCallback(from, callbackData) {
         target_block_id: session.collected_data?.target_block_id ?? null,
       });
       session = await getSession(from.id);
-      return await showBlockPrep(session, chat.id);
+      return await showBlockPrep(session, chat.id, await resolveLang(from));
     }
 
     case 'skip_block': {
@@ -687,7 +696,7 @@ export async function handleCallback(from, callbackData) {
       if (!block) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
         return {
-          text: `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>`,
+          text: `<b>${BRAND.name}</b>\n<i>${u(lang, 'sessionComplete')}</i>`,
           keyboard: completedKeyboard(),
         };
       }
@@ -756,17 +765,16 @@ export async function handleCallback(from, callbackData) {
         const lang = await getUserLanguage(from.id);
         const menu = await showMenu(lang);
         return {
-          text: 'Не удалось перейти к следующему этапу. Повторите попытку.',
+          text: u(lang, 'stageNextFailed'),
           keyboard: menu.keyboard,
         };
       }
-      
-      // Формируем текст для следующего блока
-      const nextBlockText = await blockPrepText(freshSession, chat.id);
+
+      const nextBlockText = await blockPrepText(freshSession, chat.id, lang);
       const nextBlockKeyboard = blockPrepKeyboard(nextBlock.id, freshSession.collected_data);
       
       return {
-        text: `<i>Этап ${block.id} пропущен.</i>\n\n${nextBlockText}`,
+        text: `<i>${u(lang, 'stageSkipped')}</i>\n\n${nextBlockText}`,
         keyboard: nextBlockKeyboard,
       };
     }
@@ -780,7 +788,7 @@ export async function handleCallback(from, callbackData) {
       if (!block) {
         await updateSession(from.id, { step: STEPS.COMPLETED });
         return {
-          text: `<b>${BRAND.name}</b>\n<i>Анализ завершён.</i>`,
+          text: `<b>${BRAND.name}</b>\n<i>${u(lang, 'sessionComplete')}</i>`,
           keyboard: completedKeyboard(),
         };
       }
@@ -789,9 +797,10 @@ export async function handleCallback(from, callbackData) {
       const userText = session.collected_data?.block_user_text?.[block.id];
 
       if (block.requiresExternal && files.length === 0 && !userText) {
-        const text = await blockPrepText(session, chat.id);
+        const runLang = await resolveLang(from);
+        const text = await blockPrepText(session, chat.id, runLang);
         return {
-          text: `${text}\n\n<i>Для этого этапа требуется файл или текстовое описание данных.</i>`,
+          text: `${text}\n\n<i>${u(runLang, 'errorFileRequired')}</i>`,
           keyboard: blockPrepKeyboard(block.id, session.collected_data),
         };
       }
@@ -804,7 +813,7 @@ export async function handleCallback(from, callbackData) {
       }
       await updateSession(from.id, { step: STEPS.BLOCK_PREP });
       session = await getSession(from.id);
-      return await showBlockPrep(session, chat.id);
+      return await showBlockPrep(session, chat.id, await resolveLang(from));
     }
 
     case 'quick_question': {
@@ -871,7 +880,7 @@ export async function handleCallback(from, callbackData) {
         console.error('Ошибка ИИ на quick question:', err.message);
         const qLang = await resolveLang(from);
         return {
-          text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
+          text: u(qLang, 'errorAi'),
           keyboard: reviewKeyboard(session, qLang),
         };
       }
@@ -922,22 +931,23 @@ export async function handleCallback(from, callbackData) {
         step: STEPS.BLOCK_PREP,
       });
       session = await getSession(from.id);
-      return await showBlockPrep(session, chat.id);
+      return await showBlockPrep(session, chat.id, await resolveLang(from));
     }
 
     default:
-      return rejectWrongInput(session, REJECT_TEXT);
+      return rejectWrongInput(session, rejectText(lang));
   }
 }
 
 async function runCurrentBlock(from, chatId) {
   const userId = from.id;
   let session = await getSession(userId);
+  const lang = await resolveLang(from);
 
   if (session.step === STEPS.BLOCK_RUNNING) {
     return {
-      text: '<i>Этап уже выполняется. Дождитесь завершения расчёта.</i>',
-      keyboard: runningKeyboard(),
+      text: `<i>${u(lang, 'stageAlreadyRunning')}</i>`,
+      keyboard: runningKeyboard(lang),
     };
   }
 
@@ -971,8 +981,8 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
     return {
-      text: `Ошибка этапа ${blockId} · ${err.message}\n\nПовторите этап или вернитесь в меню.`,
-      keyboard: blockFailedKeyboard(),
+      text: `${mapErrorToUser(lang, err)}\n\n${u(lang, 'stageRetryHint')}`,
+      keyboard: blockFailedKeyboard(lang),
     };
   }
 }
@@ -986,7 +996,7 @@ export async function handleText(from, rawText) {
   if (!TEXT_INPUT_STEPS.has(step)) {
     if (step === STEPS.BLOCK_RUNNING) {
       return {
-        text: '⏳ <i>Идёт расчёт модуля. Пожалуйста, подождите.</i>',
+        text: `<i>${u(lang, 'stageRunning')}</i>`,
         keyboard: runningKeyboard(lang),
       };
     }
@@ -994,14 +1004,14 @@ export async function handleText(from, rawText) {
       [STEPS.GOAL_TREE]: '🎯 На этом шаге выберите вариант кнопкой ниже.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
-      [STEPS.BLOCK_FAILED]: '↻ Повторите модуль или вернитесь в меню.',
+      [STEPS.BLOCK_FAILED]: u(lang, 'stageRetryHint'),
     };
-    return await rejectWrongInput(session, hints[step] ?? REJECT_TEXT, from.id);
+    return await rejectWrongInput(session, hints[step] ?? rejectText(lang), from.id);
   }
 
   switch (step) {
     case STEPS.BIRTH_DATE: {
-      const v = validateBirthDate(rawText);
+      const v = validateBirthDate(rawText, lang);
       if (!v.ok) return { text: v.error, keyboard: textInputKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_date: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_TIME, collected_data: data });
@@ -1012,7 +1022,7 @@ export async function handleText(from, rawText) {
     }
 
     case STEPS.BIRTH_TIME: {
-      const v = validateBirthTime(rawText);
+      const v = validateBirthTime(rawText, lang);
       if (!v.ok) return { text: v.error, keyboard: birthTimeKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_time: v.value });
       await updateSession(from.id, { step: STEPS.BIRTH_PLACE, collected_data: data });
@@ -1023,7 +1033,7 @@ export async function handleText(from, rawText) {
     }
 
     case STEPS.BIRTH_PLACE: {
-      const v = validateBirthPlace(rawText);
+      const v = validateBirthPlace(rawText, lang);
       if (!v.ok) return { text: v.error, keyboard: textInputKeyboard(lang) };
       const data = mergeCollectedData(session, { birth_place: v.value });
       await updateSession(from.id, { step: STEPS.CONFIRM, collected_data: data });
@@ -1038,7 +1048,7 @@ export async function handleText(from, rawText) {
       // Сохраняем текст как "дополнительную информацию" для блока
       const block = currentBlock(session);
       if (!block) {
-        return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
+        return { text: u(lang, 'cycleComplete'), keyboard: completedKeyboard() };
       }
 
       // Добавляем текст к collected_data для передачи в ИИ
@@ -1055,10 +1065,10 @@ export async function handleText(from, rawText) {
 
       // ВАЖНО: После сохранения текста показываем обновленное состояние блока
       const updatedSession = await getSession(from.id);
-      const updatedText = await blockPrepText(updatedSession, chat.id);
+      const updatedText = await blockPrepText(updatedSession, chat.id, lang);
       
       return {
-        text: `<i>Данные сохранены.</i>\n\n${updatedText}`,
+        text: `<i>${u(lang, 'dataSaved')}</i>\n\n${updatedText}`,
         keyboard: blockPrepKeyboard(block.id, data),
       };
     }
@@ -1109,7 +1119,7 @@ export async function handleText(from, rawText) {
       } catch (err) {
         console.error('Ошибка ИИ на текстовый вопрос:', err.message);
         return {
-          text: `Ошибка получения ответа · ${err.message}\n\nПовторите запрос или перейдите к следующему этапу.`,
+          text: u(lang, 'errorAi'),
           keyboard: reviewKeyboard(session, lang),
         };
       }
@@ -1135,24 +1145,21 @@ export async function handleText(from, rawText) {
     }
 
     default:
-      return await rejectWrongInput(session, REJECT_TEXT, from.id);
+      return await rejectWrongInput(session, rejectText(lang), from.id);
   }
 }
 
 export async function handleFile(from, fileId, fileType = 'photo', fileName = null, mimeType = null) {
   const { chat, session } = await ensureSession(from);
+  const lang = await resolveLang(from);
 
   if (session.step !== STEPS.BLOCK_PREP) {
-    return await rejectWrongInput(
-      session,
-      'Файлы принимаются только на экране этапа после подтверждения профиля. Запустите анализ из главного меню.',
-      from.id
-    );
+    return await rejectWrongInput(session, u(lang, 'filesWrongStep'), from.id);
   }
 
   const block = currentBlock(session);
   if (!block) {
-    return { text: 'Стек блоков завершён.', keyboard: completedKeyboard() };
+    return { text: u(lang, 'cycleComplete'), keyboard: completedKeyboard() };
   }
 
   try {
@@ -1202,11 +1209,11 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
     await updateSession(from.id, { collected_data: data });
 
     const updatedSession = await getSession(from.id);
-    return await showBlockPrep(updatedSession, chat.id);
+    return await showBlockPrep(updatedSession, chat.id, lang);
   } catch (err) {
     console.error('Ошибка загрузки файла:', err.message);
     return {
-      text: `Ошибка · ${err.message}\n\nПовторите загрузку файла.`,
+      text: `${mapErrorToUser(lang, err)}\n\n${u(lang, 'errorFile')}`,
       keyboard: blockPrepKeyboard(block.id, session.collected_data),
     };
   }
@@ -1215,9 +1222,16 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 export async function sendScenarioReply(ctx, payload) {
   if (!payload?.text) {
     console.error('[sendScenarioReply] пустой payload:', payload);
-    await ctx
-      .reply('Не удалось сформировать ответ. Отправьте /start и повторите.')
-      .catch(() => {});
+    const userId = ctx.from?.id;
+    let lang = 'ru';
+    if (userId) {
+      try {
+        lang = await resolveLang({ id: userId });
+      } catch {
+        // default ru
+      }
+    }
+    await ctx.reply(`${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`).catch(() => {});
     return;
   }
 

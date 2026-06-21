@@ -3,36 +3,41 @@
  */
 
 import { letterhead } from '../ui/brand.js';
+import { getModuleMeta } from '../ui/modules.js';
+import { u } from '../ui/userCopy.js';
 
-export function formatProfileSummary(profile) {
+export function formatProfileSummary(profile, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+
   if (!profile || !profile.blocks) {
-    return 'Профиль не найден.';
+    return u(lang, 'errorLoad');
   }
 
   const userData = profile.user_data || {};
   const blocks = profile.blocks || [];
 
   const lines = [
-    letterhead('Итоговый отчёт'),
+    letterhead(code === 'en' ? 'Session report' : 'Итог сессии', lang),
     '',
-    '<b>Данные клиента</b>',
+    `<b>${code === 'en' ? 'Birth profile' : 'Профиль рождения'}</b>`,
     '',
-    `Пол\n${userData.gender_label || '—'}`,
+    `${code === 'en' ? 'Gender' : 'Пол'}\n${userData.gender_label || '—'}`,
     '',
-    `Дата рождения\n${userData.birth_date || '—'}`,
+    `${code === 'en' ? 'Birth date' : 'Дата рождения'}\n${userData.birth_date || '—'}`,
     '',
-    `Время рождения\n${userData.birth_time || '—'}`,
+    `${code === 'en' ? 'Birth time' : 'Время рождения'}\n${userData.birth_time || '—'}`,
     '',
-    `Место рождения\n${userData.birth_place || '—'}`,
+    `${code === 'en' ? 'Birth place' : 'Место рождения'}\n${userData.birth_place || '—'}`,
     '',
-    `Завершение\n${formatDate(profile.completed_at)}`,
+    `${code === 'en' ? 'Completed' : 'Завершение'}\n${formatDate(profile.completed_at)}`,
     '',
-    '<b>Пройденные модули</b>',
+    `<b>${code === 'en' ? 'Completed steps' : 'Пройденные этапы'}</b>`,
     '',
   ];
 
   blocks.forEach((block, index) => {
-    lines.push(`${String(index + 1).padStart(2, '0')} · Module ${block.block_id}`);
+    const meta = getModuleMeta(block.block_id, lang);
+    lines.push(`${String(index + 1).padStart(2, '0')} · ${meta.title}`);
     lines.push(`   ${formatDate(block.completed_at)}`);
 
     if (block.json_payload) {
@@ -45,7 +50,9 @@ export function formatProfileSummary(profile) {
     lines.push('');
   });
 
-  lines.push('<i>Накопительный протокол · обновляются только пройденные модули.</i>');
+  lines.push(
+    `<i>${code === 'en' ? 'Cumulative protocol · only completed steps are saved.' : 'Накопительный протокол · сохраняются только пройденные этапы.'}</i>`,
+  );
 
   return lines.join('\n');
 }
@@ -73,10 +80,6 @@ function extractJsonSummary(jsonPayload, blockId) {
   }
 
   const summaryFields = [];
-
-  if (jsonPayload.осталось_блоков_в_стеке !== undefined) {
-    summaryFields.push(`Осталось · ${jsonPayload.осталось_блоков_в_стеке}`);
-  }
 
   switch (blockId) {
     case '1A':

@@ -82,9 +82,9 @@ export const BTN = {
     confirm: 'Всё верно — начать',
     editData: 'Изменить данные',
     timeUnknown: 'Время неизвестно',
-    runStage: 'Запустить модуль',
+    runStage: 'Запустить этап',
     skipStage: 'Пропустить',
-    nextStage: 'Следующий модуль',
+    nextStage: 'Следующий этап',
     finishSession: 'Завершить сессию',
     retryStage: 'Повторить',
     newAnalysis: 'Новая сессия',
@@ -92,7 +92,7 @@ export const BTN = {
     howApply: 'Как применить',
     moreDetail: 'Подробнее',
     whatMeans: 'Что это значит',
-    menuAbort: 'В меню · прервать',
+    menuAbort: 'В меню',
     changeLanguage: 'Язык',
     languageEn: 'English',
     languageRu: 'Русский',
@@ -110,9 +110,9 @@ export const BTN = {
     confirm: 'Confirm & start',
     editData: 'Edit data',
     timeUnknown: 'Time unknown',
-    runStage: 'Run module',
+    runStage: 'Run step',
     skipStage: 'Skip',
-    nextStage: 'Next module',
+    nextStage: 'Next step',
     finishSession: 'Finish session',
     retryStage: 'Retry',
     newAnalysis: 'New session',
@@ -120,7 +120,7 @@ export const BTN = {
     howApply: 'How to apply',
     moreDetail: 'More detail',
     whatMeans: 'What it means',
-    menuAbort: 'Menu · abort',
+    menuAbort: 'Main menu',
     changeLanguage: 'Language',
     languageEn: 'English',
     languageRu: 'Russian',
@@ -229,7 +229,7 @@ export function formatModuleHeader(blockId, blockIndex, lang = 'ru') {
   const step = blockIndex + 1;
   const partIcon = PART_ICON[meta.part] ?? '◆';
   const moduleLabel =
-    lang === 'en' ? `Module ${String(step).padStart(2, '0')}` : `Модуль ${String(step).padStart(2, '0')}`;
+    lang === 'en' ? `Step ${String(step).padStart(2, '0')}` : `Этап ${String(step).padStart(2, '0')}`;
 
   return [
     letterhead(null, lang),
@@ -242,13 +242,14 @@ export function formatModuleHeader(blockId, blockIndex, lang = 'ru') {
 
 export function formatModulePrep(blockId, blockIndex, sections, lang = 'ru') {
   const meta = getModuleMeta(blockId, lang);
+  const descLabel = lang === 'en' ? 'Overview' : 'Описание';
   return [
     formatModuleHeader(blockId, blockIndex, lang),
     '',
-    section('Описание', `<i>${escapeHtml(meta.brief)}</i>`, '📋'),
+    section(descLabel, `<i>${escapeHtml(meta.brief)}</i>`, '◆'),
     ...sections.filter(Boolean),
     '',
-    `<i>▶ ${lang === 'en' ? 'When ready — run the module.' : 'Когда готовы — запустите модуль.'}</i>`,
+    `<i>${lang === 'en' ? 'When ready — run the step.' : 'Когда готовы — запустите этап.'}</i>`,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -256,19 +257,15 @@ export function formatModulePrep(blockId, blockIndex, sections, lang = 'ru') {
 
 export function formatModuleResult(blockId, blockIndex, bodyHtml, lang = 'ru') {
   const label = lang === 'en' ? 'Interpretation' : 'Интерпретация';
-  const footer =
-    lang === 'en'
-      ? 'Ask a question or proceed to the next module.'
-      : 'Задайте вопрос или перейдите к следующему модулю.';
 
   return [
     formatModuleHeader(blockId, blockIndex, lang),
     '',
     `🔮 <b>${label}</b>`,
     '',
-    bodyHtml || `<i>${lang === 'en' ? 'Module completed.' : 'Модуль выполнен.'}</i>`,
+    bodyHtml || `<i>${lang === 'en' ? 'Step completed.' : 'Этап завершён.'}</i>`,
     '',
-    `<i>💬 ${footer}</i>`,
+    `<i>${lang === 'en' ? 'Ask a question or continue to the next step.' : 'Задайте вопрос или перейдите к следующему этапу.'}</i>`,
   ].join('\n');
 }
 
@@ -307,7 +304,7 @@ export function formatSessionComplete(reportHtml, lang = 'ru') {
     '',
     reportHtml,
     '',
-    `<i>🎉 ${lang === 'en' ? 'Thank you for completing the full protocol.' : 'Спасибо за прохождение полного протокола.'}</i>`,
+    `<i>${lang === 'en' ? 'Thank you for completing the full protocol.' : 'Спасибо за прохождение полного протокола.'}</i>`,
   ]
     .filter((line) => line !== undefined)
     .join('\n');
@@ -338,23 +335,23 @@ export function formatHelp(lang = 'ru') {
       '',
       section(
         'About',
-        'Lapis Vivus is a personal route through interpretation modules — from your origin map to an integration protocol. Each step is built on your birth profile and session focus.',
+        'Lapis Vivus is a personal route through interpretation steps — from your origin map to an integration protocol. Each step is built on your birth profile and session focus.',
         '✨',
       ),
       '',
       section(
         'Session structure',
-        'Five parts — origin, polarity, essence, connections, integration. You may choose a focus or follow the full route module by module.',
+        'Five parts — origin, polarity, essence, connections, integration. You may choose a focus or follow the full route step by step.',
         '🗺',
       ),
       '',
       section(
         'How to begin',
         [
-          '1. Tap «Launch protocol» in the main menu',
-          '2. Complete your birth profile (date, time, place)',
-          '3. Choose a session focus or the full route',
-          '4. Run modules in order and ask clarifying questions',
+        '1. Tap «Launch protocol» in the main menu',
+        '2. Complete your birth profile (date, time, place)',
+        '3. Choose a session focus or the full route',
+        '4. Run steps in order and ask clarifying questions',
         ].join('\n'),
         '▶',
       ),
@@ -390,13 +387,13 @@ export function formatHelp(lang = 'ru') {
     '',
     section(
       'О проекте',
-      'Lapis Vivus — индивидуальный маршрут через модули интерпретации: от карты происхождения до протокола интеграции. Каждый шаг строится на вашем профиле рождения и выбранном фокусе сессии.',
+      'Lapis Vivus — индивидуальный маршрут через этапы интерпретации: от карты происхождения до протокола интеграции. Каждый шаг строится на вашем профиле рождения и выбранном фокусе сессии.',
       '✨',
     ),
     '',
     section(
       'Структура сессии',
-      'Пять частей — происхождение, полярность, сущность, связи, интеграция. Можно выбрать фокус или пройти полный маршрут модуль за модулем.',
+      'Пять частей — происхождение, полярность, сущность, связи, интеграция. Можно выбрать фокус или пройти полный маршрут шаг за шагом.',
       '🗺',
     ),
     '',
@@ -406,7 +403,7 @@ export function formatHelp(lang = 'ru') {
         '1. Нажмите «Запустить протокол» в главном меню',
         '2. Заполните профиль рождения (дата, время, место)',
         '3. Выберите фокус сессии или полный маршрут',
-        '4. Запускайте модули по очереди и задавайте уточняющие вопросы',
+        '4. Проходите этапы по очереди и задавайте уточняющие вопросы',
       ].join('\n'),
       '▶',
     ),

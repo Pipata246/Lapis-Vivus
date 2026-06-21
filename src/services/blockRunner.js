@@ -20,6 +20,7 @@ import {
 import { buildVisionContentParts } from './telegramFiles.js';
 import { compressMessagesForAI } from '../ai/contextMessages.js';
 import { fetchPrecomputedForBlock, SERVER_COMPUTE_BLOCKS } from './computeClient.js';
+import { u } from '../ui/userCopy.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
 const lastAiCallByUser = new Map();
@@ -185,7 +186,7 @@ function enforceRateLimit(userId) {
   const now = Date.now();
   const last = lastAiCallByUser.get(userId) ?? 0;
   if (now - last < MIN_AI_INTERVAL_MS) {
-    throw new Error('Слишком частые запросы. Подожди 12 секунд.');
+    throw new Error(u('ru', 'errorRateLimit'));
   }
   lastAiCallByUser.set(userId, now);
 }
@@ -231,7 +232,7 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
   }
 
   if (!isDeliverableBlockResponse(answer, blockId)) {
-    throw new Error(`Ответ модели не прошёл проверку: ${validation.issues.join('; ')}`);
+    throw new Error(u('ru', 'errorStage'));
   }
 
   return answer;
@@ -244,7 +245,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   const block = BLOCK_STACK[blockIndex];
 
   if (!block) {
-    throw new Error('Стек блоков завершён.');
+    throw new Error(u('ru', 'cycleComplete'));
   }
 
   const files = await getBlockFiles(chatId, block.id);
@@ -258,16 +259,12 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   if (needsServerCompute) {
     precomputed = await fetchPrecomputedForBlock(block.id, data);
     if (!precomputed) {
-      throw new Error(
-        'Compute-сервис не настроен. Задайте COMPUTE_API_URL и COMPUTE_API_SECRET на Vercel.',
-      );
+      throw new Error(u('ru', 'errorStage'));
     }
   }
 
   if (block.requiresExternal && effectiveFiles.length === 0 && !userBlockText && !precomputed) {
-    throw new Error(
-      `Для блока ${block.id} нужен хотя бы один прикреплённый файл или текст с данными.`
-    );
+    throw new Error(u('ru', 'errorFileRequired'));
   }
 
   const completedBlocks = await getCompletedBlocksForSession(chatId, session.session_start_at);

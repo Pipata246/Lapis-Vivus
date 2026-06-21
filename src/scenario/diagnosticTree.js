@@ -5,6 +5,7 @@
 
 import { BLOCK_STACK } from './constants.js';
 import { getModuleMeta } from '../ui/modules.js';
+import { u } from '../ui/userCopy.js';
 
 export const TREE_ROOT = 'shag_0';
 
@@ -216,12 +217,12 @@ export function isFullSession(data) {
  * @param {string} nodeId
  * @param {'a'|'b'} variantKey
  */
-export function resolveTreeChoice(nodeId, variantKey) {
+export function resolveTreeChoice(nodeId, variantKey, lang = 'ru') {
   const node = getTreeNode(nodeId);
-  if (!node) return { ok: false, error: 'Неизвестный шаг опроса.' };
+  if (!node) return { ok: false, error: u(lang, 'errorTreeStep') };
 
   const variant = node.variants[variantKey];
-  if (!variant) return { ok: false, error: 'Неизвестный вариант ответа.' };
+  if (!variant) return { ok: false, error: u(lang, 'errorTreeStep') };
 
   const pathEntry = {
     node: nodeId,
@@ -260,7 +261,7 @@ export function resolveTreeChoice(nodeId, variantKey) {
     };
   }
 
-  return { ok: false, error: 'Ветка опроса не настроена.' };
+  return { ok: false, error: u(lang, 'errorTreeBranch') };
 }
 
 export function resolveBlockIndex(targetBlockId) {
@@ -309,9 +310,6 @@ export function formatGoalSummary(data, lang = 'ru') {
   let text = `${modeLabel}\n<b>${meta.title}</b>${variantNote}`;
   if (data.goal_leaf_label) {
     text += `\n<i>${data.goal_leaf_label}</i>`;
-  }
-  if (data.goal_maslow) {
-    text += `\n<i>Maslow · ${data.goal_maslow}</i>`;
   }
   return text;
 }

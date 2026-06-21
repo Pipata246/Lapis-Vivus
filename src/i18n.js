@@ -1,6 +1,7 @@
 // Multilingual support for Lapis Vivus Bot
 
 import { btn, formatWelcome, formatHelp, letterhead } from './ui/brand.js';
+import { u as userCopy } from './ui/userCopy.js';
 
 const translations = {
   en: {
@@ -37,9 +38,9 @@ const translations = {
     editCalculators: 'Calculators',
     insufficientRights: 'Insufficient access rights',
 
-    errorOccurred: 'Error',
+    errorOccurred: 'Something went wrong',
     tryAgain: 'Please try again or send /start',
-    commandsDisabled: 'Commands are disabled. Use /start.',
+    commandsDisabled: 'Send /start to open the main menu.',
   },
 
   ru: {
@@ -76,9 +77,9 @@ const translations = {
     editCalculators: 'Калькуляторы',
     insufficientRights: 'Недостаточно прав доступа',
 
-    errorOccurred: 'Ошибка',
-    tryAgain: 'Повторите попытку или отправьте /start',
-    commandsDisabled: 'Команды отключены. Используйте /start.',
+    errorOccurred: 'Не удалось выполнить действие',
+    tryAgain: 'Попробуйте ещё раз или отправьте /start',
+    commandsDisabled: 'Используйте /start для главного меню.',
   },
 };
 
@@ -90,6 +91,8 @@ export function t(lang, key, params = {}) {
     return params[paramKey] !== undefined ? params[paramKey] : match;
   });
 }
+
+export { userCopy as u };
 
 export function getLanguageName(lang) {
   const names = { en: 'English', ru: 'Русский' };

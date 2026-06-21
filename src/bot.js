@@ -7,7 +7,7 @@ import {
   handleFile,
   sendScenarioReply,
 } from './services/scenario.js';
-import { t } from './i18n.js';
+import { t, u } from './i18n.js';
 import {
   getMainMenuKeyboard,
   getProfileKeyboard,
@@ -85,7 +85,8 @@ function registerHandlers(bot) {
       );
     } catch (err) {
       console.error('Ошибка /start:', err.message);
-      await ctx.reply('Failed to start bot. Try again later.');
+      const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
+      await ctx.reply(u(lang, 'errorStart'));
     }
   });
 
@@ -111,7 +112,7 @@ function registerHandlers(bot) {
       );
     } catch (err) {
       console.error('Ошибка /admin:', err.message);
-      await ctx.reply('Error checking access rights.');
+      await ctx.reply(u(lang, 'errorAccess'));
     }
   });
 
@@ -128,7 +129,8 @@ function registerHandlers(bot) {
       });
     } catch (err) {
       console.error('Ошибка /profile:', err.message);
-      await ctx.reply('Error loading profile.');
+      const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
+      await ctx.reply(u(lang, 'errorLoad'));
     }
   });
 
@@ -145,7 +147,8 @@ function registerHandlers(bot) {
       });
     } catch (err) {
       console.error('Ошибка /balance:', err.message);
-      await ctx.reply('Error loading balance.');
+      const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
+      await ctx.reply(u(lang, 'errorLoad'));
     }
   });
 
@@ -158,7 +161,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
-      await ctx.reply(`${t(lang, 'errorOccurred')}: ${err.message}`);
+      await ctx.reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`);
     }
   });
 
@@ -173,7 +176,7 @@ function registerHandlers(bot) {
       });
     } catch (err) {
       console.error('Ошибка /settings:', err.message);
-      await ctx.reply('Error loading settings.');
+      await ctx.reply(u(lang, 'errorLoad'));
     }
   });
 
@@ -188,7 +191,7 @@ function registerHandlers(bot) {
       });
     } catch (err) {
       console.error('Ошибка /help:', err.message);
-      await ctx.reply('Error loading help.');
+      await ctx.reply(u(lang, 'errorLoad'));
     }
   });
 
@@ -235,7 +238,7 @@ function registerHandlers(bot) {
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);
         await ctx
-          .reply(`${t(lang, 'errorOccurred')} · ${err.message}\n\n${t(lang, 'tryAgain')}`)
+          .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
           .catch(() => {});
       } finally {
         processingCallbacks.delete(key);
@@ -268,7 +271,7 @@ function registerHandlers(bot) {
           } catch (err) {
             console.error('Ошибка start_analysis (legacy):', err.message, err.stack);
             await ctx
-              .reply(`${t(lang, 'errorOccurred')}: ${err.message}\n\n${t(lang, 'tryAgain')}`)
+              .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
               .catch(() => {});
           }
           break;
@@ -369,7 +372,7 @@ function registerHandlers(bot) {
           break;
           
         default:
-          await ctx.reply(lang === 'ru' ? 'Неизвестное действие.' : 'Unknown action.');
+          await ctx.reply(u(lang, 'errorUnknownAction'));
       }
       
       return;
@@ -476,7 +479,7 @@ function registerHandlers(bot) {
           break;
           
         default:
-          await ctx.reply('Неизвестное действие.');
+          await ctx.reply(u(lang, 'errorUnknownAction'));
       }
 
       return;
@@ -493,7 +496,7 @@ function registerHandlers(bot) {
     } catch (err) {
       console.error('[callback] fatal:', err.message, err.stack);
       await ctx
-        .reply(`${t(lang, 'errorOccurred')} · ${err.message}\n\n${t(lang, 'tryAgain')}`)
+        .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
         .catch(() => {});
     }
   });
@@ -524,7 +527,7 @@ function registerHandlers(bot) {
       if (!adminStatus) {
         console.log('[text] НЕ админ, сбрасываем режим');
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply('У вас недостаточно прав');
+        await ctx.reply(t(lang, 'insufficientRights'));
         return;
       }
       
@@ -585,7 +588,7 @@ function registerHandlers(bot) {
         const payment = await createTopupPayment(userId, parsed.amountRub, lang);
 
         if (!payment.confirmationUrl) {
-          throw new Error(lang === 'ru' ? 'Не получена ссылка на оплату.' : 'Payment link missing.');
+          throw new Error(u(lang, 'paymentLinkMissing'));
         }
 
         await updateSession(userId, { ui_mode: null });
@@ -599,8 +602,8 @@ function registerHandlers(bot) {
         await ctx
           .reply(
             lang === 'ru'
-              ? `Не удалось создать платёж · ${err.message}`
-              : `Failed to create payment · ${err.message}`,
+              ? `${u(lang, 'errorPayment')}`
+              : `${u(lang, 'errorPayment')}`,
             { reply_markup: getTopupCancelKeyboard(lang) },
           )
           .catch(() => {});
@@ -633,7 +636,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка text:', err.message, err.stack);
-      await ctx.reply(`Ошибка · ${err.message}\n\nПовторите попытку.`).catch(() => {});
+      await ctx.reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`).catch(() => {});
     } finally {
       setTimeout(() => {
         processingMessages.delete(key);
@@ -655,7 +658,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка photo:', err.message);
-      await ctx.reply('Ошибка обработки фото. Попробуй ещё раз.');
+      await ctx.reply(u(lang, 'errorPhoto'));
     }
   });
 
@@ -682,7 +685,7 @@ function registerHandlers(bot) {
       if (!adminStatus) {
         console.log('[document] НЕ админ, сбрасываем режим');
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply('У вас недостаточно прав');
+        await ctx.reply(t(lang, 'insufficientRights'));
         return;
       }
       
@@ -794,7 +797,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка document:', err.message);
-      await ctx.reply('Ошибка обработки документа. Попробуй ещё раз.');
+      await ctx.reply(u(lang, 'errorDocument'));
     }
   });
 
@@ -802,9 +805,8 @@ function registerHandlers(bot) {
     if (ctx.message.text || ctx.message.photo || ctx.message.document) return;
     if (!ctx.from?.id) return;
 
-    await ctx.reply(
-      'Этот тип сообщения не поддерживается. Используй кнопки, текст анкеты или файл на экране блока.',
-    );
+    const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
+    await ctx.reply(u(lang, 'unsupportedMessage'));
   });
 
   bot.catch((err) => {
