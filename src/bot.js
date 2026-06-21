@@ -34,9 +34,15 @@ import {
   setUserLanguage,
   getUserProfile,
   isAdmin,
+  hasLegalAccepted,
+  acceptLegalDocuments,
 } from './db/users.js';
 import { expireStalePayments } from './db/payments.js';
 import { getSession, updateSession } from './db/sessions.js';
+import {
+  formatLegalGateMessage,
+  getLegalGateKeyboard,
+} from './ui/legal.js';
 
 let botInstance = null;
 
@@ -57,6 +63,38 @@ async function buildBalanceText(userId, lang) {
   return formatBalanceCard(profile, lang);
 }
 
+async function sendLegalGate(ctx, lang) {
+  await ctx.reply(formatLegalGateMessage(lang), {
+    parse_mode: 'HTML',
+    reply_markup: getLegalGateKeyboard(lang),
+  });
+}
+
+async function sendMainMenu(ctx, lang) {
+  await ctx.reply(t(lang, 'welcome'), {
+    parse_mode: 'HTML',
+    reply_markup: getMainMenuKeyboard(lang),
+  });
+}
+
+async function ensureLegalOrGate(ctx, lang) {
+  const userId = ctx.from?.id;
+  if (!userId) return false;
+  if (await hasLegalAccepted(userId)) return true;
+
+  if (ctx.callbackQuery) {
+    await ctx
+      .editMessageText(formatLegalGateMessage(lang), {
+        parse_mode: 'HTML',
+        reply_markup: getLegalGateKeyboard(lang),
+      })
+      .catch(() => sendLegalGate(ctx, lang));
+  } else {
+    await sendLegalGate(ctx, lang);
+  }
+  return false;
+}
+
 function registerHandlers(bot) {
   bot.start(async (ctx) => {
     if (!ctx.from?.id) return;
@@ -74,15 +112,13 @@ function registerHandlers(bot) {
       
       // Получаем язык пользователя
       const lang = await getUserLanguage(userId);
-      
-      // Отправляем главное меню
-      await ctx.reply(
-        t(lang, 'welcome'),
-        {
-          parse_mode: 'HTML',
-          reply_markup: getMainMenuKeyboard(lang),
-        }
-      );
+
+      if (!(await hasLegalAccepted(userId))) {
+        await sendLegalGate(ctx, lang);
+        return;
+      }
+
+      await sendMainMenu(ctx, lang);
     } catch (err) {
       console.error('Ошибка /start:', err.message);
       const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
@@ -122,6 +158,7 @@ function registerHandlers(bot) {
       await initUser(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
+      if (!(await ensureLegalOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
       await ctx.reply(await buildProfileText(userId, lang), {
         parse_mode: 'HTML',
@@ -140,6 +177,7 @@ function registerHandlers(bot) {
       await initUser(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
+      if (!(await ensureLegalOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
       await ctx.reply(await buildBalanceText(userId, lang), {
         parse_mode: 'HTML',
@@ -156,6 +194,8 @@ function registerHandlers(bot) {
     if (!ctx.from?.id) return;
     try {
       await initUser(ctx.from);
+      const lang = await getUserLanguage(ctx.from.id);
+      if (!(await ensureLegalOrGate(ctx, lang))) return;
       await ctx.sendChatAction('typing').catch(() => {});
       const payload = await handleCallback(ctx.from, 'lv:start');
       await sendScenarioReply(ctx, payload);
@@ -170,12 +210,14 @@ function registerHandlers(bot) {
     try {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
+      if (!(await ensureLegalOrGate(ctx, lang))) return;
       await ctx.reply(`${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`, {
         parse_mode: 'HTML',
         reply_markup: getSettingsKeyboard(lang),
       });
     } catch (err) {
       console.error('Ошибка /settings:', err.message);
+      const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
       await ctx.reply(u(lang, 'errorLoad'));
     }
   });
@@ -185,6 +227,7 @@ function registerHandlers(bot) {
     try {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
+      if (!(await ensureLegalOrGate(ctx, lang))) return;
       await ctx.reply(t(lang, 'helpText'), {
         parse_mode: 'HTML',
         reply_markup: getHelpKeyboard(lang),
@@ -212,6 +255,27 @@ function registerHandlers(bot) {
     }
 
     try {
+    if (callbackData === 'nav:legal_accept') {
+      await acceptLegalDocuments(userId);
+      await ctx
+        .editMessageText(t(lang, 'welcome'), {
+          parse_mode: 'HTML',
+          reply_markup: getMainMenuKeyboard(lang),
+        })
+        .catch(() => sendMainMenu(ctx, lang));
+      return;
+    }
+
+    if (!(await hasLegalAccepted(userId))) {
+      await ctx
+        .editMessageText(formatLegalGateMessage(lang), {
+          parse_mode: 'HTML',
+          reply_markup: getLegalGateKeyboard(lang),
+        })
+        .catch(() => sendLegalGate(ctx, lang));
+      return;
+    }
+
     // ВАЖНО: Сценарные callback'ы (lv:*) обрабатываются ПЕРВЫМИ
     if (callbackData.startsWith('lv:')) {
       const key = `${userId}:${callbackData}`;
@@ -514,6 +578,8 @@ function registerHandlers(bot) {
       await ctx.reply(t(lang, 'commandsDisabled'));
       return;
     }
+
+    if (!(await ensureLegalOrGate(ctx, lang))) return;
     
     // Проверяем режим админа из БД
     const { getSession, updateSession } = await import('./db/sessions.js');
@@ -647,6 +713,9 @@ function registerHandlers(bot) {
   bot.on('photo', async (ctx) => {
     if (!ctx.from?.id) return;
 
+    const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
+    if (!(await ensureLegalOrGate(ctx, lang))) return;
+
     const photos = ctx.message.photo ?? [];
     const largest = photos[photos.length - 1];
     if (!largest?.file_id) return;
@@ -669,11 +738,14 @@ function registerHandlers(bot) {
     if (!document?.file_id) return;
     
     const userId = ctx.from.id;
+    const lang = await getUserLanguage(userId).catch(() => 'ru');
     
     // Проверяем режим админа из БД
     const { getSession, updateSession } = await import('./db/sessions.js');
     const session = await getSession(userId);
     const adminMode = session?.admin_mode;
+
+    if (!adminMode && !(await ensureLegalOrGate(ctx, lang))) return;
     
     console.log(`[document] userId=${userId}, adminMode=${adminMode}, fileName=${document.file_name}`);
     

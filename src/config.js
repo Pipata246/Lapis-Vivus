@@ -92,6 +92,15 @@ export const TOPUP_MAX_RUB = 100_000;
 /** Срок жизни счёта на оплату (минуты). */
 export const PAYMENT_TTL_MINUTES = 10;
 
+/** Публичный URL сайта (страницы legal/, webhook). SITE_URL или VERCEL_URL. */
+export function loadSiteConfig() {
+  const explicit = process.env.SITE_URL?.trim().replace(/\/$/, '') ?? '';
+  const vercel = process.env.VERCEL_URL?.trim();
+  const siteUrl = explicit || (vercel ? `https://${vercel}` : '');
+
+  return { siteUrl };
+}
+
 function envFlag(name, defaultValue = false) {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === '') return defaultValue;

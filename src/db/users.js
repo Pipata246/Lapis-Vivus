@@ -108,6 +108,39 @@ export async function getUserProfile(userId) {
   return data;
 }
 
+export async function hasLegalAccepted(userId) {
+  const supabase = getSupabase();
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('legal_accepted')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[users] legal_accepted read:', error.message);
+    return false;
+  }
+
+  return Boolean(data?.legal_accepted);
+}
+
+export async function acceptLegalDocuments(userId) {
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('users')
+    .update({ legal_accepted: true, legal_accepted_at: now })
+    .eq('id', userId);
+
+  if (error) {
+    throw new Error(`Не удалось сохранить согласие: ${error.message}`);
+  }
+
+  return true;
+}
+
 export async function saveUserProfile(userId, profileData) {
   if (!Number.isInteger(userId) || userId <= 0) {
     throw new Error('Некорректный user_id.');

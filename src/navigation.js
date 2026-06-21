@@ -1,5 +1,6 @@
 import { t } from './i18n.js';
 import { btn, SUPPORT } from './ui/brand.js';
+import { getLegalDocsKeyboard } from './ui/legal.js';
 
 /**
  * Главное меню
@@ -49,12 +50,13 @@ export function getHelpKeyboard(lang) {
   const contactLabel =
     code === 'en' ? `💬 Support · ${SUPPORT.telegramMention}` : `💬 Поддержка · ${SUPPORT.telegramMention}`;
 
-  return {
-    inline_keyboard: [
-      [{ text: contactLabel, url: SUPPORT.telegramUrl }],
-      [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
-    ],
-  };
+  const rows = [
+    ...getLegalDocsKeyboard(lang),
+    [{ text: contactLabel, url: SUPPORT.telegramUrl }],
+    [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
+  ];
+
+  return { inline_keyboard: rows };
 }
 
 export function getAdminKeyboard(lang) {
