@@ -1802,11 +1802,6 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 
 export async function sendScenarioReply(ctx, payload) {
   try {
-    if (ctx.message && !ctx.callbackQuery) {
-      const { deleteUserInput } = await import('../ui/singleMessage.js');
-      await deleteUserInput(ctx);
-    }
-
     const userId = ctx.from?.id;
     let lang = 'ru';
     if (userId) {

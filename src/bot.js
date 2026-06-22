@@ -36,6 +36,7 @@ import {
   isAdmin,
   hasLegalAccepted,
   acceptLegalDocuments,
+  upsertUserFromTelegram,
 } from './db/users.js';
 import { expireStalePayments } from './db/payments.js';
 import { getSession, updateSession, resetSession } from './db/sessions.js';
@@ -234,7 +235,7 @@ function registerHandlers(bot) {
   bot.command('profile', async (ctx) => {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
-      await initUser(ctx.from);
+      await upsertUserFromTelegram(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
@@ -255,7 +256,7 @@ function registerHandlers(bot) {
   bot.command('balance', async (ctx) => {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
-      await initUser(ctx.from);
+      await upsertUserFromTelegram(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
@@ -276,7 +277,7 @@ function registerHandlers(bot) {
   bot.command('protocol', async (ctx) => {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
-      await initUser(ctx.from);
+      await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
       await ctx.sendChatAction('typing').catch(() => {});
@@ -296,7 +297,7 @@ function registerHandlers(bot) {
   bot.command('settings', async (ctx) => {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
-      await initUser(ctx.from);
+      await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
       await deliverScreen(ctx, {
@@ -315,7 +316,7 @@ function registerHandlers(bot) {
   bot.command('help', async (ctx) => {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
     try {
-      await initUser(ctx.from);
+      await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
       await deliverScreen(ctx, {
@@ -763,8 +764,6 @@ function registerHandlers(bot) {
     const lang = await getUserLanguage(userId);
 
     if (text.startsWith('/')) {
-      const { deleteUserInput } = await import('./ui/singleMessage.js');
-      await deleteUserInput(ctx);
       await deliverScreen(ctx, { text: t(lang, 'commandsDisabled'), userId, lang, skipMainMenu: true });
       return;
     }

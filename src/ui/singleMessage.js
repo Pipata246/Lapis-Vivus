@@ -35,17 +35,31 @@ export function ensureMainMenuRow(keyboard, lang = 'ru') {
 export function resolveUiTarget(ctx, session) {
   const chatId = ctx.chat?.id ?? session?.chat_id ?? null;
   const fromCallback = ctx.callbackQuery?.message?.message_id ?? null;
-  const fromSession = session?.ui_message_id ?? null;
+  const fromSession = session?.ui_message_id ?? session?.collected_data?._ui_message_id ?? null;
   const messageId = fromCallback ?? fromSession ?? null;
   return { chatId, messageId };
 }
 
-export async function persistUiMessageId(userId, messageId) {
+export async function persistUiMessageId(userId, messageId, session = null) {
   if (!userId || !messageId) return;
   try {
     await updateSession(userId, { ui_message_id: messageId });
   } catch (err) {
-    console.error('[singleMessage] persist id:', err.message);
+    const msg = String(err.message ?? '');
+    if (/ui_message_id|column|schema cache/i.test(msg)) {
+      try {
+        const s = session ?? (await getSession(userId));
+        if (s) {
+          await updateSession(userId, {
+            collected_data: { ...(s.collected_data ?? {}), _ui_message_id: messageId },
+          });
+        }
+      } catch (fallbackErr) {
+        console.error('[singleMessage] persist id (fallback):', fallbackErr.message);
+      }
+      return;
+    }
+    console.error('[singleMessage] persist id:', msg);
   }
 }
 
@@ -79,6 +93,11 @@ export async function deliverSingleMessage(
   ctx,
   { text, keyboard, userId, lang = 'ru', skipMainMenu = false },
 ) {
+  // Сообщение пользователя (текст, команда /profile и т.д.) — убираем из чата
+  if (ctx.message?.message_id && !ctx.callbackQuery) {
+    await deleteUserInput(ctx);
+  }
+
   const session = userId ? await getSession(userId).catch(() => null) : null;
   const finalKeyboard = skipMainMenu ? keyboard : ensureMainMenuRow(keyboard, lang);
 
@@ -92,18 +111,18 @@ export async function deliverSingleMessage(
   const sendNew = async () => {
     try {
       const msg = await ctx.reply(text, replyOptions);
-      if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id);
+      if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id, session);
       return msg;
     } catch (err) {
       if (err.message?.includes('parse') || err.message?.includes('entities')) {
         const msg = await sendPlain(ctx, text, finalKeyboard);
-        if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id);
+        if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id, session);
         return msg;
       }
       if (err.message?.includes('message is too long')) {
         const short = `${htmlToPlain(text).slice(0, TELEGRAM_MAX - 16)}…`;
         const msg = await ctx.reply(short, finalKeyboard ? { reply_markup: finalKeyboard } : {});
-        if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id);
+        if (userId && msg?.message_id) await persistUiMessageId(userId, msg.message_id, session);
         return msg;
       }
       throw err;
@@ -116,11 +135,11 @@ export async function deliverSingleMessage(
 
   try {
     await ctx.telegram.editMessageText(chatId, messageId, undefined, text, replyOptions);
-    if (userId) await persistUiMessageId(userId, messageId);
+    if (userId) await persistUiMessageId(userId, messageId, session);
     return { message_id: messageId, chat: { id: chatId } };
   } catch (err) {
     if (/message is not modified/i.test(err.message)) {
-      if (userId) await persistUiMessageId(userId, messageId);
+      if (userId) await persistUiMessageId(userId, messageId, session);
       return { message_id: messageId, chat: { id: chatId } };
     }
     console.log('[singleMessage] edit failed → new:', err.message);
