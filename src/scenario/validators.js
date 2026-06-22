@@ -127,11 +127,17 @@ export function parseCallbackData(data) {
     return null;
   }
 
+  if (action === 'partner_gender' && value !== 'male' && value !== 'female') {
+    return null;
+  }
+
   if (action === 'quick_question' && value === null) {
     return null;
   }
 
-  if (action !== 'gender' && action !== 'quick_question' && action !== 'tree' && action !== 'finish_session' && value !== null) {
+  /** Действия, которым разрешён параметр после «:» */
+  const actionsWithValue = new Set(['gender', 'partner_gender', 'quick_question', 'compare_context']);
+  if (value !== null && !actionsWithValue.has(action)) {
     return null;
   }
 
