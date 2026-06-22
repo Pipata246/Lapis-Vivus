@@ -107,6 +107,7 @@ function buildCompareResultPager(data, bodyHtml, lang) {
     bodyHtml: bodyHtml ?? '',
     index: 0,
     completeActions: 'compare',
+    showDoneLine: false,
   };
 }
 
@@ -1364,6 +1365,7 @@ async function runCompareBlock(from, chatId, lang) {
       session,
       chatId,
       userId,
+      lang,
     });
 
     const freshSession = await getSession(userId);
@@ -1434,6 +1436,7 @@ async function runCurrentBlock(from, chatId) {
       session,
       chatId,
       userId,
+      lang,
     });
 
     session = await updateSession(userId, {
@@ -1441,7 +1444,6 @@ async function runCurrentBlock(from, chatId) {
       last_block_id: blockId,
     });
 
-    const lang = await resolveLang(from);
     const parts = splitForTelegramWithKeyboard(userMessage, reviewKeyboard(session, lang));
 
     return {
@@ -1486,8 +1488,6 @@ export async function handleText(from, rawText) {
       [STEPS.COMPARE_CONTEXT_CUSTOM]: '✏️ Опишите контекст сравнения текстом.',
       [STEPS.PARTNER_GENDER]: '👤 Выберите пол второго человека кнопкой ниже.',
       [STEPS.COMPARE_CONFIRM]: '✓ Подтвердите данные пары кнопкой ниже.',
-      [STEPS.COMPARE_RESULT]:
-        lang === 'en' ? '📖 Use ◀ Back / Next ▶ to read the result.' : '📖 Листайте результат кнопками ◀ Назад / Далее ▶.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: u(lang, 'stageRetryHint'),

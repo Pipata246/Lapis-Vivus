@@ -21,6 +21,7 @@ import { buildVisionContentParts } from './telegramFiles.js';
 import { compressMessagesForAI } from '../ai/contextMessages.js';
 import { fetchPrecomputedForBlock, fetchPrecomputedPairForBlock, SERVER_COMPUTE_BLOCKS } from './computeClient.js';
 import { u } from '../ui/userCopy.js';
+import { formatCompareForUser, buildCompareExecutionInstruction } from '../scenario/compareFlow.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
 const lastAiCallByUser = new Map();
@@ -196,12 +197,12 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
       birth_place: data.partner_birth_place ?? null,
     };
     const ctxLabel = data.compare_context_label ?? data.goal_leaf_label ?? 'pair';
-    payload.execution_instruction =
-      `STRICT: PAIRED COMPOSITE — compare universal_input (person 1) and partner_input (person 2) ` +
-      `through block ${block.id} ONLY. Context: «${ctxLabel}». ` +
-      `All interpretation must address this comparison context (relationships / family / business / friendship / custom). ` +
-      `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
-      'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.';
+    payload.execution_instruction = buildCompareExecutionInstruction(
+      block.id,
+      ctxLabel,
+      remaining,
+      jsonArtifactName(block.id),
+    );
   }
 
   return payload;
@@ -267,7 +268,7 @@ async function callModelWithValidation(operatorPayload, files, blockId, chatId, 
   return answer;
 }
 
-export async function runAnalysisBlock({ session, chatId, userId }) {
+export async function runAnalysisBlock({ session, chatId, userId, lang = 'ru' }) {
   enforceRateLimit(userId);
 
   const blockIndex = session.block_index;
@@ -355,7 +356,9 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     if (!data.compare_mode) throw err;
   });
 
-  const userMessage = formatBlockForUser(answer, block.id, blockIndex);
+  const userMessage = data.compare_mode
+    ? formatCompareForUser(answer, lang)
+    : formatBlockForUser(answer, block.id, blockIndex, lang);
 
   return {
     blockId: block.id,

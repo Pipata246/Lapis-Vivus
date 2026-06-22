@@ -36,7 +36,7 @@ export function splitIntoBookPages(bodyHtml, maxLen = PAGER_CONTENT_MAX) {
  * @param {string} [opts.lang]
  * @param {boolean} [opts.isLastPage]
  */
-export function formatBookPage({ headerHtml, bodyHtml, pageIndex, totalPages, lang = 'ru', isLastPage = false }) {
+export function formatBookPage({ headerHtml, bodyHtml, pageIndex, totalPages, lang = 'ru', isLastPage = false, showDoneLine = true }) {
   const code = lang === 'en' ? 'en' : 'ru';
   const pageNum = pageIndex + 1;
   const indicator =
@@ -44,9 +44,10 @@ export function formatBookPage({ headerHtml, bodyHtml, pageIndex, totalPages, la
       ? `<i>${code === 'en' ? 'Page' : 'Страница'} ${pageNum} / ${totalPages}</i>`
       : '';
 
-  const doneLine = isLastPage
-    ? `\n\n<b>${code === 'en' ? '✓ Complete' : '✅ Готово'}</b>`
-    : '';
+  const doneLine =
+    isLastPage && showDoneLine
+      ? `\n\n<b>${code === 'en' ? '✓ Complete' : '✅ Готово'}</b>`
+      : '';
 
   const full = [headerHtml, '', bodyHtml, doneLine, indicator].filter((line) => line !== '').join('\n');
   if (full.length <= TELEGRAM_MAX) return full;
@@ -113,6 +114,7 @@ export function renderPagerPage(pager, lang = 'ru') {
     totalPages: total,
     lang,
     isLastPage: isLast,
+    showDoneLine: pager?.showDoneLine !== false,
   });
 
   const keyboard = bookPagerKeyboard({

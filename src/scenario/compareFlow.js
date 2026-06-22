@@ -1,4 +1,5 @@
-import { letterhead, ONBOARDING_ICON, escapeHtml, stepDots, btn } from '../ui/brand.js';
+import { letterhead, ONBOARDING_ICON, escapeHtml, stepDots, btn, section } from '../ui/brand.js';
+import { formatForTelegram } from '../ai/formatResponse.js';
 import { CALLBACK_PREFIX } from './constants.js';
 
 /** Единый движок сравнения пары — контекст только в prompt, блок один для всех категорий. */
@@ -176,20 +177,23 @@ export function partnerTimeKeyboard(lang = 'ru') {
   };
 }
 
-/** Экран выбора контекста — один блок, без инструкций. */
 export function formatCompareStartScreen(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   if (code === 'en') {
     return [
       letterhead('Compatibility', lang),
       '',
-      '<b>Choose or describe the context</b>',
+      '💫 <b>Pair compatibility</b>',
+      '',
+      '<i>Choose the context — you will receive a dynamics report and a clear verdict.</i>',
     ].join('\n');
   }
   return [
     letterhead('Совместимость', lang),
     '',
-    '<b>Выберите или опишите контекст</b>',
+    '💫 <b>Совместимость пары</b>',
+    '',
+    '<i>Выберите контекст — в отчёте будет динамика связи и чёткий итог с рекомендацией.</i>',
   ].join('\n');
 }
 
@@ -355,20 +359,154 @@ export function formatCompareRunning(lang = 'ru') {
   return [
     letterhead(code === 'en' ? 'Compatibility' : 'Совместимость', lang),
     '',
-    `<i>${code === 'en' ? 'Analyzing the pair…' : 'Анализируем связь…'}</i>`,
+    `💫 <b>${code === 'en' ? 'Pair analysis' : 'Анализ пары'}</b>`,
+    '',
+    `<i>${code === 'en' ? 'Building compatibility report…' : 'Собираем отчёт о совместимости…'}</i>`,
   ].join('\n');
 }
 
 export function formatCompareResultHeader(data, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const ctx = escapeHtml(data?.compare_context_label ?? '');
+  const contextSummary = formatCompareContextSummary(data, lang);
+  const partnerName = escapeHtml(data?.partner_name?.trim() || (code === 'en' ? 'Person 2' : 'Человек 2'));
+  const pairLine =
+    code === 'en'
+      ? `👤 <b>You</b>  ·  💫 <b>${partnerName}</b>`
+      : `👤 <b>Вы</b>  ·  💫 <b>${partnerName}</b>`;
+
   return [
-    letterhead(code === 'en' ? 'Result' : 'Результат', lang),
+    letterhead(code === 'en' ? 'Compatibility' : 'Совместимость', lang),
     '',
-    ctx ? `<i>${ctx}</i>` : '',
-  ]
+    ...(contextSummary ? [contextSummary, ''] : []),
+    pairLine,
+    '',
+    `<i>${code === 'en' ? 'Compatibility report' : 'Отчёт о совместимости'}</i>`,
+  ].join('\n');
+}
+
+const COMPARE_SECTION_DEFS = [
+  {
+    icon: '💞',
+    ru: 'Динамика связи',
+    en: 'Relationship dynamics',
+    match: /динамика\s+связи|relationship\s+dynamics/i,
+  },
+  {
+    icon: '✨',
+    ru: 'Сильные стороны пары',
+    en: 'Pair strengths',
+    match: /сильные\s+стороны|pair\s+strengths|strengths\s+of\s+the\s+pair/i,
+  },
+  {
+    icon: '⚠️',
+    ru: 'Риски и напряжения',
+    en: 'Risks and tensions',
+    match: /риски\s+и\s+напряжения|risks\s+and\s+tensions/i,
+  },
+  {
+    icon: '🎯',
+    ru: 'Итог и вердикт',
+    en: 'Verdict',
+    match: /итог\s+и\s+вердикт|verdict|final\s+verdict/i,
+  },
+];
+
+function stripSectionHeaderLine(line) {
+  return String(line ?? '')
+    .replace(/^\d+\.\s*/, '')
+    .replace(/^\*\*([^*]+)\*\*\s*:?\s*/, '$1')
+    .replace(/^<b>([^<]+)<\/b>\s*:?\s*/, '$1')
+    .trim();
+}
+
+/** Премиальные секции отчёта — как в остальном боте. */
+function enhanceCompareSections(html, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const text = String(html ?? '').trim();
+  if (!text) return text;
+  if (/💞\s*<b>/.test(text) || /🎯\s*<b>/.test(text)) return text;
+
+  const lines = text.split('\n');
+  const blocks = [];
+  let current = null;
+
+  for (const line of lines) {
+    const plain = stripSectionHeaderLine(line.replace(/<[^>]+>/g, ''));
+    const def = COMPARE_SECTION_DEFS.find((d) => d.match.test(plain));
+    if (def) {
+      if (current) blocks.push(current);
+      current = { def, body: [] };
+      continue;
+    }
+    if (current) current.body.push(line);
+  }
+  if (current) blocks.push(current);
+
+  if (blocks.length < 2) return text;
+
+  return blocks
+    .map(({ def, body }) => {
+      const title = code === 'en' ? def.en : def.ru;
+      const content = body.join('\n').trim();
+      return section(title, content || '—', def.icon);
+    })
     .filter(Boolean)
-    .join('\n');
+    .join('\n\n');
+}
+
+const COMPARE_BODY_STRIP_RE = [
+  /Задайте вопрос или перейдите к следующему этапу\.?/gi,
+  /Ask a question or continue to the next step\.?/gi,
+  /Когда готовы — запустите этап\.?/gi,
+  /When ready — run the step\.?/gi,
+  /✅\s*Готово/gi,
+  /✓\s*Complete/gi,
+  /Этап\s+\d+\s+из\s+\d+/gi,
+  /Step\s+\d+\s+of\s+\d+/gi,
+  /Part\s+[IVX]+/gi,
+  /🔮\s*<b>Интерпретация<\/b>/gi,
+  /🔮\s*<b>Interpretation<\/b>/gi,
+];
+
+/** Убирает хвосты протокола и служебные фразы из тела отчёта совместимости. */
+export function sanitizeCompareBody(html, lang = 'ru') {
+  let text = String(html ?? '').trim();
+  for (const re of COMPARE_BODY_STRIP_RE) {
+    text = text.replace(re, '');
+  }
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Тело отчёта совместимости для пейджера — без шапки протокола и без «следующего этапа».
+ */
+export function formatCompareForUser(rawAnswer, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const body = enhanceCompareSections(sanitizeCompareBody(formatForTelegram(rawAnswer, 50000), lang), lang);
+  if (!body) {
+    return code === 'en'
+      ? '<i>Analysis completed. Please try again.</i>'
+      : '<i>Анализ завершён. Попробуйте ещё раз.</i>';
+  }
+  return body;
+}
+
+/** Инструкция ИИ для отчёта совместимости — динамика связи + итоговый вердикт. */
+export function buildCompareExecutionInstruction(blockId, ctxLabel, remaining, jsonName) {
+  return [
+    `STRICT: PAIRED COMPATIBILITY — person 1 (universal_input) × person 2 (partner_input).`,
+    `Context: «${ctxLabel}». Execute block ${blockId} ONLY.`,
+    `JSON artifact: ${jsonName} with remaining_blocks_in_stack=${remaining}.`,
+    '',
+    'ПРОФАНСКИЙ КОММЕНТАРИЙ (RU, читаемый текст для Telegram) MUST use EXACTLY these sections:',
+    '1. **Динамика связи** — как будут развиваться взаимоотношения в выбранном контексте; сценарий «как это будет жить»',
+    '2. **Сильные стороны пары** — что усиливает связь и взаимную выгоду',
+    '3. **Риски и напряжения** — конфликтные зоны, что может разрушить контакт',
+    '4. **Итог и вердикт** — прямой ответ: **Стоит** / **С осторожностью** / **Не рекомендуется** + чёткая рекомендация (вкладываться, держать дистанцию, условия)',
+    '',
+    'FORBIDDEN: «следующий этап», «задайте вопрос», другие блоки протокола, сухой перечень без вердикта.',
+    'One block per answer.',
+  ].join('\n');
 }
 
 export function compareBlockPrepIntro() {
