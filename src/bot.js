@@ -322,22 +322,47 @@ function registerHandlers(bot) {
     if (callbackData === 'nav:legal_accept') {
       const subscribed = await isUserInCommunity(ctx.telegram, userId);
       if (!subscribed) {
+        const gateLang = await getUserLanguage(userId);
         await ctx
-          .editMessageText(formatLegalGateMessage(lang, { needSubscription: true }), {
+          .editMessageText(formatLegalGateMessage(gateLang, { needSubscription: true }), {
             parse_mode: 'HTML',
-            reply_markup: getLegalGateKeyboard(lang),
+            reply_markup: getLegalGateKeyboard(gateLang),
           })
-          .catch(() => sendLegalGate(ctx, lang));
+          .catch(() => sendLegalGate(ctx, gateLang));
         return;
       }
 
       await acceptLegalDocuments(userId);
+      const welcomeLang = await getUserLanguage(userId);
       await ctx
-        .editMessageText(t(lang, 'welcome'), {
+        .editMessageText(t(welcomeLang, 'welcome'), {
           parse_mode: 'HTML',
-          reply_markup: getMainMenuKeyboard(lang),
+          reply_markup: getMainMenuKeyboard(welcomeLang),
         })
-        .catch(() => sendMainMenu(ctx, lang));
+        .catch(() => sendMainMenu(ctx, welcomeLang));
+      return;
+    }
+
+    if (callbackData === 'nav:lang_swap') {
+      const current = await getUserLanguage(userId);
+      const newLang = current === 'en' ? 'ru' : 'en';
+      await setUserLanguage(userId, newLang);
+
+      if (!(await hasLegalAccepted(userId))) {
+        await ctx
+          .editMessageText(formatLegalGateMessage(newLang), {
+            parse_mode: 'HTML',
+            reply_markup: getLegalGateKeyboard(newLang),
+          })
+          .catch(() => sendLegalGate(ctx, newLang));
+      } else {
+        await ctx
+          .editMessageText(t(newLang, 'welcome'), {
+            parse_mode: 'HTML',
+            reply_markup: getMainMenuKeyboard(newLang),
+          })
+          .catch(() => sendMainMenu(ctx, newLang));
+      }
       return;
     }
 

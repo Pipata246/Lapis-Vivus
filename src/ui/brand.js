@@ -73,6 +73,8 @@ const BTN_EMOJI = {
   changeLanguage: '🌐',
   languageEn: '🇬🇧',
   languageRu: '🇷🇺',
+  swapToRu: '🇷🇺',
+  swapToEn: '🇬🇧',
 };
 
 export const BTN = {
@@ -110,6 +112,8 @@ export const BTN = {
     changeLanguage: 'Язык',
     languageEn: 'English',
     languageRu: 'Русский',
+    swapToRu: 'Переключить на русский',
+    swapToEn: 'Поменять на английский',
   },
   en: {
     startAnalysis: 'Launch protocol',
@@ -145,6 +149,8 @@ export const BTN = {
     changeLanguage: 'Language',
     languageEn: 'English',
     languageRu: 'Russian',
+    swapToRu: 'Switch to Russian',
+    swapToEn: 'Switch to English',
   },
 };
 
@@ -153,6 +159,13 @@ export function btn(lang, key) {
   const label = BTN[code][key] ?? BTN.ru[key] ?? key;
   const emoji = BTN_EMOJI[key];
   return emoji ? `${emoji} ${label}` : label;
+}
+
+/** Одна кнопка «переключить на другой язык» для приветствия и согласия. */
+export function languageSwapRow(lang) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const key = code === 'en' ? 'swapToRu' : 'swapToEn';
+  return [{ text: btn(lang, key), callback_data: 'nav:lang_swap' }];
 }
 
 export function escapeHtml(text) {

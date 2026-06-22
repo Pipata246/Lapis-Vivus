@@ -1,4 +1,4 @@
-import { letterhead, COMMUNITY } from './brand.js';
+import { letterhead, COMMUNITY, languageSwapRow } from './brand.js';
 import { loadSiteConfig } from '../config.js';
 
 const LABELS = {
@@ -90,6 +90,7 @@ export function getLegalGateKeyboard(lang) {
   const code = lang === 'en' ? 'en' : 'ru';
   const rows = legalLinkRows(lang);
   rows.push(communityLinkRow(lang));
+  rows.push(languageSwapRow(lang));
   rows.push([{ text: LABELS[code].accept, callback_data: 'nav:legal_accept' }]);
   return { inline_keyboard: rows };
 }
