@@ -25,7 +25,7 @@ export async function saveComparison(userId, record) {
 
   if (error) {
     console.error('[comparisons] save:', error.message);
-    throw new Error(`Не удалось сохранить сравнение: ${error.message}`);
+    return null;
   }
 
   return data;

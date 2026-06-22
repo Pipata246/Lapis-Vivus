@@ -92,16 +92,19 @@ import {
   resolveCompareContext,
 } from '../scenario/compareFlow.js';
 import { saveComparison } from '../db/comparisons.js';
-import { splitIntoBookPages, renderPagerPage } from '../ui/messagePager.js';
+import { splitIntoBookPages, renderPagerPage, PAGER_CONTENT_MAX } from '../ui/messagePager.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
 }
 
 function buildCompareResultPager(data, bodyHtml, lang) {
+  const headerHtml = formatCompareResultHeader(data, lang);
+  const reserved = headerHtml.length + 96;
+  const pageMax = Math.max(1200, PAGER_CONTENT_MAX - reserved);
   return {
-    headerHtml: formatCompareResultHeader(data, lang),
-    pages: splitIntoBookPages(bodyHtml),
+    headerHtml,
+    pages: splitIntoBookPages(bodyHtml, pageMax),
     index: 0,
     completeActions: 'compare',
   };
@@ -1248,12 +1251,13 @@ async function runCompareBlock(from, chatId, lang) {
     return {
       text: `<i>${u(lang, 'stageAlreadyRunning')}</i>`,
       keyboard: runningKeyboard(lang),
+      editMessage: true,
     };
   }
 
-  session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
-
   try {
+    session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
+
     const result = await runAnalysisBlock({
       session,
       chatId,
@@ -1287,18 +1291,35 @@ async function runCompareBlock(from, chatId, lang) {
     });
 
     const rendered = renderPagerPage(pager, lang);
+    if (!rendered.text?.trim()) {
+      throw new Error(u(lang, 'errorStage'));
+    }
+
     return {
       text: rendered.text,
       keyboard: rendered.keyboard,
       replaceMessage: true,
     };
   } catch (err) {
-    console.error('Ошибка compare block:', err.message);
-    await updateSession(userId, { step: STEPS.BLOCK_FAILED });
+    console.error('Ошибка compare block:', err.message, err.stack);
+    try {
+      await updateSession(userId, { step: STEPS.COMPARE_CONFIRM });
+    } catch (resetErr) {
+      console.error('[compare] reset session:', resetErr.message);
+    }
+
+    const fresh = await getSession(userId).catch(() => session);
+    const data = fresh?.collected_data ?? session?.collected_data ?? {};
     return {
-      text: `${mapErrorToUser(lang, err)}\n\n${u(lang, 'stageRetryHint')}`,
-      keyboard: blockFailedKeyboard(lang),
-      replaceMessage: true,
+      text: [
+        formatComparePairProfile(data, lang),
+        '',
+        `<i>${mapErrorToUser(lang, err)}</i>`,
+        '',
+        `<i>${u(lang, 'stageRetryHint')}</i>`,
+      ].join('\n'),
+      keyboard: compareConfirmKeyboard(lang),
+      editMessage: true,
     };
   }
 }
@@ -1707,8 +1728,23 @@ export async function sendScenarioReply(ctx, payload) {
   const { text, keyboard, extraMessages, editMessage = false, replaceMessage = false } = payload;
 
   if (replaceMessage && ctx.callbackQuery) {
-    const { replaceCallbackMessage } = await import('../ui/messagePager.js');
-    await replaceCallbackMessage(ctx, { text, keyboard });
+    try {
+      const { replaceCallbackMessage } = await import('../ui/messagePager.js');
+      await replaceCallbackMessage(ctx, { text, keyboard });
+    } catch (err) {
+      console.error('[sendScenarioReply] replace failed:', err.message);
+      try {
+        await ctx.editMessageText(text, {
+          parse_mode: TELEGRAM_PARSE_MODE,
+          ...(keyboard ? { reply_markup: keyboard } : {}),
+        });
+      } catch {
+        await ctx.reply(text, {
+          parse_mode: TELEGRAM_PARSE_MODE,
+          ...(keyboard ? { reply_markup: keyboard } : {}),
+        }).catch(() => ctx.reply(htmlToPlain(text), keyboard ? { reply_markup: keyboard } : {}));
+      }
+    }
     return;
   }
 

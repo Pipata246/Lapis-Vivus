@@ -5,8 +5,9 @@
 import { splitTelegramMessages, TELEGRAM_PARSE_MODE, htmlToPlain } from '../ai/formatResponse.js';
 import { letterhead, btn } from './brand.js';
 import { CALLBACK_PREFIX } from '../scenario/constants.js';
+const TELEGRAM_MAX = 4096;
 /** Запас под шапку, индикатор страницы и кнопки. */
-export const PAGER_CONTENT_MAX = 3600;
+export const PAGER_CONTENT_MAX = 3400;
 
 function cb(action) {
   return `${CALLBACK_PREFIX}:${action}`;
@@ -45,7 +46,9 @@ export function formatBookPage({ headerHtml, bodyHtml, pageIndex, totalPages, la
     ? `\n\n<b>${code === 'en' ? '✓ Complete' : '✅ Готово'}</b>`
     : '';
 
-  return [headerHtml, '', bodyHtml, doneLine, indicator].filter((line) => line !== '').join('\n');
+  const full = [headerHtml, '', bodyHtml, doneLine, indicator].filter((line) => line !== '').join('\n');
+  if (full.length <= TELEGRAM_MAX) return full;
+  return `${full.slice(0, TELEGRAM_MAX - 1)}…`;
 }
 
 /**
@@ -120,12 +123,23 @@ export function renderPagerPage(pager, lang = 'ru') {
 /**
  * Удаляет текущее callback-сообщение и отправляет новое (листание «книги»).
  */
-export async function replaceCallbackMessage(ctx, { text, keyboard }) {
-  const replyOptions = {
-    parse_mode: TELEGRAM_PARSE_MODE,
+async function deliverTelegramPayload(ctx, text, keyboard, { preferEdit = false } = {}) {
+  const replyOptions = { parse_mode: TELEGRAM_PARSE_MODE };
+  if (keyboard) replyOptions.reply_markup = keyboard;
+
+  const sendPlain = async () => {
+    const plainOptions = {};
+    if (keyboard) plainOptions.reply_markup = keyboard;
+    await ctx.reply(htmlToPlain(text), plainOptions);
   };
-  if (keyboard) {
-    replyOptions.reply_markup = keyboard;
+
+  if (preferEdit && ctx.callbackQuery?.message) {
+    try {
+      await ctx.editMessageText(text, replyOptions);
+      return;
+    } catch (err) {
+      console.log('[pager] edit fallback:', err.message);
+    }
   }
 
   if (ctx.callbackQuery?.message) {
@@ -136,11 +150,19 @@ export async function replaceCallbackMessage(ctx, { text, keyboard }) {
     await ctx.reply(text, replyOptions);
   } catch (err) {
     if (err.message?.includes('parse') || err.message?.includes('entities')) {
-      const plainOptions = {};
-      if (keyboard) plainOptions.reply_markup = keyboard;
-      await ctx.reply(htmlToPlain(text), plainOptions);
-    } else {
-      throw err;
+      await sendPlain();
+      return;
     }
+    if (err.message?.includes('message is too long')) {
+      await ctx.reply(htmlToPlain(text).slice(0, TELEGRAM_MAX - 1), {
+        ...(keyboard ? { reply_markup: keyboard } : {}),
+      });
+      return;
+    }
+    throw err;
   }
+}
+
+export async function replaceCallbackMessage(ctx, { text, keyboard, preferEdit = false }) {
+  await deliverTelegramPayload(ctx, text, keyboard, { preferEdit });
 }

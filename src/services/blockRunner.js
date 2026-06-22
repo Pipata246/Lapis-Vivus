@@ -319,13 +319,20 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   );
   const { jsonRaw, jsonParsed } = extractJsonFromAnswer(answer);
 
-  await saveBlockResult({
-    chatId,
-    userId,
-    blockId: block.id,
-    responseText: answer,
-    jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
-  });
+  try {
+    await saveBlockResult({
+      chatId,
+      userId,
+      blockId: block.id,
+      responseText: answer,
+      jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
+    });
+  } catch (err) {
+    console.error('[block] save result:', err.message);
+    if (!data.compare_mode) {
+      throw err;
+    }
+  }
 
   if (!data.compare_mode) {
     try {
