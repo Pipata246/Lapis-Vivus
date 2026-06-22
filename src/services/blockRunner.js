@@ -296,7 +296,7 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     }
   }
 
-  if (block.requiresExternal && effectiveFiles.length === 0 && !userBlockText && !precomputed) {
+  if (block.requiresExternal && !data.compare_mode && effectiveFiles.length === 0 && !userBlockText && !precomputed) {
     throw new Error(u('ru', 'errorFileRequired'));
   }
 
@@ -327,15 +327,17 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
     jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
   });
 
-  try {
-    await mergeBlockIntoUserProfile(userId, {
-      blockId: block.id,
-      jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
-      responseText: answer,
-      userData: session.collected_data,
-    });
-  } catch (err) {
-    console.error('[profile] merge block failed:', err.message);
+  if (!data.compare_mode) {
+    try {
+      await mergeBlockIntoUserProfile(userId, {
+        blockId: block.id,
+        jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
+        responseText: answer,
+        userData: session.collected_data,
+      });
+    } catch (err) {
+      console.error('[profile] merge block failed:', err.message);
+    }
   }
 
   await saveChatMessages(chatId, [
@@ -345,5 +347,11 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
 
   const userMessage = formatBlockForUser(answer, block.id, blockIndex);
 
-  return { blockId: block.id, blockTitle: getBlockUserTitle(block.id), userMessage };
+  return {
+    blockId: block.id,
+    blockTitle: getBlockUserTitle(block.id),
+    userMessage,
+    responseText: answer,
+    jsonPayload: jsonParsed ?? (jsonRaw ? { raw: jsonRaw } : null),
+  };
 }

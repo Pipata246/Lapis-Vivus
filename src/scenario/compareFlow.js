@@ -1,41 +1,34 @@
 import { letterhead, section, ONBOARDING_ICON, escapeHtml, stepDots, btn } from '../ui/brand.js';
 import { CALLBACK_PREFIX } from './constants.js';
 
+/** Единый движок сравнения пары — контекст только в prompt, блок один для всех категорий. */
+export const COMPARE_ENGINE = {
+  targetBlock: '1B',
+  blockVariant: 'partner_composite',
+};
+
 /** Популярные контексты сравнения. */
 export const COMPARE_CONTEXTS = {
   relationships: {
     id: 'relationships',
     label: { ru: 'Отношения', en: 'Relationships' },
     emoji: '💞',
-    targetBlock: '1B',
-    blockVariant: 'partner_composite',
   },
   family: {
     id: 'family',
     label: { ru: 'Семья', en: 'Family' },
     emoji: '🏠',
-    targetBlock: '1B',
-    blockVariant: 'partner_composite',
   },
   business: {
     id: 'business',
     label: { ru: 'Бизнес', en: 'Business' },
     emoji: '💼',
-    targetBlock: '1C',
-    blockVariant: 'intersubjective_composite',
   },
   friendship: {
     id: 'friendship',
     label: { ru: 'Дружба', en: 'Friendship' },
     emoji: '🤝',
-    targetBlock: '1C',
-    blockVariant: 'intersubjective_composite',
   },
-};
-
-const CUSTOM_CONTEXT = {
-  targetBlock: '1B',
-  blockVariant: 'partner_composite',
 };
 
 export function isCompareMode(data) {
@@ -84,8 +77,8 @@ export function resolveCompareContext(contextKey, customText, lang = 'ru') {
       compare_context: 'custom',
       compare_context_label: text,
       compare_context_custom: text,
-      target_block_id: CUSTOM_CONTEXT.targetBlock,
-      block_variant: CUSTOM_CONTEXT.blockVariant,
+      target_block_id: COMPARE_ENGINE.targetBlock,
+      block_variant: COMPARE_ENGINE.blockVariant,
       goal_leaf_label: text,
     };
   }
@@ -101,8 +94,8 @@ export function resolveCompareContext(contextKey, customText, lang = 'ru') {
     compare_context: ctx.id,
     compare_context_label: label,
     compare_context_custom: null,
-    target_block_id: ctx.targetBlock,
-    block_variant: ctx.blockVariant,
+    target_block_id: COMPARE_ENGINE.targetBlock,
+    block_variant: COMPARE_ENGINE.blockVariant,
     goal_leaf_label: label,
   };
 }
@@ -305,8 +298,36 @@ export function formatComparePairProfile(data, lang = 'ru') {
   ].join('\n');
 }
 
-export function compareBlockPrepIntro(data, lang = 'ru') {
-  void data;
-  void lang;
+export function compareCompleteKeyboard(lang = 'ru') {
+  return {
+    inline_keyboard: [
+      [{ text: btn(lang, 'comparePair'), callback_data: cb('compare_start') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
+    ],
+  };
+}
+
+export function formatCompareRunning(lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  return [
+    letterhead(code === 'en' ? 'Compatibility' : 'Совместимость', lang),
+    '',
+    `<i>${code === 'en' ? 'Analyzing the pair…' : 'Анализируем связь…'}</i>`,
+  ].join('\n');
+}
+
+export function formatCompareResultHeader(data, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const ctx = escapeHtml(data?.compare_context_label ?? '');
+  return [
+    letterhead(code === 'en' ? 'Result' : 'Результат', lang),
+    '',
+    ctx ? `<i>${ctx}</i>` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+export function compareBlockPrepIntro() {
   return '';
 }

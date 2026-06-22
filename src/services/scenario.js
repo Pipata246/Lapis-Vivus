@@ -85,7 +85,8 @@ import {
   formatCompareSubjectIntro,
   formatComparePairProfile,
   formatPartnerInitStep,
-  compareBlockPrepIntro,
+  compareCompleteKeyboard,
+  formatCompareResultHeader,
   subjectProfileFromCollected,
   partnerProfileFromCollected,
   resolveCompareContext,
@@ -742,16 +743,10 @@ export async function handleCallback(from, callbackData) {
       await updateSession(from.id, {
         block_index: blockIndex,
         last_block_id: null,
-        step: STEPS.BLOCK_PREP,
         target_block_id: session.collected_data?.target_block_id ?? null,
       });
       session = await getSession(from.id);
-      const prep = await showBlockPrep(session, chat.id, userLang);
-      const intro = compareBlockPrepIntro(session.collected_data ?? {}, userLang);
-      return {
-        text: intro ? `${intro}\n\n${prep.text}` : prep.text,
-        keyboard: prep.keyboard,
-      };
+      return runCompareBlock(from, chat.id, userLang);
     }
 
     case 'start_full': {
@@ -1059,6 +1054,9 @@ export async function handleCallback(from, callbackData) {
       if (session.step !== STEPS.BLOCK_FAILED) {
         return await safeResumePrompt(session, from.id);
       }
+      if (isCompareMode(session.collected_data)) {
+        return runCompareBlock(from, chat.id, await resolveLang(from));
+      }
       await updateSession(from.id, { step: STEPS.BLOCK_PREP });
       session = await getSession(from.id);
       return await showBlockPrep(session, chat.id, await resolveLang(from));
@@ -1184,6 +1182,65 @@ export async function handleCallback(from, callbackData) {
 
     default:
       return rejectWrongInput(session, rejectText(lang));
+  }
+}
+
+async function runCompareBlock(from, chatId, lang) {
+  const userId = from.id;
+  let session = await getSession(userId);
+
+  if (session.step === STEPS.BLOCK_RUNNING) {
+    return {
+      text: `<i>${u(lang, 'stageAlreadyRunning')}</i>`,
+      keyboard: runningKeyboard(lang),
+    };
+  }
+
+  session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
+
+  try {
+    const result = await runAnalysisBlock({
+      session,
+      chatId,
+      userId,
+    });
+
+    const freshSession = await getSession(userId);
+    const data = freshSession.collected_data ?? {};
+
+    await saveComparison(userId, {
+      subjectData: subjectProfileFromCollected(data),
+      partnerData: partnerProfileFromCollected(data),
+      goalData: {
+        compare_context: data.compare_context,
+        compare_context_label: data.compare_context_label,
+        compare_context_custom: data.compare_context_custom,
+        goal_leaf_label: data.goal_leaf_label,
+        block_variant: data.block_variant,
+      },
+      targetBlockId: data.target_block_id,
+      blockVariant: data.block_variant,
+      responseText: result.responseText,
+      jsonPayload: result.jsonPayload,
+    }).catch((err) => console.error('[compare] save:', err.message));
+
+    await updateSession(userId, { step: STEPS.COMPLETED, last_block_id: result.blockId });
+
+    const body = `${formatCompareResultHeader(data, lang)}\n\n${result.userMessage}`;
+    const parts = splitForTelegramWithKeyboard(body, compareCompleteKeyboard(lang));
+
+    return {
+      text: parts[0].text,
+      keyboard: parts.length === 1 ? parts[0].keyboard : compareCompleteKeyboard(lang),
+      extraMessages: parts.slice(1),
+    };
+  } catch (err) {
+    console.error('Ошибка compare block:', err.message);
+    await updateSession(userId, { step: STEPS.BLOCK_FAILED });
+    return {
+      text: `${mapErrorToUser(lang, err)}\n\n${u(lang, 'stageRetryHint')}`,
+      keyboard: blockFailedKeyboard(lang),
+    };
   }
 }
 
