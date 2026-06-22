@@ -344,25 +344,20 @@ function registerHandlers(bot) {
     }
 
     if (callbackData === 'nav:lang_swap') {
+      if (await hasLegalAccepted(userId)) {
+        return;
+      }
+
       const current = await getUserLanguage(userId);
       const newLang = current === 'en' ? 'ru' : 'en';
       await setUserLanguage(userId, newLang);
 
-      if (!(await hasLegalAccepted(userId))) {
-        await ctx
-          .editMessageText(formatLegalGateMessage(newLang), {
-            parse_mode: 'HTML',
-            reply_markup: getLegalGateKeyboard(newLang),
-          })
-          .catch(() => sendLegalGate(ctx, newLang));
-      } else {
-        await ctx
-          .editMessageText(t(newLang, 'welcome'), {
-            parse_mode: 'HTML',
-            reply_markup: getMainMenuKeyboard(newLang),
-          })
-          .catch(() => sendMainMenu(ctx, newLang));
-      }
+      await ctx
+        .editMessageText(formatLegalGateMessage(newLang), {
+          parse_mode: 'HTML',
+          reply_markup: getLegalGateKeyboard(newLang),
+        })
+        .catch(() => sendLegalGate(ctx, newLang));
       return;
     }
 

@@ -1,5 +1,5 @@
 import { t } from './i18n.js';
-import { btn, SUPPORT, COMMUNITY, languageSwapRow } from './ui/brand.js';
+import { btn, SUPPORT, COMMUNITY } from './ui/brand.js';
 import { getLegalDocsKeyboard } from './ui/legal.js';
 
 /**
@@ -16,7 +16,6 @@ export function getMainMenuKeyboard(lang) {
         { text: btn(lang, 'settings'), callback_data: 'nav:settings' },
         { text: btn(lang, 'help'), callback_data: 'nav:help' },
       ],
-      languageSwapRow(lang),
     ],
   };
 }
