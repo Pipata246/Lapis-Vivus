@@ -1,4 +1,4 @@
-import { letterhead, section, ONBOARDING_ICON, escapeHtml, stepDots, btn } from '../ui/brand.js';
+import { letterhead, ONBOARDING_ICON, escapeHtml, stepDots, btn } from '../ui/brand.js';
 import { CALLBACK_PREFIX } from './constants.js';
 
 /** Единый движок сравнения пары — контекст только в prompt, блок один для всех категорий. */
@@ -254,45 +254,71 @@ export function formatCompareContextSummary(data, lang = 'ru') {
   const label = data.compare_context_label ?? data.goal_leaf_label;
   if (!label) return '';
 
-  const modeLabel = code === 'en' ? 'Comparison context' : 'Контекст сравнения';
-  return `${modeLabel}\n<b>${escapeHtml(label)}</b>`;
+  const ctx = COMPARE_CONTEXTS[data.compare_context];
+  const emoji = ctx?.emoji ?? '💞';
+  const modeLabel = code === 'en' ? 'Context' : 'Контекст';
+  return `${emoji} ${modeLabel} · <b>${escapeHtml(label)}</b>`;
 }
 
-function profileRows(fields) {
-  return fields
-    .map(([icon, k, v]) => `${icon} <b>${k}</b>\n${escapeHtml(String(v ?? '—'))}`)
-    .join('\n\n');
+function formatBirthSummary(date, time, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const label = code === 'en' ? 'Birth' : 'Рождение';
+  const d = escapeHtml(String(date ?? '—'));
+  const t = escapeHtml(String(time ?? '—'));
+  return `${label} · ${d} · ${t}`;
+}
+
+function formatPersonSummary({ icon, title, suffix, gender, birthDate, birthTime, birthPlace, lang }) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const genderLabel = code === 'en' ? 'Gender' : 'Пол';
+  const placeLabel = code === 'en' ? 'Place' : 'Место';
+
+  const header = suffix
+    ? `${icon} <b>${escapeHtml(title)}</b> · ${escapeHtml(suffix)}`
+    : `${icon} <b>${escapeHtml(title)}</b>`;
+
+  const rows = [
+    `${genderLabel} · ${escapeHtml(String(gender ?? '—'))}`,
+    formatBirthSummary(birthDate, birthTime, lang),
+    `${placeLabel} · ${escapeHtml(String(birthPlace ?? '—'))}`,
+  ];
+
+  return [header, ...rows].join('\n');
 }
 
 export function formatComparePairProfile(data, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   const contextSummary = formatCompareContextSummary(data, lang);
 
-  const subjectLabel = code === 'en' ? 'Person 1 · you' : 'Человек 1 · вы';
-  const partnerLabel = code === 'en' ? 'Person 2' : 'Человек 2';
+  const subjectBlock = formatPersonSummary({
+    icon: '👤',
+    title: code === 'en' ? 'Person 1' : 'Человек 1',
+    suffix: code === 'en' ? 'you' : 'вы',
+    gender: data.gender_label,
+    birthDate: data.birth_date,
+    birthTime: data.birth_time,
+    birthPlace: data.birth_place,
+    lang,
+  });
 
-  const subjectRows = profileRows([
-    [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.gender_label],
-    [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.birth_date],
-    [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.birth_time],
-    [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.birth_place],
-  ]);
-
-  const partnerRows = profileRows([
-    ['✦', code === 'en' ? 'Name' : 'Имя', data.partner_name ?? '—'],
-    [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.partner_gender_label],
-    [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.partner_birth_date],
-    [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.partner_birth_time],
-    [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.partner_birth_place],
-  ]);
+  const partnerBlock = formatPersonSummary({
+    icon: '💫',
+    title: code === 'en' ? 'Person 2' : 'Человек 2',
+    suffix: data.partner_name?.trim() || null,
+    gender: data.partner_gender_label,
+    birthDate: data.partner_birth_date,
+    birthTime: data.partner_birth_time,
+    birthPlace: data.partner_birth_place,
+    lang,
+  });
 
   return [
     letterhead(code === 'en' ? 'Pair check' : 'Проверка пары', lang),
     '',
     ...(contextSummary ? [contextSummary, ''] : []),
-    section(subjectLabel, subjectRows, '👤'),
+    subjectBlock,
     '',
-    section(partnerLabel, partnerRows, '💫'),
+    partnerBlock,
     '',
     `<i>${ONBOARDING_ICON.confirm} ${code === 'en' ? 'Confirm to continue.' : 'Подтвердите, чтобы продолжить.'}</i>`,
   ].join('\n');
