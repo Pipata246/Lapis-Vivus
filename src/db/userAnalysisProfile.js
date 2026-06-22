@@ -20,6 +20,13 @@ const USER_DATA_KEYS = [
   'goal_leaf_label',
   'goal_maslow',
   'goal_path',
+  'compare_mode',
+  'partner_name',
+  'partner_gender',
+  'partner_gender_label',
+  'partner_birth_date',
+  'partner_birth_time',
+  'partner_birth_place',
 ];
 
 export function emptyAnalysisProfile() {

@@ -305,7 +305,9 @@ export function formatGoalSummary(data, lang = 'ru') {
       ? (code === 'en' ? ' · partner composite' : ' · кармический композит пары')
       : data.block_variant === 'intersubjective_composite'
         ? (code === 'en' ? ' · intertype composite' : ' · соционический композит')
-        : '';
+        : data.compare_mode
+          ? (code === 'en' ? ' · pair analysis' : ' · анализ пары')
+          : '';
 
   let text = `${modeLabel}\n<b>${meta.title}</b>${variantNote}`;
   if (data.goal_leaf_label) {

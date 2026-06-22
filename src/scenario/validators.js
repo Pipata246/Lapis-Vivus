@@ -62,6 +62,14 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'links',
   'quick_question',
   'finish_session',
+  'compare_start',
+  'compare_tree',
+  'compare_use_profile',
+  'compare_enter_subject',
+  'compare_confirm_yes',
+  'compare_edit_partner',
+  'partner_gender',
+  'partner_time_unknown',
 ]);
 
 function parseDateParts(dateStr) {
@@ -92,6 +100,15 @@ export function parseCallbackData(data) {
       return null;
     }
     return { action: 'tree', value: `${nodeId}:${variant}` };
+  }
+
+  if (parts.length === 4 && parts[1] === 'compare_tree') {
+    const nodeId = parts[2];
+    const variant = parts[3];
+    if (!/^shag_[0-9]+$/.test(nodeId) || !/^[abc]$/.test(variant)) {
+      return null;
+    }
+    return { action: 'compare_tree', value: `${nodeId}:${variant}` };
   }
 
   if (parts.length < 2 || parts.length > 3) {

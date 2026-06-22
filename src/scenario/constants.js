@@ -14,6 +14,15 @@ export const STEPS = {
   BLOCK_REVIEW: 'block_review',
   BLOCK_FAILED: 'block_failed',
   COMPLETED: 'completed',
+  /** Режим сравнения пары */
+  COMPARE_GOAL: 'compare_goal',
+  COMPARE_SUBJECT_CHOICE: 'compare_subject_choice',
+  PARTNER_NAME: 'partner_name',
+  PARTNER_GENDER: 'partner_gender',
+  PARTNER_BIRTH_DATE: 'partner_birth_date',
+  PARTNER_BIRTH_TIME: 'partner_birth_time',
+  PARTNER_BIRTH_PLACE: 'partner_birth_place',
+  COMPARE_CONFIRM: 'compare_confirm',
 };
 
 /**
@@ -316,6 +325,10 @@ export const TEXT_INPUT_STEPS = new Set([
   STEPS.BIRTH_DATE,
   STEPS.BIRTH_TIME,
   STEPS.BIRTH_PLACE,
+  STEPS.PARTNER_NAME,
+  STEPS.PARTNER_BIRTH_DATE,
+  STEPS.PARTNER_BIRTH_TIME,
+  STEPS.PARTNER_BIRTH_PLACE,
   STEPS.BLOCK_PREP,
   STEPS.BLOCK_REVIEW,
 ]);

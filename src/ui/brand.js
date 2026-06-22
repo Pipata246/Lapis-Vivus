@@ -48,6 +48,7 @@ export const ONBOARDING_ICON = {
 
 const BTN_EMOJI = {
   startAnalysis: '💎',
+  comparePair: '💫',
   myProfile: '👤',
   balance: '💰',
   settings: '⚙️',
@@ -77,6 +78,7 @@ const BTN_EMOJI = {
 export const BTN = {
   ru: {
     startAnalysis: 'Запустить протокол',
+    comparePair: 'Совместимость',
     myProfile: 'Мой профиль',
     balance: 'Баланс',
     settings: 'Настройки',
@@ -92,6 +94,10 @@ export const BTN = {
     skipStage: 'Пропустить',
     nextStage: 'Следующий этап',
     finishSession: 'Завершить сессию',
+    useMyProfile: 'Мой профиль',
+    enterNewData: 'Ввести заново',
+    confirmCompare: 'Запустить анализ',
+    editPartner: 'Изменить партнёра',
     retryStage: 'Повторить',
     newAnalysis: 'Новая сессия',
     usefulLinks: 'Калькуляторы',
@@ -105,6 +111,7 @@ export const BTN = {
   },
   en: {
     startAnalysis: 'Launch protocol',
+    comparePair: 'Pair analysis',
     myProfile: 'My profile',
     balance: 'Balance',
     settings: 'Settings',
@@ -120,6 +127,10 @@ export const BTN = {
     skipStage: 'Skip',
     nextStage: 'Next step',
     finishSession: 'Finish session',
+    useMyProfile: 'Use my profile',
+    enterNewData: 'Enter again',
+    confirmCompare: 'Run analysis',
+    editPartner: 'Edit partner',
     retryStage: 'Retry',
     newAnalysis: 'New session',
     usefulLinks: 'Calculators',

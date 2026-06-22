@@ -19,7 +19,7 @@ import {
 } from '../scenario/constants.js';
 import { buildVisionContentParts } from './telegramFiles.js';
 import { compressMessagesForAI } from '../ai/contextMessages.js';
-import { fetchPrecomputedForBlock, SERVER_COMPUTE_BLOCKS } from './computeClient.js';
+import { fetchPrecomputedForBlock, fetchPrecomputedPairForBlock, SERVER_COMPUTE_BLOCKS } from './computeClient.js';
 import { u } from '../ui/userCopy.js';
 
 const MIN_AI_INTERVAL_MS = 12_000;
@@ -51,14 +51,21 @@ function buildBlockMandate(block, blockIndex, precomputed = null) {
 
   const precomputedSection =
     precomputed && block.id === '1A'
-      ? [
-          '',
-          '🧬 СЕРВЕРНЫЙ РАСЧЁТ HUMAN DESIGN УЖЕ ВЫПОЛНЕН (Swiss Ephemeris / VPS)',
-          '⛔️ ЗАПРЕЩЕНО пересчитывать тип, профиль, ворота, каналы, центры, крест',
-          '✅ Используй precomputed.bodygraph.tropical как единственный источник фактуры',
-          '✅ Твоя задача — интерпретация по протоколу блока 1A и four_level_conceptual_output',
-          '',
-        ].join('\n')
+      ? precomputed.subject && precomputed.partner
+        ? [
+            '',
+            '🧬 СЕРВЕРНЫЙ РАСЧЁТ HUMAN DESIGN ДЛЯ ПАРЫ УЖЕ ВЫПОЛНЕН',
+            '⛔️ ЗАПРЕЩЕНО пересчитывать — используй precomputed.subject и precomputed.partner',
+            '',
+          ].join('\n')
+        : [
+            '',
+            '🧬 СЕРВЕРНЫЙ РАСЧЁТ HUMAN DESIGN УЖЕ ВЫПОЛНЕН (Swiss Ephemeris / VPS)',
+            '⛔️ ЗАПРЕЩЕНО пересчитывать тип, профиль, ворота, каналы, центры, крест',
+            '✅ Используй precomputed.bodygraph.tropical как единственный источник фактуры',
+            '✅ Твоя задача — интерпретация по протоколу блока 1A и four_level_conceptual_output',
+            '',
+          ].join('\n')
       : '';
 
   return [
@@ -172,7 +179,25 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
       goal_path: data.goal_path ?? [],
       goal_leaf_label: data.goal_leaf_label ?? null,
       goal_maslow: data.goal_maslow ?? null,
+      compare_mode: Boolean(data.compare_mode),
     };
+  }
+
+  if (data.compare_mode && data.partner_birth_date) {
+    payload.paired_composite_mode = true;
+    payload.partner_input = {
+      name: data.partner_name ?? null,
+      gender: data.partner_gender_label ?? data.partner_gender ?? null,
+      birth_date: data.partner_birth_date ?? null,
+      birth_time: data.partner_birth_time ?? null,
+      birth_place: data.partner_birth_place ?? null,
+    };
+    payload.execution_instruction =
+      `STRICT: PAIRED COMPOSITE — analyze the relationship between universal_input (subject) ` +
+      `and partner_input (partner) through block ${block.id} ONLY. ` +
+      `Align synthesis with user_goal.goal_leaf_label. ` +
+      `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
+      'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.';
   }
 
   return payload;
@@ -257,7 +282,11 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   let precomputed = null;
 
   if (needsServerCompute) {
-    precomputed = await fetchPrecomputedForBlock(block.id, data);
+    if (data.compare_mode) {
+      precomputed = await fetchPrecomputedPairForBlock(block.id, data);
+    } else {
+      precomputed = await fetchPrecomputedForBlock(block.id, data);
+    }
     if (!precomputed) {
       throw new Error(u('ru', 'errorStage'));
     }

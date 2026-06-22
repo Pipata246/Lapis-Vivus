@@ -66,6 +66,43 @@ export async function fetchPrecomputedForBlock(blockId, collectedData) {
     );
   }
 
+  return fetchHumanDesign(blockId, profile);
+}
+
+/** Профиль партнёра из полей partner_* в collected_data. */
+export function parsePartnerBirthProfile(collectedData) {
+  if (!collectedData) return null;
+  return parseBirthProfile({
+    birth_date: collectedData.partner_birth_date,
+    birth_time: collectedData.partner_birth_time,
+    birth_place: collectedData.partner_birth_place,
+    gender: collectedData.partner_gender,
+    gender_label: collectedData.partner_gender_label,
+  });
+}
+
+export async function fetchPrecomputedPairForBlock(blockId, collectedData) {
+  if (!SERVER_COMPUTE_BLOCKS.has(blockId)) {
+    return null;
+  }
+
+  const subject = await fetchPrecomputedForBlock(blockId, collectedData);
+  const partnerProfile = parsePartnerBirthProfile(collectedData);
+  if (!partnerProfile) {
+    throw new Error('Для сравнения нужны полные данные рождения партнёра.');
+  }
+
+  const cfg = loadComputeConfig();
+  if (!cfg.enabled) {
+    return subject ? { subject, partner: null } : null;
+  }
+
+  const partner = await fetchHumanDesign(blockId, partnerProfile);
+  return { subject, partner };
+}
+
+async function fetchHumanDesign(blockId, profile) {
+  const cfg = loadComputeConfig();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), COMPUTE_TIMEOUT_MS);
 
