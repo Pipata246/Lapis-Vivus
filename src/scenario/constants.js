@@ -16,7 +16,7 @@ export const STEPS = {
   COMPLETED: 'completed',
   /** Режим сравнения пары */
   COMPARE_GOAL: 'compare_goal',
-  COMPARE_SUBJECT_CHOICE: 'compare_subject_choice',
+  COMPARE_CONTEXT_CUSTOM: 'compare_context_custom',
   PARTNER_NAME: 'partner_name',
   PARTNER_GENDER: 'partner_gender',
   PARTNER_BIRTH_DATE: 'partner_birth_date',
@@ -325,6 +325,7 @@ export const TEXT_INPUT_STEPS = new Set([
   STEPS.BIRTH_DATE,
   STEPS.BIRTH_TIME,
   STEPS.BIRTH_PLACE,
+  STEPS.COMPARE_CONTEXT_CUSTOM,
   STEPS.PARTNER_NAME,
   STEPS.PARTNER_BIRTH_DATE,
   STEPS.PARTNER_BIRTH_TIME,

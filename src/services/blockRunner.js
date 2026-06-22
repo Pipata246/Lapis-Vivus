@@ -180,6 +180,9 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
       goal_leaf_label: data.goal_leaf_label ?? null,
       goal_maslow: data.goal_maslow ?? null,
       compare_mode: Boolean(data.compare_mode),
+      compare_context: data.compare_context ?? null,
+      compare_context_label: data.compare_context_label ?? null,
+      compare_context_custom: data.compare_context_custom ?? null,
     };
   }
 
@@ -192,10 +195,11 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
       birth_time: data.partner_birth_time ?? null,
       birth_place: data.partner_birth_place ?? null,
     };
+    const ctxLabel = data.compare_context_label ?? data.goal_leaf_label ?? 'pair';
     payload.execution_instruction =
-      `STRICT: PAIRED COMPOSITE — analyze the relationship between universal_input (subject) ` +
-      `and partner_input (partner) through block ${block.id} ONLY. ` +
-      `Align synthesis with user_goal.goal_leaf_label. ` +
+      `STRICT: PAIRED COMPOSITE — compare universal_input (person 1) and partner_input (person 2) ` +
+      `through block ${block.id} ONLY. Context: «${ctxLabel}». ` +
+      `All interpretation must address this comparison context (relationships / family / business / friendship / custom). ` +
       `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
       'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.';
   }

@@ -1,10 +1,42 @@
-import { letterhead, section, ONBOARDING_ICON, escapeHtml, stepDots } from '../ui/brand.js';
-import { formatGoalSummary, formatTreeStepMessage, getTreeNode, resolveTreeChoice } from './diagnosticTree.js';
-import { btn } from '../ui/brand.js';
+import { letterhead, section, ONBOARDING_ICON, escapeHtml, stepDots, btn } from '../ui/brand.js';
 import { CALLBACK_PREFIX } from './constants.js';
 
-/** Узел дерева — только ветка «отношения». */
-export const COMPARE_GOAL_NODE = 'shag_5';
+/** Популярные контексты сравнения. */
+export const COMPARE_CONTEXTS = {
+  relationships: {
+    id: 'relationships',
+    label: { ru: 'Отношения', en: 'Relationships' },
+    emoji: '💞',
+    targetBlock: '1B',
+    blockVariant: 'partner_composite',
+  },
+  family: {
+    id: 'family',
+    label: { ru: 'Семья', en: 'Family' },
+    emoji: '🏠',
+    targetBlock: '1B',
+    blockVariant: 'partner_composite',
+  },
+  business: {
+    id: 'business',
+    label: { ru: 'Бизнес', en: 'Business' },
+    emoji: '💼',
+    targetBlock: '1C',
+    blockVariant: 'intersubjective_composite',
+  },
+  friendship: {
+    id: 'friendship',
+    label: { ru: 'Дружба', en: 'Friendship' },
+    emoji: '🤝',
+    targetBlock: '1C',
+    blockVariant: 'intersubjective_composite',
+  },
+};
+
+const CUSTOM_CONTEXT = {
+  targetBlock: '1B',
+  blockVariant: 'partner_composite',
+};
 
 export function isCompareMode(data) {
   return Boolean(data?.compare_mode);
@@ -12,15 +44,6 @@ export function isCompareMode(data) {
 
 export function hasCompleteBirth(data) {
   return Boolean(data?.gender && data?.birth_date && data?.birth_time && data?.birth_place);
-}
-
-export function hasCompletePartnerBirth(data) {
-  return Boolean(
-    data?.partner_gender &&
-      data?.partner_birth_date &&
-      data?.partner_birth_time &&
-      data?.partner_birth_place,
-  );
 }
 
 export function partnerProfileFromCollected(data) {
@@ -44,47 +67,64 @@ export function subjectProfileFromCollected(data) {
   };
 }
 
-export function applySubjectFromProfile(profile, lang = 'ru') {
-  const d = profile?.user_data ?? {};
-  if (!hasCompleteBirth(d)) return null;
-
-  const code = lang === 'en' ? 'en' : 'ru';
-  return {
-    gender: d.gender,
-    gender_label:
-      d.gender_label ??
-      (d.gender === 'male'
-        ? code === 'en'
-          ? 'Male'
-          : 'Мужской'
-        : code === 'en'
-          ? 'Female'
-          : 'Женский'),
-    birth_date: d.birth_date,
-    birth_time: d.birth_time,
-    birth_place: d.birth_place,
-  };
-}
-
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
 }
 
-export function compareGoalKeyboard(lang = 'ru') {
-  const node = getTreeNode(COMPARE_GOAL_NODE);
+export function resolveCompareContext(contextKey, customText, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const rows = Object.entries(node?.variants ?? {}).map(([key, variant]) => [
-    { text: variant.short[code], callback_data: `${CALLBACK_PREFIX}:compare_tree:${COMPARE_GOAL_NODE}:${key}` },
-  ]);
-  rows.push([{ text: btn(lang, 'cancel'), callback_data: cb('menu') }]);
-  return { inline_keyboard: rows };
+
+  if (contextKey === 'custom') {
+    const text = (customText ?? '').trim();
+    if (text.length < 3) {
+      return { ok: false, error: code === 'en' ? 'Describe the context (at least 3 characters).' : 'Опишите контекст (минимум 3 символа).' };
+    }
+    return {
+      ok: true,
+      compare_context: 'custom',
+      compare_context_label: text,
+      compare_context_custom: text,
+      target_block_id: CUSTOM_CONTEXT.targetBlock,
+      block_variant: CUSTOM_CONTEXT.blockVariant,
+      goal_leaf_label: text,
+    };
+  }
+
+  const ctx = COMPARE_CONTEXTS[contextKey];
+  if (!ctx) {
+    return { ok: false, error: code === 'en' ? 'Choose a context from the buttons.' : 'Выберите контекст кнопкой ниже.' };
+  }
+
+  const label = ctx.label[code];
+  return {
+    ok: true,
+    compare_context: ctx.id,
+    compare_context_label: label,
+    compare_context_custom: null,
+    target_block_id: ctx.targetBlock,
+    block_variant: ctx.blockVariant,
+    goal_leaf_label: label,
+  };
 }
 
-export function compareSubjectChoiceKeyboard(lang = 'ru') {
+export function compareGoalKeyboard(lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const rel = COMPARE_CONTEXTS.relationships;
+  const fam = COMPARE_CONTEXTS.family;
+  const biz = COMPARE_CONTEXTS.business;
+  const fr = COMPARE_CONTEXTS.friendship;
+
   return {
     inline_keyboard: [
-      [{ text: btn(lang, 'useMyProfile'), callback_data: cb('compare_use_profile') }],
-      [{ text: btn(lang, 'enterNewData'), callback_data: cb('compare_enter_subject') }],
+      [
+        { text: `${rel.emoji} ${rel.label[code]}`, callback_data: cb('compare_context', 'relationships') },
+        { text: `${fam.emoji} ${fam.label[code]}`, callback_data: cb('compare_context', 'family') },
+      ],
+      [
+        { text: `${biz.emoji} ${biz.label[code]}`, callback_data: cb('compare_context', 'business') },
+        { text: `${fr.emoji} ${fr.label[code]}`, callback_data: cb('compare_context', 'friendship') },
+      ],
+      [{ text: btn(lang, 'compareCustom'), callback_data: cb('compare_context', 'custom') }],
       [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
     ],
   };
@@ -96,8 +136,9 @@ export function compareConfirmKeyboard(lang = 'ru') {
       [{ text: btn(lang, 'confirmCompare'), callback_data: cb('compare_confirm_yes') }],
       [
         { text: btn(lang, 'editPartner'), callback_data: cb('compare_edit_partner') },
-        { text: btn(lang, 'cancel'), callback_data: cb('menu') },
+        { text: btn(lang, 'editSubject'), callback_data: cb('compare_edit_subject') },
       ],
+      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -129,17 +170,17 @@ export function formatCompareIntro(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   if (code === 'en') {
     return [
-      letterhead('Pair analysis', lang),
+      letterhead('Compatibility', lang),
       '',
-      '<i>Compare two birth profiles through the lens of your current focus.</i>',
+      '<i>Compare two birth profiles — same data as in a protocol session.</i>',
       '',
       section(
         'How it works',
         [
-          '1. Choose what matters in the relationship',
-          '2. Confirm your birth profile',
-          '3. Enter the other person\'s data',
-          '4. Receive an AI synthesis aligned with your goal',
+          '1. Choose context · relationships, family, business, friendship — or your own',
+          '2. Enter your birth profile · gender, date, time, place',
+          '3. Enter the other person\'s birth profile',
+          '4. Receive a pair synthesis for your chosen context',
         ].join('\n'),
         '◆',
       ),
@@ -147,17 +188,17 @@ export function formatCompareIntro(lang = 'ru') {
   }
 
   return [
-    letterhead('Анализ пары', lang),
+    letterhead('Совместимость', lang),
     '',
-    '<i>Сравнение двух профилей рождения через призму вашего текущего запроса.</i>',
+    '<i>Сравнение двух профилей рождения — те же данные, что при прогоне протокола.</i>',
     '',
     section(
       'Как это работает',
       [
-        '1. Выберите, что важно в отношениях',
-        '2. Подтвердите свой профиль рождения',
-        '3. Введите данные другого человека',
-        '4. Получите синтез ИИ с учётом вашей цели',
+        '1. Выберите контекст · отношения, семья, бизнес, дружба — или свой вариант',
+        '2. Введите свой профиль · пол, дата, время, место рождения',
+        '3. Введите профиль второго человека',
+        '4. Получите синтез пары для выбранного контекста',
       ].join('\n'),
       '◆',
     ),
@@ -165,26 +206,53 @@ export function formatCompareIntro(lang = 'ru') {
 }
 
 export function formatCompareGoalStep(lang = 'ru') {
-  const head = lang === 'en' ? 'Your focus' : 'Ваш запрос';
-  return [letterhead(head, lang), '', formatTreeStepMessage(COMPARE_GOAL_NODE, lang)].join('\n');
-}
-
-export function formatCompareSubjectChoice(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   return [
-    letterhead(code === 'en' ? 'Your profile' : 'Ваш профиль', lang),
+    letterhead(code === 'en' ? 'Context' : 'Контекст', lang),
     '',
     code === 'en'
-      ? 'We found birth data in your profile. Use it or enter again.'
-      : 'В профиле уже есть данные рождения. Использовать их или ввести заново?',
+      ? '<b>What is this comparison about?</b>'
+      : '<b>В каком контексте сравниваем?</b>',
+    '',
+    code === 'en'
+      ? '<i>Choose a category or describe your own focus.</i>'
+      : '<i>Выберите категорию или опишите свой запрос.</i>',
+  ].join('\n');
+}
+
+export function formatCompareCustomContextPrompt(lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  return [
+    letterhead(code === 'en' ? 'Your context' : 'Ваш контекст', lang),
+    '',
+    code === 'en'
+      ? '<b>Describe the focus of this comparison.</b>'
+      : '<b>Опишите, в каком контексте нужно сравнение.</b>',
+    '',
+    code === 'en'
+      ? '<i>Examples · co-parenting, creative partnership, relocation together…</i>'
+      : '<i>Например · совместное воспитание, творческий дуэт, переезд вместе…</i>',
+  ].join('\n');
+}
+
+export function formatCompareSubjectIntro(contextLabel, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  return [
+    letterhead(code === 'en' ? 'Person 1 · you' : 'Человек 1 · вы', lang),
+    '',
+    section(code === 'en' ? 'Context' : 'Контекст', `<b>${escapeHtml(contextLabel)}</b>`, '◆'),
+    '',
+    code === 'en'
+      ? '<i>Enter your birth profile — step 1 of 4.</i>'
+      : '<i>Введите свой профиль рождения — шаг 1 из 4.</i>',
   ].join('\n');
 }
 
 export function formatPartnerInitStep(step, total, field, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   const labels = {
-    partner_name: { ru: 'Имя партнёра', en: 'Partner name' },
-    partner_gender: { ru: 'Пол партнёра', en: 'Partner gender' },
+    partner_name: { ru: 'Имя', en: 'Name' },
+    partner_gender: { ru: 'Пол', en: 'Gender' },
     partner_birth_date: { ru: 'Дата рождения', en: 'Birth date' },
     partner_birth_time: { ru: 'Время рождения', en: 'Birth time' },
     partner_birth_place: { ru: 'Место рождения', en: 'Birth place' },
@@ -208,22 +276,33 @@ export function formatPartnerInitStep(step, total, field, lang = 'ru') {
     },
   };
 
+  const iconKey = field.replace('partner_', '');
+  const icon = ONBOARDING_ICON[iconKey] ?? '👤';
   const label = labels[field]?.[code] ?? field;
   const hint = hints[field]?.[code] ?? '';
 
   return [
-    letterhead(code === 'en' ? 'Partner profile' : 'Профиль партнёра', lang),
+    letterhead(code === 'en' ? 'Person 2' : 'Человек 2', lang),
     '',
     `<i>${stepDots(step, total)} · ${step}/${total}</i>`,
     '',
-    `${ONBOARDING_ICON[field.replace('partner_', '')] ?? '👤'} <b>${label}</b>`,
+    `${icon} <b>${label}</b>`,
     hint ? `\n<i>${hint}</i>` : '',
   ]
     .filter(Boolean)
     .join('\n');
 }
 
-function profileRows(fields, lang) {
+export function formatCompareContextSummary(data, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const label = data.compare_context_label ?? data.goal_leaf_label;
+  if (!label) return '';
+
+  const modeLabel = code === 'en' ? 'Comparison context' : 'Контекст сравнения';
+  return `${modeLabel}\n<b>${escapeHtml(label)}</b>`;
+}
+
+function profileRows(fields) {
   return fields
     .map(([icon, k, v]) => `${icon} <b>${k}</b>\n${escapeHtml(String(v ?? '—'))}`)
     .join('\n\n');
@@ -231,36 +310,30 @@ function profileRows(fields, lang) {
 
 export function formatComparePairProfile(data, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const goalSummary = formatGoalSummary(data, lang);
+  const contextSummary = formatCompareContextSummary(data, lang);
 
-  const subjectLabel = code === 'en' ? 'You' : 'Вы';
-  const partnerLabel = code === 'en' ? 'Partner' : 'Партнёр';
+  const subjectLabel = code === 'en' ? 'Person 1 · you' : 'Человек 1 · вы';
+  const partnerLabel = code === 'en' ? 'Person 2' : 'Человек 2';
 
-  const subjectRows = profileRows(
-    [
-      [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.gender_label],
-      [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.birth_date],
-      [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.birth_time],
-      [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.birth_place],
-    ],
-    lang,
-  );
+  const subjectRows = profileRows([
+    [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.gender_label],
+    [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.birth_date],
+    [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.birth_time],
+    [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.birth_place],
+  ]);
 
-  const partnerRows = profileRows(
-    [
-      ['✦', code === 'en' ? 'Name' : 'Имя', data.partner_name ?? '—'],
-      [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.partner_gender_label],
-      [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.partner_birth_date],
-      [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.partner_birth_time],
-      [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.partner_birth_place],
-    ],
-    lang,
-  );
+  const partnerRows = profileRows([
+    ['✦', code === 'en' ? 'Name' : 'Имя', data.partner_name ?? '—'],
+    [ONBOARDING_ICON.gender, code === 'en' ? 'Gender' : 'Пол', data.partner_gender_label],
+    [ONBOARDING_ICON.birth_date, code === 'en' ? 'Birth date' : 'Дата', data.partner_birth_date],
+    [ONBOARDING_ICON.birth_time, code === 'en' ? 'Birth time' : 'Время', data.partner_birth_time],
+    [ONBOARDING_ICON.birth_place, code === 'en' ? 'Birth place' : 'Место', data.partner_birth_place],
+  ]);
 
   return [
     letterhead(code === 'en' ? 'Pair check' : 'Проверка пары', lang),
     '',
-    ...(goalSummary ? [goalSummary, ''] : []),
+    ...(contextSummary ? [contextSummary, ''] : []),
     section(subjectLabel, subjectRows, '👤'),
     '',
     section(partnerLabel, partnerRows, '💫'),
@@ -269,14 +342,11 @@ export function formatComparePairProfile(data, lang = 'ru') {
   ].join('\n');
 }
 
-export function resolveCompareTreeChoice(nodeId, variantKey, lang = 'ru') {
-  return resolveTreeChoice(nodeId, variantKey, lang);
-}
-
 export function compareBlockPrepIntro(data, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const partner = data.partner_name ? escapeHtml(data.partner_name) : code === 'en' ? 'partner' : 'партнёра';
+  const ctx = escapeHtml(data.compare_context_label ?? data.goal_leaf_label ?? '');
+  const other = data.partner_name ? escapeHtml(data.partner_name) : code === 'en' ? 'person 2' : 'человека 2';
   return code === 'en'
-    ? `<i>Pair mode · synthesis for you and ${partner} based on your focus.</i>`
-    : `<i>Режим пары · синтез для вас и ${partner} с учётом вашего запроса.</i>`;
+    ? `<i>Pair mode · ${ctx} · synthesis for you and ${other}.</i>`
+    : `<i>Режим пары · ${ctx} · синтез для вас и ${other}.</i>`;
 }

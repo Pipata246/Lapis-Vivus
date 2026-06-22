@@ -288,6 +288,12 @@ export function formatTreeStepMessage(nodeId, lang = 'ru') {
 }
 
 export function formatGoalSummary(data, lang = 'ru') {
+  if (data?.compare_mode && data?.compare_context_label) {
+    const code = lang === 'en' ? 'en' : 'ru';
+    const label = code === 'en' ? 'Comparison context' : 'Контекст сравнения';
+    return `${label}\n<b>${data.compare_context_label}</b>`;
+  }
+
   if (data?.session_mode === 'full' && data?.goal_leaf_label) {
     const code = lang === 'en' ? 'en' : 'ru';
     const label = code === 'en' ? 'Session focus' : 'Фокус сессии';
@@ -302,12 +308,10 @@ export function formatGoalSummary(data, lang = 'ru') {
     code === 'en' ? 'Session focus' : 'Фокус сессии';
   const variantNote =
     data.block_variant === 'partner_composite'
-      ? (code === 'en' ? ' · partner composite' : ' · кармический композит пары')
+      ? (code === 'en' ? ' · pair matrix' : ' · матрица пары')
       : data.block_variant === 'intersubjective_composite'
-        ? (code === 'en' ? ' · intertype composite' : ' · соционический композит')
-        : data.compare_mode
-          ? (code === 'en' ? ' · pair analysis' : ' · анализ пары')
-          : '';
+        ? (code === 'en' ? ' · intertype pair' : ' · соционика пары')
+        : '';
 
   let text = `${modeLabel}\n<b>${meta.title}</b>${variantNote}`;
   if (data.goal_leaf_label) {

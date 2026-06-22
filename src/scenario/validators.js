@@ -63,11 +63,10 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'quick_question',
   'finish_session',
   'compare_start',
-  'compare_tree',
-  'compare_use_profile',
-  'compare_enter_subject',
+  'compare_context',
   'compare_confirm_yes',
   'compare_edit_partner',
+  'compare_edit_subject',
   'partner_gender',
   'partner_time_unknown',
 ]);
@@ -102,15 +101,6 @@ export function parseCallbackData(data) {
     return { action: 'tree', value: `${nodeId}:${variant}` };
   }
 
-  if (parts.length === 4 && parts[1] === 'compare_tree') {
-    const nodeId = parts[2];
-    const variant = parts[3];
-    if (!/^shag_[0-9]+$/.test(nodeId) || !/^[abc]$/.test(variant)) {
-      return null;
-    }
-    return { action: 'compare_tree', value: `${nodeId}:${variant}` };
-  }
-
   if (parts.length < 2 || parts.length > 3) {
     return null;
   }
@@ -119,6 +109,17 @@ export function parseCallbackData(data) {
   const value = parts[2] ?? null;
 
   if (!ALLOWED_CALLBACK_ACTIONS.has(action)) {
+    return null;
+  }
+
+  if (
+    action === 'compare_context' &&
+    value !== 'relationships' &&
+    value !== 'family' &&
+    value !== 'business' &&
+    value !== 'friendship' &&
+    value !== 'custom'
+  ) {
     return null;
   }
 

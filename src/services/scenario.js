@@ -76,21 +76,20 @@ import {
 } from '../scenario/diagnosticTree.js';
 import {
   isCompareMode,
-  applySubjectFromProfile,
   compareGoalKeyboard,
-  compareSubjectChoiceKeyboard,
   compareConfirmKeyboard,
   partnerGenderKeyboard,
   partnerTimeKeyboard,
   formatCompareIntro,
   formatCompareGoalStep,
-  formatCompareSubjectChoice,
+  formatCompareCustomContextPrompt,
+  formatCompareSubjectIntro,
   formatComparePairProfile,
   formatPartnerInitStep,
-  resolveCompareTreeChoice,
   compareBlockPrepIntro,
   subjectProfileFromCollected,
   partnerProfileFromCollected,
+  resolveCompareContext,
 } from '../scenario/compareFlow.js';
 import { saveComparison } from '../db/comparisons.js';
 
@@ -145,9 +144,10 @@ async function finalizeAnalysisSession(from, chat, session, lang) {
         subjectData: subjectProfileFromCollected(data),
         partnerData: partnerProfileFromCollected(data),
         goalData: {
+          compare_context: data.compare_context,
+          compare_context_label: data.compare_context_label,
+          compare_context_custom: data.compare_context_custom,
           goal_leaf_label: data.goal_leaf_label,
-          goal_maslow: data.goal_maslow,
-          goal_path: data.goal_path,
           block_variant: data.block_variant,
         },
         targetBlockId: data.target_block_id,
@@ -394,9 +394,9 @@ function resumePrompt(session, lang = 'en') {
       text: [formatCompareIntro(lang), '', formatCompareGoalStep(lang)].join('\n'),
       keyboard: compareGoalKeyboard(lang),
     },
-    [STEPS.COMPARE_SUBJECT_CHOICE]: {
-      text: formatCompareSubjectChoice(lang),
-      keyboard: compareSubjectChoiceKeyboard(lang),
+    [STEPS.COMPARE_CONTEXT_CUSTOM]: {
+      text: formatCompareCustomContextPrompt(lang),
+      keyboard: textInputKeyboard(lang),
     },
     [STEPS.PARTNER_NAME]: {
       text: formatPartnerInitStep(1, 5, 'partner_name', lang),
@@ -611,58 +611,48 @@ export async function handleCallback(from, callbackData) {
       };
     }
 
-    case 'compare_tree': {
+    case 'compare_context': {
       const userLang = await resolveLang(from);
 
       if (session.step !== STEPS.COMPARE_GOAL) {
         return await safeResumePrompt(session, from.id);
       }
 
-      const [nodeId, variantKey] = (parsed.value ?? '').split(':');
-      const choice = resolveCompareTreeChoice(nodeId, variantKey, userLang);
-      if (!choice.ok || !choice.done) {
-        return { text: choice.error ?? u(userLang, 'errorTreeStep'), keyboard: compareGoalKeyboard(userLang) };
-      }
+      const contextKey = parsed.value;
 
-      const goalPath = [...(session.collected_data?.goal_path ?? []), choice.pathEntry];
-      const data = mergeCollectedData(session, {
-        compare_mode: true,
-        session_mode: 'targeted',
-        goal_tree_node: null,
-        goal_path: goalPath,
-        target_block_id: choice.targetBlock,
-        block_variant: choice.blockVariant,
-        goal_leaf_label: choice.leafLabel,
-        goal_maslow: choice.maslow,
-      });
-
-      await persistSessionData(from.id, data);
-
-      const profile = await loadUserAnalysisProfile(from.id);
-      const subjectPatch = applySubjectFromProfile(profile, userLang);
-
-      if (subjectPatch) {
-        await updateSession(from.id, {
-          step: STEPS.COMPARE_SUBJECT_CHOICE,
-          collected_data: data,
-          target_block_id: choice.targetBlock,
-        });
+      if (contextKey === 'custom') {
+        await updateSession(from.id, { step: STEPS.COMPARE_CONTEXT_CUSTOM });
         return {
-          text: formatCompareSubjectChoice(userLang),
-          keyboard: compareSubjectChoiceKeyboard(userLang),
+          text: formatCompareCustomContextPrompt(userLang),
+          keyboard: textInputKeyboard(userLang),
         };
       }
 
+      const resolved = resolveCompareContext(contextKey, null, userLang);
+      if (!resolved.ok) {
+        return { text: resolved.error, keyboard: compareGoalKeyboard(userLang) };
+      }
+
+      const data = mergeCollectedData(session, {
+        compare_mode: true,
+        session_mode: 'targeted',
+        compare_context: resolved.compare_context,
+        compare_context_label: resolved.compare_context_label,
+        compare_context_custom: resolved.compare_context_custom,
+        target_block_id: resolved.target_block_id,
+        block_variant: resolved.block_variant,
+        goal_leaf_label: resolved.goal_leaf_label,
+      });
+
+      await persistSessionData(from.id, data);
       await updateSession(from.id, {
         step: STEPS.GENDER,
-        target_block_id: choice.targetBlock,
+        target_block_id: resolved.target_block_id,
       });
 
       return {
         text: [
-          letterhead(userLang === 'en' ? 'Your focus' : 'Ваш запрос', userLang),
-          '',
-          formatAfterGoalIntro(userLang),
+          formatCompareSubjectIntro(resolved.compare_context_label, userLang),
           '',
           formatInitStep(1, 4, 'gender', userLang),
         ].join('\n'),
@@ -670,35 +660,8 @@ export async function handleCallback(from, callbackData) {
       };
     }
 
-    case 'compare_use_profile': {
+    case 'compare_edit_subject': {
       const userLang = await resolveLang(from);
-      if (session.step !== STEPS.COMPARE_SUBJECT_CHOICE) {
-        return await safeResumePrompt(session, from.id);
-      }
-
-      const profile = await loadUserAnalysisProfile(from.id);
-      const subjectPatch = applySubjectFromProfile(profile, userLang);
-      if (!subjectPatch) {
-        await updateSession(from.id, { step: STEPS.GENDER });
-        return {
-          text: formatInitStep(1, 4, 'gender', userLang),
-          keyboard: genderKeyboard(userLang),
-        };
-      }
-
-      const data = mergeCollectedData(session, subjectPatch);
-      await updateSession(from.id, { step: STEPS.PARTNER_NAME, collected_data: data });
-      return {
-        text: formatPartnerInitStep(1, 5, 'partner_name', userLang),
-        keyboard: textInputKeyboard(userLang),
-      };
-    }
-
-    case 'compare_enter_subject': {
-      const userLang = await resolveLang(from);
-      if (session.step !== STEPS.COMPARE_SUBJECT_CHOICE) {
-        return await safeResumePrompt(session, from.id);
-      }
       const data = mergeCollectedData(session, {
         gender: null,
         gender_label: null,
@@ -707,9 +670,10 @@ export async function handleCallback(from, callbackData) {
         birth_place: null,
       });
       await updateSession(from.id, { step: STEPS.GENDER, collected_data: data });
+      const label = session.collected_data?.compare_context_label ?? '';
       return {
         text: [
-          letterhead(userLang === 'en' ? 'Your profile' : 'Ваш профиль', userLang),
+          formatCompareSubjectIntro(label, userLang),
           '',
           formatInitStep(1, 4, 'gender', userLang),
         ].join('\n'),
@@ -1279,9 +1243,9 @@ export async function handleText(from, rawText) {
     }
     const hints = {
       [STEPS.GOAL_TREE]: '🎯 На этом шаге выберите вариант кнопкой ниже.',
-      [STEPS.COMPARE_GOAL]: '🎯 На этом шаге выберите вариант кнопкой ниже.',
-      [STEPS.COMPARE_SUBJECT_CHOICE]: '👤 Выберите, использовать профиль или ввести заново.',
-      [STEPS.PARTNER_GENDER]: '👤 На этом шаге выберите пол партнёра кнопкой ниже.',
+      [STEPS.COMPARE_GOAL]: '🎯 Выберите контекст сравнения кнопкой ниже.',
+      [STEPS.COMPARE_CONTEXT_CUSTOM]: '✏️ Опишите контекст сравнения текстом.',
+      [STEPS.PARTNER_GENDER]: '👤 Выберите пол второго человека кнопкой ниже.',
       [STEPS.COMPARE_CONFIRM]: '✓ Подтвердите данные пары кнопкой ниже.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
@@ -1291,6 +1255,39 @@ export async function handleText(from, rawText) {
   }
 
   switch (step) {
+    case STEPS.COMPARE_CONTEXT_CUSTOM: {
+      const resolved = resolveCompareContext('custom', rawText, lang);
+      if (!resolved.ok) {
+        return { text: resolved.error, keyboard: textInputKeyboard(lang) };
+      }
+
+      const data = mergeCollectedData(session, {
+        compare_mode: true,
+        session_mode: 'targeted',
+        compare_context: resolved.compare_context,
+        compare_context_label: resolved.compare_context_label,
+        compare_context_custom: resolved.compare_context_custom,
+        target_block_id: resolved.target_block_id,
+        block_variant: resolved.block_variant,
+        goal_leaf_label: resolved.goal_leaf_label,
+      });
+
+      await persistSessionData(from.id, data);
+      await updateSession(from.id, {
+        step: STEPS.GENDER,
+        target_block_id: resolved.target_block_id,
+      });
+
+      return {
+        text: [
+          formatCompareSubjectIntro(resolved.compare_context_label, lang),
+          '',
+          formatInitStep(1, 4, 'gender', lang),
+        ].join('\n'),
+        keyboard: genderKeyboard(lang),
+      };
+    }
+
     case STEPS.BIRTH_DATE: {
       const v = validateBirthDate(rawText, lang);
       if (!v.ok) return { text: v.error, keyboard: textInputKeyboard(lang) };
