@@ -166,85 +166,48 @@ export function partnerTimeKeyboard(lang = 'ru') {
   };
 }
 
-export function formatCompareIntro(lang = 'ru') {
+/** Экран выбора контекста — один блок, без инструкций. */
+export function formatCompareStartScreen(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   if (code === 'en') {
     return [
       letterhead('Compatibility', lang),
       '',
-      '<i>Compare two birth profiles — same data as in a protocol session.</i>',
-      '',
-      section(
-        'How it works',
-        [
-          '1. Choose context · relationships, family, business, friendship — or your own',
-          '2. Enter your birth profile · gender, date, time, place',
-          '3. Enter the other person\'s birth profile',
-          '4. Receive a pair synthesis for your chosen context',
-        ].join('\n'),
-        '◆',
-      ),
+      '<b>Choose or describe the context</b>',
     ].join('\n');
   }
-
   return [
     letterhead('Совместимость', lang),
     '',
-    '<i>Сравнение двух профилей рождения — те же данные, что при прогоне протокола.</i>',
-    '',
-    section(
-      'Как это работает',
-      [
-        '1. Выберите контекст · отношения, семья, бизнес, дружба — или свой вариант',
-        '2. Введите свой профиль · пол, дата, время, место рождения',
-        '3. Введите профиль второго человека',
-        '4. Получите синтез пары для выбранного контекста',
-      ].join('\n'),
-      '◆',
-    ),
+    '<b>Выберите или опишите контекст</b>',
   ].join('\n');
 }
 
+/** @deprecated используйте formatCompareStartScreen */
+export function formatCompareIntro(lang = 'ru') {
+  return formatCompareStartScreen(lang);
+}
+
+/** @deprecated используйте formatCompareStartScreen */
 export function formatCompareGoalStep(lang = 'ru') {
-  const code = lang === 'en' ? 'en' : 'ru';
-  return [
-    letterhead(code === 'en' ? 'Context' : 'Контекст', lang),
-    '',
-    code === 'en'
-      ? '<b>What is this comparison about?</b>'
-      : '<b>В каком контексте сравниваем?</b>',
-    '',
-    code === 'en'
-      ? '<i>Choose a category or describe your own focus.</i>'
-      : '<i>Выберите категорию или опишите свой запрос.</i>',
-  ].join('\n');
+  return '';
 }
 
 export function formatCompareCustomContextPrompt(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   return [
-    letterhead(code === 'en' ? 'Your context' : 'Ваш контекст', lang),
+    letterhead(code === 'en' ? 'Your context' : 'Свой контекст', lang),
     '',
-    code === 'en'
-      ? '<b>Describe the focus of this comparison.</b>'
-      : '<b>Опишите, в каком контексте нужно сравнение.</b>',
-    '',
-    code === 'en'
-      ? '<i>Examples · co-parenting, creative partnership, relocation together…</i>'
-      : '<i>Например · совместное воспитание, творческий дуэт, переезд вместе…</i>',
+    code === 'en' ? '<b>Describe in a few words</b>' : '<b>Опишите своими словами</b>',
   ].join('\n');
 }
 
 export function formatCompareSubjectIntro(contextLabel, lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   return [
-    letterhead(code === 'en' ? 'Person 1 · you' : 'Человек 1 · вы', lang),
+    letterhead(code === 'en' ? 'You' : 'Вы', lang),
     '',
-    section(code === 'en' ? 'Context' : 'Контекст', `<b>${escapeHtml(contextLabel)}</b>`, '◆'),
-    '',
-    code === 'en'
-      ? '<i>Enter your birth profile — step 1 of 4.</i>'
-      : '<i>Введите свой профиль рождения — шаг 1 из 4.</i>',
+    `<i>${escapeHtml(contextLabel)}</i>`,
   ].join('\n');
 }
 
@@ -338,15 +301,12 @@ export function formatComparePairProfile(data, lang = 'ru') {
     '',
     section(partnerLabel, partnerRows, '💫'),
     '',
-    `<i>${ONBOARDING_ICON.confirm} ${code === 'en' ? 'Confirm to run analysis.' : 'Подтвердите для запуска анализа.'}</i>`,
+    `<i>${ONBOARDING_ICON.confirm} ${code === 'en' ? 'Confirm to continue.' : 'Подтвердите, чтобы продолжить.'}</i>`,
   ].join('\n');
 }
 
 export function compareBlockPrepIntro(data, lang = 'ru') {
-  const code = lang === 'en' ? 'en' : 'ru';
-  const ctx = escapeHtml(data.compare_context_label ?? data.goal_leaf_label ?? '');
-  const other = data.partner_name ? escapeHtml(data.partner_name) : code === 'en' ? 'person 2' : 'человека 2';
-  return code === 'en'
-    ? `<i>Pair mode · ${ctx} · synthesis for you and ${other}.</i>`
-    : `<i>Режим пары · ${ctx} · синтез для вас и ${other}.</i>`;
+  void data;
+  void lang;
+  return '';
 }

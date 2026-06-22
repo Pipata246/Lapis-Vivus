@@ -80,8 +80,7 @@ import {
   compareConfirmKeyboard,
   partnerGenderKeyboard,
   partnerTimeKeyboard,
-  formatCompareIntro,
-  formatCompareGoalStep,
+  formatCompareStartScreen,
   formatCompareCustomContextPrompt,
   formatCompareSubjectIntro,
   formatComparePairProfile,
@@ -391,7 +390,7 @@ function resumePrompt(session, lang = 'en') {
   
   const messages = {
     [STEPS.COMPARE_GOAL]: {
-      text: [formatCompareIntro(lang), '', formatCompareGoalStep(lang)].join('\n'),
+      text: formatCompareStartScreen(lang),
       keyboard: compareGoalKeyboard(lang),
     },
     [STEPS.COMPARE_CONTEXT_CUSTOM]: {
@@ -606,7 +605,7 @@ export async function handleCallback(from, callbackData) {
       });
 
       return {
-        text: [formatCompareIntro(userLang), '', formatCompareGoalStep(userLang)].join('\n'),
+        text: formatCompareStartScreen(userLang),
         keyboard: compareGoalKeyboard(userLang),
       };
     }
@@ -621,7 +620,14 @@ export async function handleCallback(from, callbackData) {
       const contextKey = parsed.value;
 
       if (contextKey === 'custom') {
-        await updateSession(from.id, { step: STEPS.COMPARE_CONTEXT_CUSTOM });
+        const data = mergeCollectedData(session, {
+          compare_mode: true,
+          session_mode: 'targeted',
+        });
+        await updateSession(from.id, {
+          step: STEPS.COMPARE_CONTEXT_CUSTOM,
+          collected_data: data,
+        });
         return {
           text: formatCompareCustomContextPrompt(userLang),
           keyboard: textInputKeyboard(userLang),
@@ -741,8 +747,9 @@ export async function handleCallback(from, callbackData) {
       });
       session = await getSession(from.id);
       const prep = await showBlockPrep(session, chat.id, userLang);
+      const intro = compareBlockPrepIntro(session.collected_data ?? {}, userLang);
       return {
-        text: `${compareBlockPrepIntro(session.collected_data ?? {}, userLang)}\n\n${prep.text}`,
+        text: intro ? `${intro}\n\n${prep.text}` : prep.text,
         keyboard: prep.keyboard,
       };
     }
@@ -1255,6 +1262,7 @@ export async function handleText(from, rawText) {
   }
 
   switch (step) {
+    case STEPS.COMPARE_GOAL:
     case STEPS.COMPARE_CONTEXT_CUSTOM: {
       const resolved = resolveCompareContext('custom', rawText, lang);
       if (!resolved.ok) {
