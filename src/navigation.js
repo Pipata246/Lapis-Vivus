@@ -55,6 +55,7 @@ export function getHelpKeyboard(lang) {
   const communityLabel = code === 'en' ? '👥 Community' : '👥 Сообщество';
 
   const rows = [
+    [{ text: btn(lang, 'instruction'), callback_data: 'nav:instruction' }],
     ...getLegalDocsKeyboard(lang),
     [
       { text: communityLabel, url: COMMUNITY.telegramUrl },

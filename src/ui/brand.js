@@ -53,6 +53,7 @@ const BTN_EMOJI = {
   balance: '💰',
   settings: '⚙️',
   help: '📖',
+  instruction: '📋',
   back: '◀️',
   close: '✕',
   cancel: '✕',
@@ -85,6 +86,7 @@ export const BTN = {
     balance: 'Баланс',
     settings: 'Настройки',
     help: 'Справка',
+    instruction: 'Инструкция',
     back: 'Назад',
     close: 'Закрыть',
     cancel: 'Отмена',
@@ -122,6 +124,7 @@ export const BTN = {
     balance: 'Balance',
     settings: 'Settings',
     help: 'Help',
+    instruction: 'Guide',
     back: 'Back',
     close: 'Close',
     cancel: 'Cancel',
@@ -355,61 +358,27 @@ export function formatWelcome(lang = 'ru') {
   ].join('\n');
 }
 
-/** Экран «Справка» — премиальный стиль, контакт поддержки. */
+/** Экран «Справка» — кратко: о сервисе, поддержка; ссылки — в кнопках. */
 export function formatHelp(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
   const contact = `<a href="${SUPPORT.telegramUrl}">${SUPPORT.telegramMention}</a>`;
+  const community = `<a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>`;
 
   if (code === 'en') {
     return [
       letterhead('Help', lang),
       '',
       `<i>${BRAND.tagline.en}</i>`,
-      `<i>${BRAND.subtitle.en}</i>`,
       '',
       section(
         'About',
-        'Lapis Vivus is a personal route through interpretation steps — from your origin map to an integration protocol. Each step is built on your birth profile and session focus.',
+        'Lapis Vivus builds a personal analysis route from your birth profile — full protocol, focused question, or pair compatibility with a clear verdict.',
         '✨',
       ),
       '',
-      section(
-        'Session structure',
-        'Five parts — origin, polarity, essence, connections, integration. You may choose a focus or follow the full route step by step.',
-        '🗺',
-      ),
+      section('Support', `Questions — ${contact} · Community ${community}`, '💬'),
       '',
-      section(
-        'How to begin',
-        [
-        '1. Tap «Launch protocol» in the main menu',
-        '2. Complete your birth profile (date, time, place)',
-        '3. Choose a session focus or the full route',
-        '4. Run steps in order and ask clarifying questions',
-        ].join('\n'),
-        '▶',
-      ),
-      '',
-      section(
-        'Profile & balance',
-        '«My profile» — birth data and session progress. «Balance» — top up via YooKassa (invoice valid 10 minutes) and shop.',
-        '👤',
-      ),
-      '',
-      section(
-        'Commands',
-        [
-          '/start — main menu',
-          '/profile — my profile',
-          '/balance — balance and top-up',
-          '/protocol — launch protocol',
-          '/settings — language',
-          '/help — this guide',
-        ].join('\n'),
-        '⚙️',
-      ),
-      '',
-      section('Support', `For service questions, contact ${contact}. Community — <a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>.`, '💬'),
+      '<i>Policy, offer & step-by-step guide — buttons below.</i>',
     ].join('\n');
   }
 
@@ -417,51 +386,16 @@ export function formatHelp(lang = 'ru') {
     letterhead('Справка', lang),
     '',
     `<i>${BRAND.tagline.ru}</i>`,
-    `<i>${BRAND.subtitle.ru}</i>`,
     '',
     section(
-      'О проекте',
-      'Lapis Vivus — индивидуальный маршрут через этапы интерпретации: от карты происхождения до протокола интеграции. Каждый шаг строится на вашем профиле рождения и выбранном фокусе сессии.',
+      'О сервисе',
+      'Lapis Vivus выстраивает персональный маршрут анализа по профилю рождения — полный протокол, точечный запрос или совместимость пары с чётким итогом.',
       '✨',
     ),
     '',
-    section(
-      'Структура сессии',
-      'Пять частей — происхождение, полярность, сущность, связи, интеграция. Можно выбрать фокус или пройти полный маршрут шаг за шагом.',
-      '🗺',
-    ),
+    section('Поддержка', `Вопросы — ${contact} · Сообщество ${community}`, '💬'),
     '',
-    section(
-      'Как начать',
-      [
-        '1. Нажмите «Запустить протокол» в главном меню',
-        '2. Заполните профиль рождения (дата, время, место)',
-        '3. Выберите фокус сессии или полный маршрут',
-        '4. Проходите этапы по очереди и задавайте уточняющие вопросы',
-      ].join('\n'),
-      '▶',
-    ),
-    '',
-      section(
-        'Профиль и баланс',
-        '«Мой профиль» — данные рождения и прогресс сессии. «Баланс» — пополнение через ЮKassa (счёт 10 минут) и магазин.',
-        '👤',
-      ),
-    '',
-    section(
-      'Команды',
-      [
-          '/start — главное меню',
-          '/profile — мой профиль',
-          '/balance — баланс и пополнение',
-          '/protocol — запустить протокол',
-        '/settings — язык интерфейса',
-        '/help — эта справка',
-      ].join('\n'),
-      '⚙️',
-    ),
-    '',
-    section('Поддержка', `По вопросам работы сервиса — ${contact}. Сообщество — <a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>.`, '💬'),
+    '<i>Политика, оферта и пошаговая инструкция — кнопками ниже.</i>',
   ].join('\n');
 }
 

@@ -8,6 +8,7 @@ import {
   sendScenarioReply,
 } from './services/scenario.js';
 import { t, u } from './i18n.js';
+import { renderInstructionSlide } from './ui/instructionGuide.js';
 import {
   getMainMenuKeyboard,
   getProfileKeyboard,
@@ -467,6 +468,14 @@ function registerHandlers(bot) {
 
     // Обработка навигационных callback'ов
     if (callbackData.startsWith('nav:')) {
+      if (callbackData === 'nav:instruction' || callbackData.startsWith('nav:inst:')) {
+        const pageIndex =
+          callbackData === 'nav:instruction' ? 0 : parseInt(callbackData.split(':')[2], 10) || 0;
+        const { text, keyboard } = renderInstructionSlide(lang, pageIndex);
+        await deliverScreen(ctx, { text, keyboard, userId, lang });
+        return;
+      }
+
       const action = callbackData.split(':')[1];
       
       switch (action) {
