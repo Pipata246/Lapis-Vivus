@@ -5,6 +5,8 @@
 import { splitTelegramMessages, TELEGRAM_PARSE_MODE, htmlToPlain } from '../ai/formatResponse.js';
 import { letterhead, btn } from './brand.js';
 import { CALLBACK_PREFIX } from '../scenario/constants.js';
+import { deliverSingleMessage } from './singleMessage.js';
+
 const TELEGRAM_MAX = 4096;
 /** Запас под шапку, индикатор страницы и кнопки. */
 export const PAGER_CONTENT_MAX = 3400;
@@ -79,14 +81,11 @@ export function bookPagerKeyboard({ pageIndex, totalPages, lang = 'ru', complete
 
   if (isLast) {
     if (completeActions === 'compare') {
-      rows.push(
-        [{ text: btn(lang, 'comparePair'), callback_data: cb('compare_start') }],
-        [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
-      );
-    } else {
-      rows.push([{ text: btn(lang, 'menu'), callback_data: cb('menu') }]);
+      rows.push([{ text: btn(lang, 'comparePair'), callback_data: cb('compare_start') }]);
     }
   }
+
+  rows.push([{ text: btn(lang, 'menu'), callback_data: cb('menu') }]);
 
   return { inline_keyboard: rows };
 }
@@ -126,49 +125,12 @@ export function renderPagerPage(pager, lang = 'ru') {
   return { text, keyboard, index, total, isLast };
 }
 
-/**
- * Удаляет текущее callback-сообщение и отправляет новое (листание «книги»).
- */
-async function deliverTelegramPayload(ctx, text, keyboard, { preferEdit = false } = {}) {
-  const replyOptions = { parse_mode: TELEGRAM_PARSE_MODE };
-  if (keyboard) replyOptions.reply_markup = keyboard;
-
-  const sendPlain = async () => {
-    const plainOptions = {};
-    if (keyboard) plainOptions.reply_markup = keyboard;
-    await ctx.reply(htmlToPlain(text), plainOptions);
-  };
-
-  if (preferEdit && ctx.callbackQuery?.message) {
-    try {
-      await ctx.editMessageText(text, replyOptions);
-      return;
-    } catch (err) {
-      console.log('[pager] edit fallback:', err.message);
-    }
-  }
-
-  if (ctx.callbackQuery?.message) {
-    await ctx.deleteMessage().catch(() => {});
-  }
-
-  try {
-    await ctx.reply(text, replyOptions);
-  } catch (err) {
-    if (err.message?.includes('parse') || err.message?.includes('entities')) {
-      await sendPlain();
-      return;
-    }
-    if (err.message?.includes('message is too long')) {
-      await ctx.reply(htmlToPlain(text).slice(0, TELEGRAM_MAX - 1), {
-        ...(keyboard ? { reply_markup: keyboard } : {}),
-      });
-      return;
-    }
-    throw err;
-  }
-}
-
-export async function replaceCallbackMessage(ctx, { text, keyboard, preferEdit = false }) {
-  await deliverTelegramPayload(ctx, text, keyboard, { preferEdit });
+export async function replaceCallbackMessage(ctx, { text, keyboard, lang = 'ru' }) {
+  await deliverSingleMessage(ctx, {
+    text,
+    keyboard,
+    userId: ctx.from?.id,
+    lang,
+    skipMainMenu: true,
+  });
 }

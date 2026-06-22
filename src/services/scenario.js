@@ -5,7 +5,7 @@ import {
   CALLBACK_PREFIX,
 } from '../scenario/constants.js';
 import { rejectText, u, mapErrorToUser } from '../ui/userCopy.js';
-import { splitTelegramMessages, splitForTelegramWithKeyboard, TELEGRAM_PARSE_MODE, htmlToPlain, formatFollowUpForTelegram } from '../ai/formatResponse.js';
+import { splitTelegramMessages, splitForTelegramWithKeyboard, formatFollowUpForTelegram } from '../ai/formatResponse.js';
 import { formatProfileSummary } from '../ai/formatProfile.js';
 import {
   parseCallbackData,
@@ -135,7 +135,7 @@ function pagerReplyFromSession(session, lang, pageIndex = null) {
   return {
     text: rendered.text,
     keyboard: rendered.keyboard,
-    replaceMessage: true,
+    skipMainMenu: true,
   };
 }
 
@@ -492,6 +492,7 @@ async function showMenu(lang = 'en') {
   return {
     text: formatWelcome(lang),
     keyboard: getMainMenuKeyboard(lang),
+    skipMainMenu: true,
   };
 }
 
@@ -1801,131 +1802,42 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 
 export async function sendScenarioReply(ctx, payload) {
   try {
-    if (!payload?.text) {
+    if (ctx.message && !ctx.callbackQuery) {
+      const { deleteUserInput } = await import('../ui/singleMessage.js');
+      await deleteUserInput(ctx);
+    }
+
+    const userId = ctx.from?.id;
+    let lang = 'ru';
+    if (userId) {
+      try {
+        lang = await resolveLang({ id: userId });
+      } catch {
+        // default ru
+      }
+    }
+
+    const text = collapsePayloadText(payload?.text, payload?.extraMessages);
+    if (!text?.trim()) {
       console.error('[sendScenarioReply] пустой payload:', payload);
-      const userId = ctx.from?.id;
-      let lang = 'ru';
-      if (userId) {
-        try {
-          lang = await resolveLang({ id: userId });
-        } catch {
-          // default ru
-        }
-      }
-      await ctx.reply(`${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`).catch(() => {});
+      const { deliverSingleMessage } = await import('../ui/singleMessage.js');
+      await deliverSingleMessage(ctx, {
+        text: `${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`,
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
       return;
     }
 
-    const { text, keyboard, extraMessages, editMessage = false, replaceMessage = false } = payload;
-
-    if (replaceMessage && ctx.callbackQuery) {
-      try {
-        const { replaceCallbackMessage } = await import('../ui/messagePager.js');
-        await replaceCallbackMessage(ctx, { text, keyboard });
-      } catch (err) {
-        console.error('[sendScenarioReply] replace failed:', err.message);
-        try {
-          await ctx.editMessageText(text, {
-            parse_mode: TELEGRAM_PARSE_MODE,
-            ...(keyboard ? { reply_markup: keyboard } : {}),
-          });
-        } catch {
-          await ctx
-            .reply(text, {
-              parse_mode: TELEGRAM_PARSE_MODE,
-              ...(keyboard ? { reply_markup: keyboard } : {}),
-            })
-            .catch(() => ctx.reply(htmlToPlain(text), keyboard ? { reply_markup: keyboard } : {}));
-        }
-      }
-      return;
-    }
-
-    const replyOptions = {
-      parse_mode: TELEGRAM_PARSE_MODE,
-    };
-
-    if (keyboard) {
-      replyOptions.reply_markup = keyboard;
-    }
-
-    if (editMessage && ctx.callbackQuery) {
-      const chatId = ctx.chat?.id;
-      const messageId = ctx.callbackQuery?.message?.message_id;
-
-      if (chatId && messageId) {
-        try {
-          await ctx.telegram.editMessageText(chatId, messageId, undefined, text, replyOptions);
-          return;
-        } catch (directErr) {
-          console.error('[sendScenarioReply] direct edit failed:', directErr.message);
-        }
-      }
-
-      try {
-        await ctx.editMessageText(text, replyOptions);
-        return;
-      } catch (err) {
-        console.log('Не удалось отредактировать сообщение, отправляю новое:', err.message);
-        try {
-          await ctx.reply(text, replyOptions);
-          return;
-        } catch (replyErr) {
-          if (replyErr.message?.includes('parse') || replyErr.message?.includes('entities')) {
-            const plainOptions = {};
-            if (keyboard) plainOptions.reply_markup = keyboard;
-            await ctx.reply(htmlToPlain(text), plainOptions);
-            return;
-          }
-          throw replyErr;
-        }
-      }
-    }
-
-    try {
-      await ctx.reply(text, replyOptions);
-    } catch (err) {
-      if (err.message?.includes('parse') || err.message?.includes('entities')) {
-        console.error('Ошибка парсинга HTML, отправляю plain:', err.message);
-        const plainOptions = {};
-        if (keyboard) {
-          plainOptions.reply_markup = keyboard;
-        }
-        await ctx.reply(htmlToPlain(text), plainOptions);
-      } else {
-        throw err;
-      }
-    }
-
-    if (extraMessages?.length) {
-      for (const part of extraMessages) {
-        const partText = typeof part === 'string' ? part : part.text;
-        const partKb = typeof part === 'string' ? undefined : part.keyboard;
-
-        const partOptions = {
-          parse_mode: TELEGRAM_PARSE_MODE,
-        };
-
-        if (partKb) {
-          partOptions.reply_markup = partKb;
-        }
-
-        try {
-          await ctx.reply(partText, partOptions);
-        } catch (err) {
-          if (err.message?.includes('parse') || err.message?.includes('entities')) {
-            console.error('Ошибка парсинга HTML в extra message, отправляю plain');
-            const plainPartOptions = {};
-            if (partKb) {
-              plainPartOptions.reply_markup = partKb;
-            }
-            await ctx.reply(htmlToPlain(partText), plainPartOptions);
-          } else {
-            throw err;
-          }
-        }
-      }
-    }
+    const { deliverSingleMessage } = await import('../ui/singleMessage.js');
+    await deliverSingleMessage(ctx, {
+      text,
+      keyboard: payload?.keyboard,
+      userId,
+      lang,
+      skipMainMenu: Boolean(payload?.skipMainMenu),
+    });
   } catch (err) {
     console.error('[sendScenarioReply] fatal:', err.message, err.stack);
     const userId = ctx.from?.id;
@@ -1937,6 +1849,23 @@ export async function sendScenarioReply(ctx, payload) {
         // default ru
       }
     }
-    await ctx.reply(`${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`).catch(() => {});
+    const { deliverSingleMessage } = await import('../ui/singleMessage.js');
+    await deliverSingleMessage(ctx, {
+      text: `${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`,
+      userId,
+      lang,
+      skipMainMenu: true,
+    }).catch(() => {});
   }
+}
+
+function collapsePayloadText(text, extraMessages) {
+  if (!extraMessages?.length) return text ?? '';
+  const parts = [text];
+  for (const part of extraMessages) {
+    parts.push(typeof part === 'string' ? part : part?.text);
+  }
+  const joined = parts.filter(Boolean).join('\n\n');
+  if (joined.length <= 4096) return joined;
+  return `${joined.slice(0, 4080)}\n\n<i>…</i>`;
 }

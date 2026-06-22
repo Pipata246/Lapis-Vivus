@@ -23,7 +23,7 @@ export function goalTreeKeyboard(nodeId, lang = 'ru') {
     { text: variant.short[code], callback_data: treeCb(nodeId, key) },
   ]);
 
-  rows.push([{ text: btn(lang, 'cancel'), callback_data: cb('menu') }]);
+  rows.push([{ text: btn(lang, 'menu'), callback_data: cb('menu') }]);
 
   return { inline_keyboard: rows };
 }
@@ -41,7 +41,7 @@ export function genderKeyboard(lang = 'ru') {
         { text: male, callback_data: cb('gender', 'male') },
         { text: female, callback_data: cb('gender', 'female') },
       ],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -50,7 +50,7 @@ export function birthTimeKeyboard(lang = 'ru') {
   return {
     inline_keyboard: [
       [{ text: btn(lang, 'timeUnknown'), callback_data: cb('time_unknown') }],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -61,7 +61,7 @@ export function confirmKeyboard(lang = 'ru') {
       [{ text: btn(lang, 'confirm'), callback_data: cb('confirm_yes') }],
       [
         { text: btn(lang, 'editData'), callback_data: cb('confirm_edit') },
-        { text: btn(lang, 'cancel'), callback_data: cb('menu') },
+        { text: btn(lang, 'menu'), callback_data: cb('menu') },
       ],
     ],
   };
@@ -78,13 +78,15 @@ export function blockPrepKeyboard(blockId, collectedData = {}, lang = 'ru') {
   rows.push([{ text: btn(lang, 'runStage'), callback_data: cb('run_block') }]);
   rows.push([
     { text: btn(lang, 'skipStage'), callback_data: cb('skip_block') },
-    { text: btn(lang, 'cancel'), callback_data: cb('menu') },
+    { text: btn(lang, 'menu'), callback_data: cb('menu') },
   ]);
 
   return { inline_keyboard: rows };
 }
 
 export function nextBlockKeyboard(lang = 'ru', targeted = false) {
+  const menuRow = [{ text: btn(lang, 'menu'), callback_data: cb('menu') }];
+
   if (targeted) {
     return {
       inline_keyboard: [
@@ -94,6 +96,7 @@ export function nextBlockKeyboard(lang = 'ru', targeted = false) {
         ],
         [{ text: btn(lang, 'whatMeans'), callback_data: cb('quick_question', '2') }],
         [{ text: btn(lang, 'finishSession'), callback_data: cb('finish_session') }],
+        menuRow,
       ],
     };
   }
@@ -106,13 +109,14 @@ export function nextBlockKeyboard(lang = 'ru', targeted = false) {
       ],
       [{ text: btn(lang, 'whatMeans'), callback_data: cb('quick_question', '2') }],
       [{ text: btn(lang, 'nextStage'), callback_data: cb('next_block') }],
+      menuRow,
     ],
   };
 }
 
 export function textInputKeyboard(lang = 'ru') {
   return {
-    inline_keyboard: [[{ text: btn(lang, 'cancel'), callback_data: cb('menu') }]],
+    inline_keyboard: [[{ text: btn(lang, 'menu'), callback_data: cb('menu') }]],
   };
 }
 
@@ -120,7 +124,7 @@ export function blockFailedKeyboard(lang = 'ru') {
   return {
     inline_keyboard: [
       [{ text: btn(lang, 'retryStage'), callback_data: cb('retry_block') }],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }

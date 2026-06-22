@@ -38,7 +38,9 @@ import {
   acceptLegalDocuments,
 } from './db/users.js';
 import { expireStalePayments } from './db/payments.js';
-import { getSession, updateSession } from './db/sessions.js';
+import { getSession, updateSession, resetSession } from './db/sessions.js';
+import { getOrCreateUserChat } from './db/chats.js';
+import { deliverSingleMessage } from './ui/singleMessage.js';
 import {
   formatLegalGateMessage,
   getLegalGateKeyboard,
@@ -71,17 +73,33 @@ async function buildBalanceText(userId, lang) {
   return formatBalanceCard(profile, lang);
 }
 
+async function deliverScreen(ctx, { text, keyboard, userId, lang, skipMainMenu = false }) {
+  await deliverSingleMessage(ctx, {
+    text,
+    keyboard,
+    userId: userId ?? ctx.from?.id,
+    lang: lang ?? 'ru',
+    skipMainMenu,
+  });
+}
+
 async function sendLegalGate(ctx, lang) {
-  await ctx.reply(formatLegalGateMessage(lang), {
-    parse_mode: 'HTML',
-    reply_markup: getLegalGateKeyboard(lang),
+  await deliverScreen(ctx, {
+    text: formatLegalGateMessage(lang),
+    keyboard: getLegalGateKeyboard(lang),
+    userId: ctx.from?.id,
+    lang,
+    skipMainMenu: true,
   });
 }
 
 async function sendMainMenu(ctx, lang) {
-  await ctx.reply(t(lang, 'welcome'), {
-    parse_mode: 'HTML',
-    reply_markup: getMainMenuKeyboard(lang),
+  await deliverScreen(ctx, {
+    text: t(lang, 'welcome'),
+    keyboard: getMainMenuKeyboard(lang),
+    userId: ctx.from?.id,
+    lang,
+    skipMainMenu: true,
   });
 }
 
@@ -90,16 +108,13 @@ async function ensureLegalOrGate(ctx, lang) {
   if (!userId) return false;
   if (await hasLegalAccepted(userId)) return true;
 
-  if (ctx.callbackQuery) {
-    await ctx
-      .editMessageText(formatLegalGateMessage(lang), {
-        parse_mode: 'HTML',
-        reply_markup: getLegalGateKeyboard(lang),
-      })
-      .catch(() => sendLegalGate(ctx, lang));
-  } else {
-    await sendLegalGate(ctx, lang);
-  }
+  await deliverScreen(ctx, {
+    text: formatLegalGateMessage(lang),
+    keyboard: getLegalGateKeyboard(lang),
+    userId,
+    lang,
+    skipMainMenu: true,
+  });
   return false;
 }
 
@@ -186,7 +201,7 @@ function registerHandlers(bot) {
     } catch (err) {
       console.error('Ошибка /start:', err.message);
       const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
-      await ctx.reply(u(lang, 'errorStart'));
+      await deliverScreen(ctx, { text: u(lang, 'errorStart'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -199,20 +214,20 @@ function registerHandlers(bot) {
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        await ctx.reply(t(lang, 'insufficientRights'));
+        await deliverScreen(ctx, { text: t(lang, 'insufficientRights'), userId, lang, skipMainMenu: true });
         return;
       }
-      
-      await ctx.reply(
-        `${t(lang, 'adminPanel')}\n\n${t(lang, 'adminText')}`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: getAdminKeyboard(lang),
-        }
-      );
+
+      await deliverScreen(ctx, {
+        text: `${t(lang, 'adminPanel')}\n\n${t(lang, 'adminText')}`,
+        keyboard: getAdminKeyboard(lang),
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
     } catch (err) {
       console.error('Ошибка /admin:', err.message);
-      await ctx.reply(u(lang, 'errorAccess'));
+      await deliverScreen(ctx, { text: u(lang, 'errorAccess'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -224,14 +239,16 @@ function registerHandlers(bot) {
       const lang = await getUserLanguage(userId);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
-      await ctx.reply(await buildProfileText(userId, lang), {
-        parse_mode: 'HTML',
-        reply_markup: getProfileKeyboard(lang),
+      await deliverScreen(ctx, {
+        text: await buildProfileText(userId, lang),
+        keyboard: getProfileKeyboard(lang),
+        userId,
+        lang,
       });
     } catch (err) {
       console.error('Ошибка /profile:', err.message);
       const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
-      await ctx.reply(u(lang, 'errorLoad'));
+      await deliverScreen(ctx, { text: u(lang, 'errorLoad'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -243,14 +260,16 @@ function registerHandlers(bot) {
       const lang = await getUserLanguage(userId);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
-      await ctx.reply(await buildBalanceText(userId, lang), {
-        parse_mode: 'HTML',
-        reply_markup: getBalanceKeyboard(lang),
+      await deliverScreen(ctx, {
+        text: await buildBalanceText(userId, lang),
+        keyboard: getBalanceKeyboard(lang),
+        userId,
+        lang,
       });
     } catch (err) {
       console.error('Ошибка /balance:', err.message);
       const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
-      await ctx.reply(u(lang, 'errorLoad'));
+      await deliverScreen(ctx, { text: u(lang, 'errorLoad'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -265,7 +284,12 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
-      await ctx.reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`);
+      await deliverScreen(ctx, {
+        text: `${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`,
+        userId: ctx.from.id,
+        lang,
+        skipMainMenu: true,
+      });
     }
   });
 
@@ -275,14 +299,16 @@ function registerHandlers(bot) {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
-      await ctx.reply(`${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`, {
-        parse_mode: 'HTML',
-        reply_markup: getSettingsKeyboard(lang),
+      await deliverScreen(ctx, {
+        text: `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
+        keyboard: getSettingsKeyboard(lang),
+        userId: ctx.from.id,
+        lang,
       });
     } catch (err) {
       console.error('Ошибка /settings:', err.message);
       const lang = await getUserLanguage(ctx.from?.id).catch(() => 'ru');
-      await ctx.reply(u(lang, 'errorLoad'));
+      await deliverScreen(ctx, { text: u(lang, 'errorLoad'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -292,13 +318,15 @@ function registerHandlers(bot) {
       await initUser(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
       if (!(await ensureLegalOrGate(ctx, lang))) return;
-      await ctx.reply(t(lang, 'helpText'), {
-        parse_mode: 'HTML',
-        reply_markup: getHelpKeyboard(lang),
+      await deliverScreen(ctx, {
+        text: t(lang, 'helpText'),
+        keyboard: getHelpKeyboard(lang),
+        userId: ctx.from.id,
+        lang,
       });
     } catch (err) {
       console.error('Ошибка /help:', err.message);
-      await ctx.reply(u(lang, 'errorLoad'));
+      await deliverScreen(ctx, { text: u(lang, 'errorLoad'), userId: ctx.from?.id, lang, skipMainMenu: true });
     }
   });
 
@@ -323,23 +351,25 @@ function registerHandlers(bot) {
       const subscribed = await isUserInCommunity(ctx.telegram, userId);
       if (!subscribed) {
         const gateLang = await getUserLanguage(userId);
-        await ctx
-          .editMessageText(formatLegalGateMessage(gateLang, { needSubscription: true }), {
-            parse_mode: 'HTML',
-            reply_markup: getLegalGateKeyboard(gateLang),
-          })
-          .catch(() => sendLegalGate(ctx, gateLang));
+        await deliverScreen(ctx, {
+          text: formatLegalGateMessage(gateLang, { needSubscription: true }),
+          keyboard: getLegalGateKeyboard(gateLang),
+          userId,
+          lang: gateLang,
+          skipMainMenu: true,
+        });
         return;
       }
 
       await acceptLegalDocuments(userId);
       const welcomeLang = await getUserLanguage(userId);
-      await ctx
-        .editMessageText(t(welcomeLang, 'welcome'), {
-          parse_mode: 'HTML',
-          reply_markup: getMainMenuKeyboard(welcomeLang),
-        })
-        .catch(() => sendMainMenu(ctx, welcomeLang));
+      await deliverScreen(ctx, {
+        text: t(welcomeLang, 'welcome'),
+        keyboard: getMainMenuKeyboard(welcomeLang),
+        userId,
+        lang: welcomeLang,
+        skipMainMenu: true,
+      });
       return;
     }
 
@@ -352,22 +382,24 @@ function registerHandlers(bot) {
       const newLang = current === 'en' ? 'ru' : 'en';
       await setUserLanguage(userId, newLang);
 
-      await ctx
-        .editMessageText(formatLegalGateMessage(newLang), {
-          parse_mode: 'HTML',
-          reply_markup: getLegalGateKeyboard(newLang),
-        })
-        .catch(() => sendLegalGate(ctx, newLang));
+      await deliverScreen(ctx, {
+        text: formatLegalGateMessage(newLang),
+        keyboard: getLegalGateKeyboard(newLang),
+        userId,
+        lang: newLang,
+        skipMainMenu: true,
+      });
       return;
     }
 
     if (!(await hasLegalAccepted(userId))) {
-      await ctx
-        .editMessageText(formatLegalGateMessage(lang), {
-          parse_mode: 'HTML',
-          reply_markup: getLegalGateKeyboard(lang),
-        })
-        .catch(() => sendLegalGate(ctx, lang));
+      await deliverScreen(ctx, {
+        text: formatLegalGateMessage(lang),
+        keyboard: getLegalGateKeyboard(lang),
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
       return;
     }
 
@@ -393,66 +425,13 @@ function registerHandlers(bot) {
 
       if (callbackData === 'lv:compare_confirm_yes') {
         const { formatCompareRunning } = await import('./scenario/compareFlow.js');
-        const { TELEGRAM_PARSE_MODE } = await import('./ai/formatResponse.js');
-        const chatId = ctx.chat?.id;
-        const messageId = ctx.callbackQuery?.message?.message_id;
-
-        if (chatId && messageId) {
-          await ctx.telegram
-            .editMessageText(chatId, messageId, undefined, formatCompareRunning(lang), {
-              parse_mode: TELEGRAM_PARSE_MODE,
-              reply_markup: { inline_keyboard: [] },
-            })
-            .catch(() => {});
-        } else {
-          await ctx
-            .editMessageText(formatCompareRunning(lang), {
-              parse_mode: TELEGRAM_PARSE_MODE,
-              reply_markup: { inline_keyboard: [] },
-            })
-            .catch(() => {});
-        }
-
-        const deliver = async () => {
-          try {
-            const payload = await handleCallback(ctx.from, callbackData);
-            if (!payload?.text) {
-              console.error('[compare] пустой payload после запуска');
-              const { mapErrorToUser } = await import('./ui/userCopy.js');
-              await ctx
-                .reply(`${mapErrorToUser(lang, new Error('empty payload'))}\n\n${t(lang, 'tryAgain')}`)
-                .catch(() => {});
-              return;
-            }
-
-            const opts = {
-              parse_mode: TELEGRAM_PARSE_MODE,
-              ...(payload.keyboard ? { reply_markup: payload.keyboard } : {}),
-            };
-
-            if (chatId && messageId && (payload.editMessage || payload.replaceMessage)) {
-              try {
-                await ctx.telegram.editMessageText(chatId, messageId, undefined, payload.text, opts);
-                return;
-              } catch (editErr) {
-                console.error('[compare] не удалось обновить результат:', editErr.message);
-              }
-            }
-
-            await sendScenarioReply(ctx, payload);
-          } catch (err) {
-            console.error('Ошибка compare_confirm_yes:', err.message, err.stack);
-            const { mapErrorToUser } = await import('./ui/userCopy.js');
-            await ctx
-              .reply(`${mapErrorToUser(lang, err)}\n\n${t(lang, 'tryAgain')}`)
-              .catch(() => {});
-          } finally {
-            processingCallbacks.delete(key);
-          }
-        };
-
-        await deliver();
-        return;
+        await deliverScreen(ctx, {
+          text: formatCompareRunning(lang),
+          keyboard: { inline_keyboard: [] },
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
       }
 
       try {
@@ -460,18 +439,24 @@ function registerHandlers(bot) {
         if (!payload?.text) {
           console.error('[callback] пустой payload:', callbackData, payload);
           const { mapErrorToUser } = await import('./ui/userCopy.js');
-          await ctx
-            .reply(`${mapErrorToUser(lang, new Error('empty payload'))}\n\n${t(lang, 'tryAgain')}`)
-            .catch(() => {});
+          await deliverScreen(ctx, {
+            text: `${mapErrorToUser(lang, new Error('empty payload'))}\n\n${t(lang, 'tryAgain')}`,
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           return;
         }
         await sendScenarioReply(ctx, payload);
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);
         const { mapErrorToUser } = await import('./ui/userCopy.js');
-        await ctx
-          .reply(`${mapErrorToUser(lang, err)}\n\n${t(lang, 'tryAgain')}`)
-          .catch(() => {});
+        await deliverScreen(ctx, {
+          text: `${mapErrorToUser(lang, err)}\n\n${t(lang, 'tryAgain')}`,
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
       } finally {
         processingCallbacks.delete(key);
       }
@@ -484,127 +469,134 @@ function registerHandlers(bot) {
       const action = callbackData.split(':')[1];
       
       switch (action) {
-        case 'main_menu':
-          await ctx.editMessageText(
-            t(lang, 'welcome'),
-            {
-              parse_mode: 'HTML',
-              reply_markup: getMainMenuKeyboard(lang),
-            }
-          ).catch(() => {});
+        case 'main_menu': {
+          const chat = await getOrCreateUserChat(userId);
+          await resetSession(userId, chat.id);
+          await deliverScreen(ctx, {
+            text: t(lang, 'welcome'),
+            keyboard: getMainMenuKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
+        }
 
         case 'start_analysis': {
-          // Старые сообщения с кнопкой nav:start_analysis (до перехода на lv:start)
           try {
             await ctx.sendChatAction('typing').catch(() => {});
             const payload = await handleCallback(ctx.from, 'lv:start');
             await sendScenarioReply(ctx, payload);
           } catch (err) {
             console.error('Ошибка start_analysis (legacy):', err.message, err.stack);
-            await ctx
-              .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
-              .catch(() => {});
+            await deliverScreen(ctx, {
+              text: `${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`,
+              userId,
+              lang,
+              skipMainMenu: true,
+            });
           }
           break;
         }
-          
+
         case 'profile':
           try {
             await updateSession(userId, { ui_mode: null });
-            const profileText = await buildProfileText(userId, lang);
-
-            await ctx.editMessageText(profileText, {
-              parse_mode: 'HTML',
-              reply_markup: getProfileKeyboard(lang),
-            }).catch(() => {});
+            await deliverScreen(ctx, {
+              text: await buildProfileText(userId, lang),
+              keyboard: getProfileKeyboard(lang),
+              userId,
+              lang,
+            });
           } catch (err) {
             console.error('Error loading profile:', err.message);
-            await ctx.reply(t(lang, 'errorOccurred'));
+            await deliverScreen(ctx, { text: t(lang, 'errorOccurred'), userId, lang, skipMainMenu: true });
           }
           break;
 
         case 'balance':
           try {
             await updateSession(userId, { ui_mode: null });
-            const balanceText = await buildBalanceText(userId, lang);
-
-            await ctx.editMessageText(balanceText, {
-              parse_mode: 'HTML',
-              reply_markup: getBalanceKeyboard(lang),
-            }).catch(() => {});
+            await deliverScreen(ctx, {
+              text: await buildBalanceText(userId, lang),
+              keyboard: getBalanceKeyboard(lang),
+              userId,
+              lang,
+            });
           } catch (err) {
             console.error('Error loading balance:', err.message);
-            await ctx.reply(t(lang, 'errorOccurred'));
+            await deliverScreen(ctx, { text: t(lang, 'errorOccurred'), userId, lang, skipMainMenu: true });
           }
           break;
 
         case 'topup':
           try {
             await updateSession(userId, { ui_mode: 'topup' });
-            await ctx.editMessageText(formatTopupPrompt(lang), {
-              parse_mode: 'HTML',
-              reply_markup: getTopupCancelKeyboard(lang),
-            }).catch(() => {});
+            await deliverScreen(ctx, {
+              text: formatTopupPrompt(lang),
+              keyboard: getTopupCancelKeyboard(lang),
+              userId,
+              lang,
+            });
           } catch (err) {
             console.error('Error starting topup:', err.message);
-            await ctx.reply(t(lang, 'errorOccurred'));
+            await deliverScreen(ctx, { text: t(lang, 'errorOccurred'), userId, lang, skipMainMenu: true });
           }
           break;
 
         case 'topup_cancel':
           try {
             await updateSession(userId, { ui_mode: null });
-            const balanceText = await buildBalanceText(userId, lang);
-            await ctx.editMessageText(balanceText, {
-              parse_mode: 'HTML',
-              reply_markup: getBalanceKeyboard(lang),
-            }).catch(() => {});
+            await deliverScreen(ctx, {
+              text: await buildBalanceText(userId, lang),
+              keyboard: getBalanceKeyboard(lang),
+              userId,
+              lang,
+            });
           } catch (err) {
             console.error('Error canceling topup:', err.message);
-            await ctx.reply(t(lang, 'errorOccurred'));
+            await deliverScreen(ctx, { text: t(lang, 'errorOccurred'), userId, lang, skipMainMenu: true });
           }
           break;
 
         case 'shop':
-          await ctx.editMessageText(formatShopStub(lang), {
-            parse_mode: 'HTML',
-            reply_markup: getShopKeyboard(lang),
-          }).catch(() => {});
+          await deliverScreen(ctx, {
+            text: formatShopStub(lang),
+            keyboard: getShopKeyboard(lang),
+            userId,
+            lang,
+          });
           break;
-          
+
         case 'settings':
-          await ctx.editMessageText(
-            `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: getSettingsKeyboard(lang),
-            }
-          ).catch(() => {});
+          await deliverScreen(ctx, {
+            text: `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
+            keyboard: getSettingsKeyboard(lang),
+            userId,
+            lang,
+          });
           break;
-          
+
         case 'change_language':
-          await ctx.editMessageText(
-            `${t(lang, 'changeLanguage')}:`,
-            {
-              parse_mode: 'HTML',
-              reply_markup: getLanguageKeyboard(lang),
-            }
-          ).catch(() => {});
+          await deliverScreen(ctx, {
+            text: `${t(lang, 'changeLanguage')}:`,
+            keyboard: getLanguageKeyboard(lang),
+            userId,
+            lang,
+          });
           break;
-          
+
         case 'help':
-          await ctx.editMessageText(
-            t(lang, 'helpText'),
-            {
-              parse_mode: 'HTML',
-              reply_markup: getHelpKeyboard(lang),
-            }
-          ).catch(() => {});
+          await deliverScreen(ctx, {
+            text: t(lang, 'helpText'),
+            keyboard: getHelpKeyboard(lang),
+            userId,
+            lang,
+          });
           break;
-          
+
         default:
-          await ctx.reply(u(lang, 'errorUnknownAction'));
+          await deliverScreen(ctx, { text: u(lang, 'errorUnknownAction'), userId, lang, skipMainMenu: true });
       }
       
       return;
@@ -613,23 +605,20 @@ function registerHandlers(bot) {
     // Обработка смены языка
     if (callbackData.startsWith('lang:')) {
       const newLang = callbackData.split(':')[1];
-      
+
       try {
         await setUserLanguage(userId, newLang);
-
-        // Обновляем сообщение с настройками на новом языке
-        await ctx.editMessageText(
-          `${t(newLang, 'settingsTitle')}\n\n${t(newLang, 'settingsText')}`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: getSettingsKeyboard(newLang),
-          }
-        ).catch(() => {});
+        await deliverScreen(ctx, {
+          text: `${t(newLang, 'settingsTitle')}\n\n${t(newLang, 'settingsText')}`,
+          keyboard: getSettingsKeyboard(newLang),
+          userId,
+          lang: newLang,
+        });
       } catch (err) {
         console.error('Error changing language:', err.message);
-        await ctx.reply(t(lang, 'errorOccurred')).catch(() => {});
+        await deliverScreen(ctx, { text: t(lang, 'errorOccurred'), userId, lang, skipMainMenu: true });
       }
-      
+
       return;
     }
     
@@ -638,98 +627,129 @@ function registerHandlers(bot) {
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
-        await ctx.reply(t(lang, 'insufficientRights')).catch(() => {});
+        await deliverScreen(ctx, { text: t(lang, 'insufficientRights'), userId, lang, skipMainMenu: true });
         return;
       }
 
       const action = callbackData.split(':')[1];
-      
+
       switch (action) {
         case 'edit_system_prompt':
           await updateSession(userId, { admin_mode: 'edit_system_prompt' });
-          await ctx.reply(
-            '<b>Редактирование системного промпта</b>\n\n' +
-            'Отправьте новый текст системного промпта.\n\n' +
-            'Формат · текст, TXT или PDF.\n\n' +
-            '<i>Изменение повлияет на поведение системы для всех пользователей.</i>\n\n' +
-            'Отмена · /admin',
-            { parse_mode: 'HTML' }
-          );
+          await deliverScreen(ctx, {
+            text:
+              '<b>Редактирование системного промпта</b>\n\n' +
+              'Отправьте новый текст системного промпта.\n\n' +
+              'Формат · текст, TXT или PDF.\n\n' +
+              '<i>Изменение повлияет на поведение системы для всех пользователей.</i>\n\n' +
+              'Отмена · /admin',
+            keyboard: getAdminKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
 
         case 'edit_blocks':
           await updateSession(userId, { admin_mode: 'edit_blocks' });
-          await ctx.reply(
-            '<b>Редактирование этапов</b>\n\n' +
-            'Отправьте новый текст этапов анализа.\n\n' +
-            'Формат · текст, TXT или PDF.\n\n' +
-            '<i>Изменение повлияет на структуру анализа для всех пользователей.</i>\n\n' +
-            'Отмена · /admin',
-            { parse_mode: 'HTML' }
-          );
+          await deliverScreen(ctx, {
+            text:
+              '<b>Редактирование этапов</b>\n\n' +
+              'Отправьте новый текст этапов анализа.\n\n' +
+              'Формат · текст, TXT или PDF.\n\n' +
+              '<i>Изменение повлияет на структуру анализа для всех пользователей.</i>\n\n' +
+              'Отмена · /admin',
+            keyboard: getAdminKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
 
         case 'edit_glossary':
           await updateSession(userId, { admin_mode: 'edit_glossary' });
-          await ctx.reply(
-            '<b>Редактирование глоссария</b>\n\n' +
-            'Отправьте новый текст глоссария терминов.\n\n' +
-            'Формат · текст, TXT или PDF.\n\n' +
-            '<i>Изменение повлияет на определения терминов для всех пользователей.</i>\n\n' +
-            'Отмена · /admin',
-            { parse_mode: 'HTML' }
-          );
+          await deliverScreen(ctx, {
+            text:
+              '<b>Редактирование глоссария</b>\n\n' +
+              'Отправьте новый текст глоссария терминов.\n\n' +
+              'Формат · текст, TXT или PDF.\n\n' +
+              '<i>Изменение повлияет на определения терминов для всех пользователей.</i>\n\n' +
+              'Отмена · /admin',
+            keyboard: getAdminKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
 
         case 'edit_bibliography':
           await updateSession(userId, { admin_mode: 'edit_bibliography' });
-          await ctx.reply(
-            '<b>Редактирование библиографии</b>\n\n' +
-            'Отправьте новый текст библиографии первоисточников.\n\n' +
-            'Формат · текст, TXT или PDF.\n\n' +
-            '<i>Изменение повлияет на библиографию для всех пользователей.</i>\n\n' +
-            'Отмена · /admin',
-            { parse_mode: 'HTML' }
-          );
+          await deliverScreen(ctx, {
+            text:
+              '<b>Редактирование библиографии</b>\n\n' +
+              'Отправьте новый текст библиографии первоисточников.\n\n' +
+              'Формат · текст, TXT или PDF.\n\n' +
+              '<i>Изменение повлияет на библиографию для всех пользователей.</i>\n\n' +
+              'Отмена · /admin',
+            keyboard: getAdminKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
 
         case 'edit_calculators':
           await updateSession(userId, { admin_mode: 'edit_calculators' });
-          await ctx.reply(
-            '<b>Редактирование калькуляторов</b>\n\n' +
-            'Отправьте новый список инструментов расчёта и ссылок.\n\n' +
-            'Формат · текст, TXT или PDF.\n\n' +
-            '<i>Изменение повлияет на список калькуляторов для всех пользователей.</i>\n\n' +
-            'Отмена · /admin',
-            { parse_mode: 'HTML' }
-          );
+          await deliverScreen(ctx, {
+            text:
+              '<b>Редактирование калькуляторов</b>\n\n' +
+              'Отправьте новый список инструментов расчёта и ссылок.\n\n' +
+              'Формат · текст, TXT или PDF.\n\n' +
+              '<i>Изменение повлияет на список калькуляторов для всех пользователей.</i>\n\n' +
+              'Отмена · /admin',
+            keyboard: getAdminKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
-          
+
         case 'close':
           await updateSession(userId, { admin_mode: null });
-          await ctx.deleteMessage().catch(() => {});
+          await deliverScreen(ctx, {
+            text: t(lang, 'welcome'),
+            keyboard: getMainMenuKeyboard(lang),
+            userId,
+            lang,
+            skipMainMenu: true,
+          });
           break;
-          
+
         default:
-          await ctx.reply(u(lang, 'errorUnknownAction'));
+          await deliverScreen(ctx, { text: u(lang, 'errorUnknownAction'), userId, lang, skipMainMenu: true });
       }
 
       return;
     }
 
     console.warn(`[callback] Неизвестный callback: ${callbackData}`);
-    await ctx
-      .reply(
+    await deliverScreen(ctx, {
+      text:
         lang === 'ru'
           ? 'Кнопка устарела или не поддерживается. Нажмите /start для актуального меню.'
-          : 'This button is outdated. Press /start for the current menu.'
-      )
-      .catch(() => {});
+          : 'This button is outdated. Press /start for the current menu.',
+      userId,
+      lang,
+      skipMainMenu: true,
+    });
     } catch (err) {
       console.error('[callback] fatal:', err.message, err.stack);
-      await ctx
-        .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
-        .catch(() => {});
+      await deliverScreen(ctx, {
+        text: `${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`,
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
     }
   });
 
@@ -743,7 +763,9 @@ function registerHandlers(bot) {
     const lang = await getUserLanguage(userId);
 
     if (text.startsWith('/')) {
-      await ctx.reply(t(lang, 'commandsDisabled'));
+      const { deleteUserInput } = await import('./ui/singleMessage.js');
+      await deleteUserInput(ctx);
+      await deliverScreen(ctx, { text: t(lang, 'commandsDisabled'), userId, lang, skipMainMenu: true });
       return;
     }
 
@@ -761,13 +783,13 @@ function registerHandlers(bot) {
       if (!adminStatus) {
         console.log('[text] НЕ админ, сбрасываем режим');
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply(t(lang, 'insufficientRights'));
+        await deliverScreen(ctx, { text: t(lang, 'insufficientRights'), userId, lang, skipMainMenu: true });
         return;
       }
-      
+
       try {
         const { updatePrompt } = await import('./prompts/loadSystemPrompt.js');
-        
+
         let promptId, promptName;
         if (adminMode === 'edit_system_prompt') {
           promptId = 'system';
@@ -785,26 +807,34 @@ function registerHandlers(bot) {
           promptId = 'calculators';
           promptName = 'Калькуляторы';
         }
-        
+
         await ctx.sendChatAction('typing').catch(() => {});
         await updatePrompt(promptId, text, userId);
-        
+
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply(
-          `<b>${promptName}</b> успешно обновлён.\n\n` +
-          `Длина: ${text.length} символов\n` +
-          `Новый промпт будет использоваться для всех новых запросов к ИИ.`
-        );
+        await deliverScreen(ctx, {
+          text:
+            `<b>${promptName}</b> успешно обновлён.\n\n` +
+            `Длина: ${text.length} символов\n` +
+            `Новый промпт будет использоваться для всех новых запросов к ИИ.`,
+          keyboard: getMainMenuKeyboard(lang),
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
       } catch (err) {
         console.error('Ошибка обновления промпта:', err.message);
-        await ctx.reply(`Ошибка · ${err.message}`);
+        await deliverScreen(ctx, { text: `Ошибка · ${err.message}`, userId, lang, skipMainMenu: true });
       }
-      
+
       return;
     }
 
     const sessionForTopup = await getSession(userId);
     if (sessionForTopup?.ui_mode === 'topup') {
+      const { deleteUserInput } = await import('./ui/singleMessage.js');
+      await deleteUserInput(ctx);
+
       const parsed = parseTopupAmount(text);
       if (!parsed.ok) {
         const hint =
@@ -813,7 +843,7 @@ function registerHandlers(bot) {
             : parsed.error === 'max'
               ? formatTopupInvalidAmount(lang, { max: parsed.max })
               : formatTopupInvalidAmount(lang);
-        await ctx.reply(hint, { reply_markup: getTopupCancelKeyboard(lang) }).catch(() => {});
+        await deliverScreen(ctx, { text: hint, keyboard: getTopupCancelKeyboard(lang), userId, lang });
         return;
       }
 
@@ -827,20 +857,20 @@ function registerHandlers(bot) {
 
         await updateSession(userId, { ui_mode: null });
 
-        await ctx.reply(formatPaymentLinkMessage(parsed.amountRub, lang), {
-          parse_mode: 'HTML',
-          reply_markup: getPaymentLinkKeyboard(payment.confirmationUrl, lang),
+        await deliverScreen(ctx, {
+          text: formatPaymentLinkMessage(parsed.amountRub, lang),
+          keyboard: getPaymentLinkKeyboard(payment.confirmationUrl, lang),
+          userId,
+          lang,
         });
       } catch (err) {
         console.error('Topup error:', err.message);
-        await ctx
-          .reply(
-            lang === 'ru'
-              ? `${u(lang, 'errorPayment')}`
-              : `${u(lang, 'errorPayment')}`,
-            { reply_markup: getTopupCancelKeyboard(lang) },
-          )
-          .catch(() => {});
+        await deliverScreen(ctx, {
+          text: u(lang, 'errorPayment'),
+          keyboard: getTopupCancelKeyboard(lang),
+          userId,
+          lang,
+        });
       }
 
       return;
@@ -870,7 +900,12 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка text:', err.message, err.stack);
-      await ctx.reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`).catch(() => {});
+      await deliverScreen(ctx, {
+        text: `${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`,
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
     } finally {
       setTimeout(() => {
         processingMessages.delete(key);
@@ -895,7 +930,7 @@ function registerHandlers(bot) {
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка photo:', err.message);
-      await ctx.reply(u(lang, 'errorPhoto'));
+      await deliverScreen(ctx, { text: u(lang, 'errorPhoto'), userId: ctx.from.id, lang, skipMainMenu: true });
     }
   });
 
@@ -925,25 +960,31 @@ function registerHandlers(bot) {
       if (!adminStatus) {
         console.log('[document] НЕ админ, сбрасываем режим');
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply(t(lang, 'insufficientRights'));
+        await deliverScreen(ctx, { text: t(lang, 'insufficientRights'), userId, lang, skipMainMenu: true });
         return;
       }
-      
+
       const mimeType = document.mime_type || '';
       const fileName = document.file_name || '';
-      
-      // Проверяем тип файла - TXT или PDF
+
       const isTxt = mimeType.includes('text') || fileName.endsWith('.txt');
       const isPdf = mimeType === 'application/pdf' || fileName.endsWith('.pdf');
-      
+
       if (!isTxt && !isPdf) {
-        await ctx.reply(
-          'Поддерживаются только TXT и PDF файлы.\n\n' +
-          'Отправьте промпт в одном из форматов:\n' +
-          '• Текстовое сообщение\n' +
-          '• TXT файл\n' +
-          '• PDF файл'
-        );
+        const { deleteUserInput } = await import('./ui/singleMessage.js');
+        await deleteUserInput(ctx);
+        await deliverScreen(ctx, {
+          text:
+            'Поддерживаются только TXT и PDF файлы.\n\n' +
+            'Отправьте промпт в одном из форматов:\n' +
+            '• Текстовое сообщение\n' +
+            '• TXT файл\n' +
+            '• PDF файл',
+          keyboard: getAdminKeyboard(lang),
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
         return;
       }
       
@@ -1016,28 +1057,35 @@ function registerHandlers(bot) {
         await updatePrompt(promptId, extractedText, userId);
         
         await updateSession(userId, { admin_mode: null });
-        await ctx.reply(
-          `<b>${promptName}</b> успешно обновлён из файла.\n\n` +
-          `Файл: ${fileName}\n` +
-          `Длина: ${extractedText.length} символов\n` +
-          `Новый промпт будет использоваться для всех новых запросов к ИИ.`
-        );
+        const { deleteUserInput } = await import('./ui/singleMessage.js');
+        await deleteUserInput(ctx);
+        await deliverScreen(ctx, {
+          text:
+            `<b>${promptName}</b> успешно обновлён из файла.\n\n` +
+            `Файл: ${fileName}\n` +
+            `Длина: ${extractedText.length} символов\n` +
+            `Новый промпт будет использоваться для всех новых запросов к ИИ.`,
+          keyboard: getMainMenuKeyboard(lang),
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
       } catch (err) {
         console.error('Ошибка обработки файла промпта:', err.message);
-        await ctx.reply(`Ошибка · ${err.message}`);
+        await deliverScreen(ctx, { text: `Ошибка · ${err.message}`, userId, lang, skipMainMenu: true });
       }
-      
+
       return;
     }
 
     await ctx.sendChatAction('typing').catch(() => {});
-    
+
     try {
       const payload = await handleFile(ctx.from, document.file_id, 'document', document.file_name, document.mime_type);
       await sendScenarioReply(ctx, payload);
     } catch (err) {
       console.error('Ошибка document:', err.message);
-      await ctx.reply(u(lang, 'errorDocument'));
+      await deliverScreen(ctx, { text: u(lang, 'errorDocument'), userId, lang, skipMainMenu: true });
     }
   });
 
@@ -1046,7 +1094,14 @@ function registerHandlers(bot) {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
-    await ctx.reply(u(lang, 'unsupportedMessage'));
+    const { deleteUserInput } = await import('./ui/singleMessage.js');
+    await deleteUserInput(ctx);
+    await deliverScreen(ctx, {
+      text: u(lang, 'unsupportedMessage'),
+      userId: ctx.from.id,
+      lang,
+      skipMainMenu: true,
+    });
   });
 
   bot.catch((err) => {

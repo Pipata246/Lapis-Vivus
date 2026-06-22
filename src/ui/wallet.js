@@ -187,7 +187,7 @@ export function formatBalanceCard(profile, lang = 'ru') {
 
 export function getProfileKeyboard(lang) {
   return {
-    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }]],
+    inline_keyboard: [[{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }]],
   };
 }
 
@@ -199,14 +199,17 @@ export function getBalanceKeyboard(lang) {
     inline_keyboard: [
       [{ text: topUpLabel, callback_data: 'nav:topup' }],
       [{ text: shopLabel, callback_data: 'nav:shop' }],
-      [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
     ],
   };
 }
 
 export function getTopupCancelKeyboard(lang) {
   return {
-    inline_keyboard: [[{ text: btn(lang, 'cancel'), callback_data: 'nav:topup_cancel' }]],
+    inline_keyboard: [
+      [{ text: btn(lang, 'back'), callback_data: 'nav:topup_cancel' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
+    ],
   };
 }
 
@@ -216,6 +219,7 @@ export function getPaymentLinkKeyboard(confirmationUrl, lang) {
     inline_keyboard: [
       [{ text: payLabel, url: confirmationUrl }],
       [{ text: btn(lang, 'back'), callback_data: 'nav:balance' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
     ],
   };
 }

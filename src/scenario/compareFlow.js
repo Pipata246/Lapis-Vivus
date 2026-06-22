@@ -135,7 +135,7 @@ export function compareGoalKeyboard(lang = 'ru') {
         { text: `${fr.emoji} ${fr.label[code]}`, callback_data: cb('compare_context', 'friendship') },
       ],
       [{ text: btn(lang, 'compareCustom'), callback_data: cb('compare_context', 'custom') }],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -148,7 +148,7 @@ export function compareConfirmKeyboard(lang = 'ru') {
         { text: btn(lang, 'editPartner'), callback_data: cb('compare_edit_partner') },
         { text: btn(lang, 'editSubject'), callback_data: cb('compare_edit_subject') },
       ],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -162,7 +162,7 @@ export function partnerGenderKeyboard(lang = 'ru') {
         { text: male, callback_data: cb('partner_gender', 'male') },
         { text: female, callback_data: cb('partner_gender', 'female') },
       ],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }
@@ -171,7 +171,7 @@ export function partnerTimeKeyboard(lang = 'ru') {
   return {
     inline_keyboard: [
       [{ text: btn(lang, 'timeUnknown'), callback_data: cb('partner_time_unknown') }],
-      [{ text: btn(lang, 'cancel'), callback_data: cb('menu') }],
+      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
 }

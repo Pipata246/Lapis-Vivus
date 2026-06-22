@@ -33,7 +33,7 @@ export function getSettingsKeyboard(lang) {
   return {
     inline_keyboard: [
       [{ text: btn(lang, 'changeLanguage'), callback_data: 'nav:change_language' }],
-      [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
     ],
   };
 }
@@ -44,6 +44,7 @@ export function getLanguageKeyboard(lang) {
       [{ text: btn(lang, 'languageEn'), callback_data: 'lang:en' }],
       [{ text: btn(lang, 'languageRu'), callback_data: 'lang:ru' }],
       [{ text: btn(lang, 'back'), callback_data: 'nav:settings' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
     ],
   };
 }
@@ -59,7 +60,7 @@ export function getHelpKeyboard(lang) {
       { text: communityLabel, url: COMMUNITY.telegramUrl },
       { text: contactLabel, url: SUPPORT.telegramUrl },
     ],
-    [{ text: btn(lang, 'back'), callback_data: 'nav:main_menu' }],
+    [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
   ];
 
   return { inline_keyboard: rows };
@@ -74,12 +75,16 @@ export function getAdminKeyboard(lang) {
       [{ text: t(lang, 'editBibliography'), callback_data: 'admin:edit_bibliography' }],
       [{ text: t(lang, 'editCalculators'), callback_data: 'admin:edit_calculators' }],
       [{ text: btn(lang, 'close'), callback_data: 'admin:close' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
     ],
   };
 }
 
 export function getShopKeyboard(lang) {
   return {
-    inline_keyboard: [[{ text: btn(lang, 'back'), callback_data: 'nav:balance' }]],
+    inline_keyboard: [
+      [{ text: btn(lang, 'back'), callback_data: 'nav:balance' }],
+      [{ text: btn(lang, 'menu'), callback_data: 'lv:menu' }],
+    ],
   };
 }
