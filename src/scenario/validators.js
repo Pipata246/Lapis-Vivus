@@ -281,6 +281,15 @@ export function hasAnalysisProgress(session) {
     'block_review',
     'block_failed',
     'completed',
+    'compare_goal',
+    'compare_context_custom',
+    'partner_name',
+    'partner_gender',
+    'partner_birth_date',
+    'partner_birth_time',
+    'partner_birth_place',
+    'compare_confirm',
+    'compare_result',
   ]);
   return activeSteps.has(session.step);
 }

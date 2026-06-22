@@ -35,6 +35,23 @@ export function isCompareMode(data) {
   return Boolean(data?.compare_mode);
 }
 
+/** Все поля пары заполнены — можно запускать блок 1B. */
+export function isCompareDataComplete(data) {
+  if (!isCompareMode(data)) return false;
+  return Boolean(
+    data.compare_context &&
+      data.gender &&
+      data.birth_date &&
+      data.birth_time &&
+      data.birth_place &&
+      data.partner_name &&
+      data.partner_gender &&
+      data.partner_birth_date &&
+      data.partner_birth_time &&
+      data.partner_birth_place,
+  );
+}
+
 export function hasCompleteBirth(data) {
   return Boolean(data?.gender && data?.birth_date && data?.birth_time && data?.birth_place);
 }

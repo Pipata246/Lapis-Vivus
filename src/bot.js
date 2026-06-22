@@ -392,13 +392,67 @@ function registerHandlers(bot) {
       await ctx.sendChatAction('typing').catch(() => {});
 
       if (callbackData === 'lv:compare_confirm_yes') {
-        const { formatCompareRunning } = await import('../scenario/compareFlow.js');
-        await ctx
-          .editMessageText(formatCompareRunning(lang), {
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: [] },
-          })
-          .catch(() => {});
+        const { formatCompareRunning } = await import('./scenario/compareFlow.js');
+        const { TELEGRAM_PARSE_MODE } = await import('./ai/formatResponse.js');
+        const chatId = ctx.chat?.id;
+        const messageId = ctx.callbackQuery?.message?.message_id;
+
+        if (chatId && messageId) {
+          await ctx.telegram
+            .editMessageText(chatId, messageId, undefined, formatCompareRunning(lang), {
+              parse_mode: TELEGRAM_PARSE_MODE,
+              reply_markup: { inline_keyboard: [] },
+            })
+            .catch(() => {});
+        } else {
+          await ctx
+            .editMessageText(formatCompareRunning(lang), {
+              parse_mode: TELEGRAM_PARSE_MODE,
+              reply_markup: { inline_keyboard: [] },
+            })
+            .catch(() => {});
+        }
+
+        const deliver = async () => {
+          try {
+            const payload = await handleCallback(ctx.from, callbackData);
+            if (!payload?.text) {
+              console.error('[compare] пустой payload после запуска');
+              const { mapErrorToUser } = await import('./ui/userCopy.js');
+              await ctx
+                .reply(`${mapErrorToUser(lang, new Error('empty payload'))}\n\n${t(lang, 'tryAgain')}`)
+                .catch(() => {});
+              return;
+            }
+
+            const opts = {
+              parse_mode: TELEGRAM_PARSE_MODE,
+              ...(payload.keyboard ? { reply_markup: payload.keyboard } : {}),
+            };
+
+            if (chatId && messageId && (payload.editMessage || payload.replaceMessage)) {
+              try {
+                await ctx.telegram.editMessageText(chatId, messageId, undefined, payload.text, opts);
+                return;
+              } catch (editErr) {
+                console.error('[compare] не удалось обновить результат:', editErr.message);
+              }
+            }
+
+            await sendScenarioReply(ctx, payload);
+          } catch (err) {
+            console.error('Ошибка compare_confirm_yes:', err.message, err.stack);
+            const { mapErrorToUser } = await import('./ui/userCopy.js');
+            await ctx
+              .reply(`${mapErrorToUser(lang, err)}\n\n${t(lang, 'tryAgain')}`)
+              .catch(() => {});
+          } finally {
+            processingCallbacks.delete(key);
+          }
+        };
+
+        await deliver();
+        return;
       }
 
       try {

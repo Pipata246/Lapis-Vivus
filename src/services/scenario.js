@@ -76,6 +76,8 @@ import {
 } from '../scenario/diagnosticTree.js';
 import {
   isCompareMode,
+  isCompareDataComplete,
+  COMPARE_ENGINE,
   compareGoalKeyboard,
   compareConfirmKeyboard,
   partnerGenderKeyboard,
@@ -226,10 +228,78 @@ async function finalizeAnalysisSession(from, chat, session, lang) {
 }
 
 function resolveStartBlockIndex(collectedData) {
+  if (isCompareMode(collectedData)) {
+    return resolveCompareBlockIndex(collectedData);
+  }
   if (isTargetedSession(collectedData) && collectedData.target_block_id) {
     return resolveBlockIndex(collectedData.target_block_id);
   }
   return 0;
+}
+
+function resolveCompareBlockIndex(collectedData) {
+  const targetId = collectedData?.target_block_id ?? COMPARE_ENGINE.targetBlock;
+  return resolveBlockIndex(targetId);
+}
+
+async function prepareCompareLaunch(from, session, chat) {
+  const userLang = await resolveLang(from);
+  const data = session.collected_data ?? {};
+
+  if (!isCompareMode(data)) {
+    return { ok: false, payload: await safeResumePrompt(session, from.id) };
+  }
+
+  if (session.step === STEPS.BLOCK_RUNNING) {
+    return {
+      ok: false,
+      payload: {
+        text: `<i>${u(userLang, 'stageAlreadyRunning')}</i>`,
+        keyboard: runningKeyboard(userLang),
+        editMessage: true,
+      },
+    };
+  }
+
+  if (!isCompareDataComplete(data)) {
+    return {
+      ok: false,
+      payload: {
+        text:
+          userLang === 'en'
+            ? '<i>Pair data is incomplete. Use the buttons below to finish entering details.</i>'
+            : '<i>Данные пары неполные. Дозаполните поля кнопками ниже.</i>',
+        keyboard: compareConfirmKeyboard(userLang),
+        editMessage: true,
+      },
+    };
+  }
+
+  let step = session.step;
+  if (step === STEPS.BLOCK_FAILED) {
+    step = STEPS.COMPARE_CONFIRM;
+  } else if (step !== STEPS.COMPARE_CONFIRM) {
+    step = STEPS.COMPARE_CONFIRM;
+  }
+
+  const blockIndex = resolveCompareBlockIndex(data);
+  const targetBlockId = data.target_block_id ?? COMPARE_ENGINE.targetBlock;
+  const merged = mergeCollectedData(session, {
+    compare_mode: true,
+    session_mode: 'targeted',
+    target_block_id: targetBlockId,
+    block_variant: data.block_variant ?? COMPARE_ENGINE.blockVariant,
+  });
+
+  const updated = await updateSession(from.id, {
+    step,
+    block_index: blockIndex,
+    last_block_id: null,
+    target_block_id: targetBlockId,
+    collected_data: merged,
+  });
+
+  return { ok: true, session: updated, chat, userLang };
 }
 
 /** Не блокируем ответ пользователю — очистка файлов в фоне */
@@ -782,23 +852,17 @@ export async function handleCallback(from, callbackData) {
     }
 
     case 'compare_confirm_yes': {
-      const userLang = await resolveLang(from);
-      if (session.step !== STEPS.COMPARE_CONFIRM) {
-        return await safeResumePrompt(session, from.id);
-      }
-
       try {
-        const blockIndex = resolveStartBlockIndex(session.collected_data ?? {});
-        await updateSession(from.id, {
-          block_index: blockIndex,
-          last_block_id: null,
-          target_block_id: session.collected_data?.target_block_id ?? null,
-        });
-        session = await getSession(from.id);
-        return await runCompareBlock(from, chat.id, userLang);
+        const prep = await prepareCompareLaunch(from, session, chat);
+        if (!prep.ok) {
+          return prep.payload;
+        }
+        return await runCompareBlock(from, chat.id, prep.userLang);
       } catch (err) {
         console.error('[compare_confirm_yes]', err.message, err.stack);
-        return safeCompareErrorPayload(session, userLang, err);
+        const userLang = await resolveLang(from);
+        const fresh = await getSession(from.id).catch(() => session);
+        return safeCompareErrorPayload(fresh ?? session, userLang, err);
       }
     }
 
@@ -1265,7 +1329,7 @@ export async function handleCallback(from, callbackData) {
     }
 
     default:
-      return rejectWrongInput(session, rejectText(lang));
+      return await rejectWrongInput(session, rejectText(lang));
   }
 }
 
@@ -1285,8 +1349,15 @@ async function runCompareBlock(from, chatId, lang) {
     };
   }
 
+  const blockIndex = resolveCompareBlockIndex(session.collected_data ?? {});
+  const targetBlockId = session.collected_data?.target_block_id ?? COMPARE_ENGINE.targetBlock;
+
   try {
-    session = await updateSession(userId, { step: STEPS.BLOCK_RUNNING });
+    session = await updateSession(userId, {
+      step: STEPS.BLOCK_RUNNING,
+      block_index: blockIndex,
+      target_block_id: targetBlockId,
+    });
 
     const result = await runAnalysisBlock({
       session,
@@ -1729,8 +1800,134 @@ export async function handleFile(from, fileId, fileType = 'photo', fileName = nu
 }
 
 export async function sendScenarioReply(ctx, payload) {
-  if (!payload?.text) {
-    console.error('[sendScenarioReply] пустой payload:', payload);
+  try {
+    if (!payload?.text) {
+      console.error('[sendScenarioReply] пустой payload:', payload);
+      const userId = ctx.from?.id;
+      let lang = 'ru';
+      if (userId) {
+        try {
+          lang = await resolveLang({ id: userId });
+        } catch {
+          // default ru
+        }
+      }
+      await ctx.reply(`${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`).catch(() => {});
+      return;
+    }
+
+    const { text, keyboard, extraMessages, editMessage = false, replaceMessage = false } = payload;
+
+    if (replaceMessage && ctx.callbackQuery) {
+      try {
+        const { replaceCallbackMessage } = await import('../ui/messagePager.js');
+        await replaceCallbackMessage(ctx, { text, keyboard });
+      } catch (err) {
+        console.error('[sendScenarioReply] replace failed:', err.message);
+        try {
+          await ctx.editMessageText(text, {
+            parse_mode: TELEGRAM_PARSE_MODE,
+            ...(keyboard ? { reply_markup: keyboard } : {}),
+          });
+        } catch {
+          await ctx
+            .reply(text, {
+              parse_mode: TELEGRAM_PARSE_MODE,
+              ...(keyboard ? { reply_markup: keyboard } : {}),
+            })
+            .catch(() => ctx.reply(htmlToPlain(text), keyboard ? { reply_markup: keyboard } : {}));
+        }
+      }
+      return;
+    }
+
+    const replyOptions = {
+      parse_mode: TELEGRAM_PARSE_MODE,
+    };
+
+    if (keyboard) {
+      replyOptions.reply_markup = keyboard;
+    }
+
+    if (editMessage && ctx.callbackQuery) {
+      const chatId = ctx.chat?.id;
+      const messageId = ctx.callbackQuery?.message?.message_id;
+
+      if (chatId && messageId) {
+        try {
+          await ctx.telegram.editMessageText(chatId, messageId, undefined, text, replyOptions);
+          return;
+        } catch (directErr) {
+          console.error('[sendScenarioReply] direct edit failed:', directErr.message);
+        }
+      }
+
+      try {
+        await ctx.editMessageText(text, replyOptions);
+        return;
+      } catch (err) {
+        console.log('Не удалось отредактировать сообщение, отправляю новое:', err.message);
+        try {
+          await ctx.reply(text, replyOptions);
+          return;
+        } catch (replyErr) {
+          if (replyErr.message?.includes('parse') || replyErr.message?.includes('entities')) {
+            const plainOptions = {};
+            if (keyboard) plainOptions.reply_markup = keyboard;
+            await ctx.reply(htmlToPlain(text), plainOptions);
+            return;
+          }
+          throw replyErr;
+        }
+      }
+    }
+
+    try {
+      await ctx.reply(text, replyOptions);
+    } catch (err) {
+      if (err.message?.includes('parse') || err.message?.includes('entities')) {
+        console.error('Ошибка парсинга HTML, отправляю plain:', err.message);
+        const plainOptions = {};
+        if (keyboard) {
+          plainOptions.reply_markup = keyboard;
+        }
+        await ctx.reply(htmlToPlain(text), plainOptions);
+      } else {
+        throw err;
+      }
+    }
+
+    if (extraMessages?.length) {
+      for (const part of extraMessages) {
+        const partText = typeof part === 'string' ? part : part.text;
+        const partKb = typeof part === 'string' ? undefined : part.keyboard;
+
+        const partOptions = {
+          parse_mode: TELEGRAM_PARSE_MODE,
+        };
+
+        if (partKb) {
+          partOptions.reply_markup = partKb;
+        }
+
+        try {
+          await ctx.reply(partText, partOptions);
+        } catch (err) {
+          if (err.message?.includes('parse') || err.message?.includes('entities')) {
+            console.error('Ошибка парсинга HTML в extra message, отправляю plain');
+            const plainPartOptions = {};
+            if (partKb) {
+              plainPartOptions.reply_markup = partKb;
+            }
+            await ctx.reply(htmlToPlain(partText), plainPartOptions);
+          } else {
+            throw err;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[sendScenarioReply] fatal:', err.message, err.stack);
     const userId = ctx.from?.id;
     let lang = 'ru';
     if (userId) {
@@ -1741,107 +1938,5 @@ export async function sendScenarioReply(ctx, payload) {
       }
     }
     await ctx.reply(`${u(lang, 'errorGeneric')}\n\n${u(lang, 'tryAgain')}`).catch(() => {});
-    return;
-  }
-
-  const { text, keyboard, extraMessages, editMessage = false, replaceMessage = false } = payload;
-
-  if (replaceMessage && ctx.callbackQuery) {
-    try {
-      const { replaceCallbackMessage } = await import('../ui/messagePager.js');
-      await replaceCallbackMessage(ctx, { text, keyboard });
-    } catch (err) {
-      console.error('[sendScenarioReply] replace failed:', err.message);
-      try {
-        await ctx.editMessageText(text, {
-          parse_mode: TELEGRAM_PARSE_MODE,
-          ...(keyboard ? { reply_markup: keyboard } : {}),
-        });
-      } catch {
-        await ctx.reply(text, {
-          parse_mode: TELEGRAM_PARSE_MODE,
-          ...(keyboard ? { reply_markup: keyboard } : {}),
-        }).catch(() => ctx.reply(htmlToPlain(text), keyboard ? { reply_markup: keyboard } : {}));
-      }
-    }
-    return;
-  }
-
-  // Формируем опции для отправки
-  const replyOptions = {
-    parse_mode: TELEGRAM_PARSE_MODE,
-  };
-  
-  // Добавляем клавиатуру только если она есть
-  if (keyboard) {
-    replyOptions.reply_markup = keyboard;
-  }
-
-  // Если нужно редактировать - пробуем editMessageText
-  if (editMessage && ctx.callbackQuery) {
-    try {
-      await ctx.editMessageText(text, replyOptions);
-      return;
-    } catch (err) {
-      console.log('Не удалось отредактировать сообщение, отправляю новое:', err.message);
-      try {
-        await ctx.reply(text, replyOptions);
-        return;
-      } catch (replyErr) {
-        if (replyErr.message?.includes('parse') || replyErr.message?.includes('entities')) {
-          const plainOptions = {};
-          if (keyboard) plainOptions.reply_markup = keyboard;
-          await ctx.reply(htmlToPlain(text), plainOptions);
-          return;
-        }
-        throw replyErr;
-      }
-    }
-  }
-
-  // Пытаемся отправить с Markdown форматированием
-  try {
-    await ctx.reply(text, replyOptions);
-  } catch (err) {
-    if (err.message.includes('parse') || err.message.includes('entities')) {
-      console.error('Ошибка парсинга HTML, отправляю plain:', err.message);
-      const plainOptions = {};
-      if (keyboard) {
-        plainOptions.reply_markup = keyboard;
-      }
-      await ctx.reply(htmlToPlain(text), plainOptions);
-    } else {
-      throw err;
-    }
-  }
-
-  if (extraMessages?.length) {
-    for (const part of extraMessages) {
-      const partText = typeof part === 'string' ? part : part.text;
-      const partKb = typeof part === 'string' ? undefined : part.keyboard;
-
-      const partOptions = {
-        parse_mode: TELEGRAM_PARSE_MODE,
-      };
-
-      if (partKb) {
-        partOptions.reply_markup = partKb;
-      }
-
-      try {
-        await ctx.reply(partText, partOptions);
-      } catch (err) {
-        if (err.message.includes('parse') || err.message.includes('entities')) {
-          console.error('Ошибка парсинга HTML в extra message, отправляю plain');
-          const plainPartOptions = {};
-          if (partKb) {
-            plainPartOptions.reply_markup = partKb;
-          }
-          await ctx.reply(htmlToPlain(partText), plainPartOptions);
-        } else {
-          throw err;
-        }
-      }
-    }
   }
 }
