@@ -8,10 +8,8 @@ import { getLegalDocsKeyboard } from './ui/legal.js';
 export function getMainMenuKeyboard(lang) {
   return {
     inline_keyboard: [
-      [
-        { text: btn(lang, 'startAnalysis'), callback_data: 'lv:start' },
-        { text: btn(lang, 'comparePair'), callback_data: 'lv:compare_start' },
-      ],
+      [{ text: btn(lang, 'startAnalysis'), callback_data: 'lv:start' }],
+      [{ text: btn(lang, 'comparePair'), callback_data: 'lv:compare_start' }],
       [
         { text: btn(lang, 'myProfile'), callback_data: 'nav:profile' },
         { text: btn(lang, 'balance'), callback_data: 'nav:balance' },
