@@ -371,6 +371,16 @@ function registerHandlers(bot) {
 
       await ctx.sendChatAction('typing').catch(() => {});
 
+      if (callbackData === 'lv:compare_confirm_yes') {
+        const { formatCompareRunning } = await import('../scenario/compareFlow.js');
+        await ctx
+          .editMessageText(formatCompareRunning(lang), {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: [] },
+          })
+          .catch(() => {});
+      }
+
       try {
         const payload = await handleCallback(ctx.from, callbackData);
         await sendScenarioReply(ctx, payload);

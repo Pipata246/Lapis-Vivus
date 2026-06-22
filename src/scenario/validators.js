@@ -69,6 +69,8 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'compare_edit_subject',
   'partner_gender',
   'partner_time_unknown',
+  'page_prev',
+  'page_next',
 ]);
 
 function parseDateParts(dateStr) {

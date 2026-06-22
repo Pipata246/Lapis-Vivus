@@ -23,6 +23,8 @@ export const STEPS = {
   PARTNER_BIRTH_TIME: 'partner_birth_time',
   PARTNER_BIRTH_PLACE: 'partner_birth_place',
   COMPARE_CONFIRM: 'compare_confirm',
+  /** Листание результата совместимости */
+  COMPARE_RESULT: 'compare_result',
 };
 
 /**

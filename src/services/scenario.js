@@ -85,16 +85,37 @@ import {
   formatCompareSubjectIntro,
   formatComparePairProfile,
   formatPartnerInitStep,
-  compareCompleteKeyboard,
+  formatCompareRunning,
   formatCompareResultHeader,
   subjectProfileFromCollected,
   partnerProfileFromCollected,
   resolveCompareContext,
 } from '../scenario/compareFlow.js';
 import { saveComparison } from '../db/comparisons.js';
+import { splitIntoBookPages, renderPagerPage } from '../ui/messagePager.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
+}
+
+function buildCompareResultPager(data, bodyHtml, lang) {
+  return {
+    headerHtml: formatCompareResultHeader(data, lang),
+    pages: splitIntoBookPages(bodyHtml),
+    index: 0,
+    completeActions: 'compare',
+  };
+}
+
+function pagerReplyFromSession(session, lang, pageIndex = null) {
+  const pager = { ...(session.collected_data?.result_pager ?? {}) };
+  if (pageIndex !== null) pager.index = pageIndex;
+  const rendered = renderPagerPage(pager, lang);
+  return {
+    text: rendered.text,
+    keyboard: rendered.keyboard,
+    replaceMessage: true,
+  };
 }
 
 function showGoalTree(nodeId, lang) {
@@ -422,6 +443,10 @@ function resumePrompt(session, lang = 'en') {
       text: formatComparePairProfile(session.collected_data ?? {}, lang),
       keyboard: compareConfirmKeyboard(lang),
     },
+    [STEPS.COMPARE_RESULT]: (() => {
+      const rendered = renderPagerPage(session.collected_data?.result_pager ?? {}, lang);
+      return { text: rendered.text, keyboard: rendered.keyboard };
+    })(),
     [STEPS.GOAL_TREE]: {
       ...showGoalTree(session.collected_data?.goal_tree_node ?? TREE_ROOT, lang),
     },
@@ -747,6 +772,36 @@ export async function handleCallback(from, callbackData) {
       });
       session = await getSession(from.id);
       return runCompareBlock(from, chat.id, userLang);
+    }
+
+    case 'page_prev':
+    case 'page_next': {
+      const userLang = await resolveLang(from);
+      if (session.step !== STEPS.COMPARE_RESULT) {
+        return await rejectWrongInput(session, rejectText(userLang), from.id);
+      }
+
+      const pager = session.collected_data?.result_pager;
+      if (!pager?.pages?.length) {
+        return await safeResumePrompt(session, from.id);
+      }
+
+      const delta = parsed.action === 'page_next' ? 1 : -1;
+      const newIndex = Math.min(
+        Math.max((pager.index ?? 0) + delta, 0),
+        pager.pages.length - 1,
+      );
+
+      if (newIndex === pager.index) {
+        return pagerReplyFromSession(session, userLang, newIndex);
+      }
+
+      const updatedPager = { ...pager, index: newIndex };
+      await updateSession(from.id, {
+        collected_data: mergeCollectedData(session, { result_pager: updatedPager }),
+      });
+      session = await getSession(from.id);
+      return pagerReplyFromSession(session, userLang, newIndex);
     }
 
     case 'start_full': {
@@ -1224,15 +1279,18 @@ async function runCompareBlock(from, chatId, lang) {
       jsonPayload: result.jsonPayload,
     }).catch((err) => console.error('[compare] save:', err.message));
 
-    await updateSession(userId, { step: STEPS.COMPLETED, last_block_id: result.blockId });
+    const pager = buildCompareResultPager(data, result.userMessage, lang);
+    await updateSession(userId, {
+      step: STEPS.COMPARE_RESULT,
+      last_block_id: result.blockId,
+      collected_data: mergeCollectedData(freshSession, { result_pager: pager }),
+    });
 
-    const body = `${formatCompareResultHeader(data, lang)}\n\n${result.userMessage}`;
-    const parts = splitForTelegramWithKeyboard(body, compareCompleteKeyboard(lang));
-
+    const rendered = renderPagerPage(pager, lang);
     return {
-      text: parts[0].text,
-      keyboard: parts.length === 1 ? parts[0].keyboard : compareCompleteKeyboard(lang),
-      extraMessages: parts.slice(1),
+      text: rendered.text,
+      keyboard: rendered.keyboard,
+      replaceMessage: true,
     };
   } catch (err) {
     console.error('Ошибка compare block:', err.message);
@@ -1240,6 +1298,7 @@ async function runCompareBlock(from, chatId, lang) {
     return {
       text: `${mapErrorToUser(lang, err)}\n\n${u(lang, 'stageRetryHint')}`,
       keyboard: blockFailedKeyboard(lang),
+      replaceMessage: true,
     };
   }
 }
@@ -1303,7 +1362,11 @@ export async function handleText(from, rawText) {
       return {
         text: `<i>${u(lang, 'stageRunning')}</i>`,
         keyboard: runningKeyboard(lang),
+        editMessage: false,
       };
+    }
+    if (step === STEPS.COMPARE_RESULT) {
+      return pagerReplyFromSession(session, lang);
     }
     const hints = {
       [STEPS.GOAL_TREE]: '🎯 На этом шаге выберите вариант кнопкой ниже.',
@@ -1311,6 +1374,8 @@ export async function handleText(from, rawText) {
       [STEPS.COMPARE_CONTEXT_CUSTOM]: '✏️ Опишите контекст сравнения текстом.',
       [STEPS.PARTNER_GENDER]: '👤 Выберите пол второго человека кнопкой ниже.',
       [STEPS.COMPARE_CONFIRM]: '✓ Подтвердите данные пары кнопкой ниже.',
+      [STEPS.COMPARE_RESULT]:
+        lang === 'en' ? '📖 Use ◀ Back / Next ▶ to read the result.' : '📖 Листайте результат кнопками ◀ Назад / Далее ▶.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: u(lang, 'stageRetryHint'),
@@ -1639,7 +1704,13 @@ export async function sendScenarioReply(ctx, payload) {
     return;
   }
 
-  const { text, keyboard, extraMessages, editMessage = false } = payload;
+  const { text, keyboard, extraMessages, editMessage = false, replaceMessage = false } = payload;
+
+  if (replaceMessage && ctx.callbackQuery) {
+    const { replaceCallbackMessage } = await import('../ui/messagePager.js');
+    await replaceCallbackMessage(ctx, { text, keyboard });
+    return;
+  }
 
   // Формируем опции для отправки
   const replyOptions = {
