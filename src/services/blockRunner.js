@@ -350,7 +350,10 @@ export async function runAnalysisBlock({ session, chatId, userId }) {
   await saveChatMessages(chatId, [
     { role: 'user', content: `[служебно] запрос блока ${block.id}` },
     { role: 'assistant', content: answer },
-  ]);
+  ]).catch((err) => {
+    console.error('[block] save messages:', err.message);
+    if (!data.compare_mode) throw err;
+  });
 
   const userMessage = formatBlockForUser(answer, block.id, blockIndex);
 

@@ -1,5 +1,6 @@
 import { getBot } from '../src/bot.js';
 import { loadBotConfig } from '../src/config.js';
+import { waitUntil } from '@vercel/functions';
 
 function isAuthorized(req) {
   const { webhookSecret } = loadBotConfig();
@@ -25,7 +26,10 @@ export default async function handler(req, res) {
 
   try {
     const bot = getBot();
-    await bot.handleUpdate(req.body);
+    const processing = bot.handleUpdate(req.body).catch((err) => {
+      console.error('Webhook handleUpdate error:', err.message, err.stack);
+    });
+    waitUntil(processing);
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Webhook error:', err.message);

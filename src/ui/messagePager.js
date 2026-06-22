@@ -96,13 +96,19 @@ export function bookPagerKeyboard({ pageIndex, totalPages, lang = 'ru', complete
  * @param {object} pager — { headerHtml, pages, index }
  */
 export function renderPagerPage(pager, lang = 'ru') {
-  const pages = pager?.pages ?? [];
+  const headerHtml = pager?.headerHtml ?? letterhead(lang === 'en' ? 'Result' : 'Результат', lang);
+  const reserved = headerHtml.length + 96;
+  const pageMax = Math.max(1200, PAGER_CONTENT_MAX - reserved);
+  const pages =
+    pager?.pages?.length > 0
+      ? pager.pages
+      : splitIntoBookPages(pager?.bodyHtml ?? '', pageMax);
   const index = Math.min(Math.max(pager?.index ?? 0, 0), Math.max(pages.length - 1, 0));
   const total = pages.length || 1;
   const isLast = index >= total - 1;
 
   const text = formatBookPage({
-    headerHtml: pager?.headerHtml ?? letterhead(lang === 'en' ? 'Result' : 'Результат', lang),
+    headerHtml,
     bodyHtml: pages[index] ?? '—',
     pageIndex: index,
     totalPages: total,

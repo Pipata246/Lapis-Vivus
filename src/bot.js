@@ -403,11 +403,20 @@ function registerHandlers(bot) {
 
       try {
         const payload = await handleCallback(ctx.from, callbackData);
+        if (!payload?.text) {
+          console.error('[callback] пустой payload:', callbackData, payload);
+          const { mapErrorToUser } = await import('./ui/userCopy.js');
+          await ctx
+            .reply(`${mapErrorToUser(lang, new Error('empty payload'))}\n\n${t(lang, 'tryAgain')}`)
+            .catch(() => {});
+          return;
+        }
         await sendScenarioReply(ctx, payload);
       } catch (err) {
         console.error('Ошибка callback:', err.message, err.stack);
+        const { mapErrorToUser } = await import('./ui/userCopy.js');
         await ctx
-          .reply(`${t(lang, 'errorOccurred')}\n\n${t(lang, 'tryAgain')}`)
+          .reply(`${mapErrorToUser(lang, err)}\n\n${t(lang, 'tryAgain')}`)
           .catch(() => {});
       } finally {
         processingCallbacks.delete(key);

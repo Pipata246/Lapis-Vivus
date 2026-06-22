@@ -92,7 +92,7 @@ import {
   resolveCompareContext,
 } from '../scenario/compareFlow.js';
 import { saveComparison } from '../db/comparisons.js';
-import { splitIntoBookPages, renderPagerPage, PAGER_CONTENT_MAX } from '../ui/messagePager.js';
+import { renderPagerPage } from '../ui/messagePager.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
@@ -100,13 +100,29 @@ function cb(action, value = null) {
 
 function buildCompareResultPager(data, bodyHtml, lang) {
   const headerHtml = formatCompareResultHeader(data, lang);
-  const reserved = headerHtml.length + 96;
-  const pageMax = Math.max(1200, PAGER_CONTENT_MAX - reserved);
   return {
     headerHtml,
-    pages: splitIntoBookPages(bodyHtml, pageMax),
+    bodyHtml: bodyHtml ?? '',
     index: 0,
     completeActions: 'compare',
+  };
+}
+
+function safeCompareErrorPayload(session, lang, err) {
+  const data = session?.collected_data ?? {};
+  let profileText = '';
+  try {
+    profileText = formatComparePairProfile(data, lang);
+  } catch {
+    profileText = formatCompareResultHeader(data, lang);
+  }
+
+  return {
+    text: [profileText, '', `<i>${mapErrorToUser(lang, err)}</i>`, '', `<i>${u(lang, 'stageRetryHint')}</i>`].join(
+      '\n',
+    ),
+    keyboard: compareConfirmKeyboard(lang),
+    editMessage: true,
   };
 }
 
@@ -530,6 +546,9 @@ export async function handleCallback(from, callbackData) {
   const lang = await resolveLang(from);
   
   session = await getSession(from.id);
+  if (!session) {
+    return await showMenu(lang);
+  }
   
   console.log(`[handleCallback] session.step=${session.step}, block_index=${session.block_index}`);
   
@@ -767,14 +786,20 @@ export async function handleCallback(from, callbackData) {
       if (session.step !== STEPS.COMPARE_CONFIRM) {
         return await safeResumePrompt(session, from.id);
       }
-      const blockIndex = resolveStartBlockIndex(session.collected_data ?? {});
-      await updateSession(from.id, {
-        block_index: blockIndex,
-        last_block_id: null,
-        target_block_id: session.collected_data?.target_block_id ?? null,
-      });
-      session = await getSession(from.id);
-      return runCompareBlock(from, chat.id, userLang);
+
+      try {
+        const blockIndex = resolveStartBlockIndex(session.collected_data ?? {});
+        await updateSession(from.id, {
+          block_index: blockIndex,
+          last_block_id: null,
+          target_block_id: session.collected_data?.target_block_id ?? null,
+        });
+        session = await getSession(from.id);
+        return await runCompareBlock(from, chat.id, userLang);
+      } catch (err) {
+        console.error('[compare_confirm_yes]', err.message, err.stack);
+        return safeCompareErrorPayload(session, userLang, err);
+      }
     }
 
     case 'page_prev':
@@ -785,14 +810,15 @@ export async function handleCallback(from, callbackData) {
       }
 
       const pager = session.collected_data?.result_pager;
-      if (!pager?.pages?.length) {
+      if (!pager || (!pager.bodyHtml && !pager.pages?.length)) {
         return await safeResumePrompt(session, from.id);
       }
 
+      const current = renderPagerPage(pager, userLang);
       const delta = parsed.action === 'page_next' ? 1 : -1;
       const newIndex = Math.min(
         Math.max((pager.index ?? 0) + delta, 0),
-        pager.pages.length - 1,
+        Math.max(current.total - 1, 0),
       );
 
       if (newIndex === pager.index) {
@@ -1247,6 +1273,10 @@ async function runCompareBlock(from, chatId, lang) {
   const userId = from.id;
   let session = await getSession(userId);
 
+  if (!session) {
+    return safeCompareErrorPayload(null, lang, new Error('session missing'));
+  }
+
   if (session.step === STEPS.BLOCK_RUNNING) {
     return {
       text: `<i>${u(lang, 'stageAlreadyRunning')}</i>`,
@@ -1298,7 +1328,7 @@ async function runCompareBlock(from, chatId, lang) {
     return {
       text: rendered.text,
       keyboard: rendered.keyboard,
-      replaceMessage: true,
+      editMessage: true,
     };
   } catch (err) {
     console.error('Ошибка compare block:', err.message, err.stack);
@@ -1309,18 +1339,7 @@ async function runCompareBlock(from, chatId, lang) {
     }
 
     const fresh = await getSession(userId).catch(() => session);
-    const data = fresh?.collected_data ?? session?.collected_data ?? {};
-    return {
-      text: [
-        formatComparePairProfile(data, lang),
-        '',
-        `<i>${mapErrorToUser(lang, err)}</i>`,
-        '',
-        `<i>${u(lang, 'stageRetryHint')}</i>`,
-      ].join('\n'),
-      keyboard: compareConfirmKeyboard(lang),
-      editMessage: true,
-    };
+    return safeCompareErrorPayload(fresh ?? session, lang, err);
   }
 }
 
@@ -1762,11 +1781,21 @@ export async function sendScenarioReply(ctx, payload) {
   if (editMessage && ctx.callbackQuery) {
     try {
       await ctx.editMessageText(text, replyOptions);
-      return; // Успешно отредактировали, выходим
+      return;
     } catch (err) {
-      // Если не удалось отредактировать (сообщение слишком старое или идентичное)
-      // Отправляем новое
       console.log('Не удалось отредактировать сообщение, отправляю новое:', err.message);
+      try {
+        await ctx.reply(text, replyOptions);
+        return;
+      } catch (replyErr) {
+        if (replyErr.message?.includes('parse') || replyErr.message?.includes('entities')) {
+          const plainOptions = {};
+          if (keyboard) plainOptions.reply_markup = keyboard;
+          await ctx.reply(htmlToPlain(text), plainOptions);
+          return;
+        }
+        throw replyErr;
+      }
     }
   }
 
