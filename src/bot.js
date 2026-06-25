@@ -46,8 +46,10 @@ import { deliverSingleMessage } from './ui/singleMessage.js';
 import {
   formatLegalGateMessage,
   getLegalGateKeyboard,
+  formatSubscriptionGateMessage,
+  getSubscriptionGateKeyboard,
 } from './ui/legal.js';
-import { isUserInCommunity } from './services/communityGate.js';
+import { checkUserInCommunity } from './services/communityGate.js';
 import { isPrivateChat, isGroupChat, getBotUser } from './services/chatContext.js';
 import {
   formatGroupRules,
@@ -105,19 +107,28 @@ async function sendMainMenu(ctx, lang) {
   });
 }
 
-async function ensureLegalOrGate(ctx, lang) {
+async function ensureAccessOrGate(ctx, lang, { freshSubscription = false } = {}) {
   const userId = ctx.from?.id;
   if (!userId) return false;
-  if (await hasLegalAccepted(userId)) return true;
 
-  await deliverScreen(ctx, {
-    text: formatLegalGateMessage(lang),
-    keyboard: getLegalGateKeyboard(lang),
-    userId,
-    lang,
-    skipMainMenu: true,
-  });
-  return false;
+  if (!(await hasLegalAccepted(userId))) {
+    await sendLegalGate(ctx, lang);
+    return false;
+  }
+
+  const subscribed = await checkUserInCommunity(ctx.telegram, userId, { fresh: freshSubscription });
+  if (!subscribed) {
+    await deliverScreen(ctx, {
+      text: formatSubscriptionGateMessage(lang),
+      keyboard: getSubscriptionGateKeyboard(lang),
+      userId,
+      lang,
+      skipMainMenu: true,
+    });
+    return false;
+  }
+
+  return true;
 }
 
 function registerHandlers(bot) {
@@ -194,10 +205,7 @@ function registerHandlers(bot) {
       // Получаем язык пользователя
       const lang = await getUserLanguage(userId);
 
-      if (!(await hasLegalAccepted(userId))) {
-        await sendLegalGate(ctx, lang);
-        return;
-      }
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
 
       await sendMainMenu(ctx, lang);
     } catch (err) {
@@ -213,6 +221,8 @@ function registerHandlers(bot) {
     try {
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
+
       const adminStatus = await isAdmin(userId);
       
       if (!adminStatus) {
@@ -239,7 +249,7 @@ function registerHandlers(bot) {
       await upsertUserFromTelegram(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
-      if (!(await ensureLegalOrGate(ctx, lang))) return;
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
       await deliverScreen(ctx, {
         text: await buildProfileText(userId, lang),
@@ -260,7 +270,7 @@ function registerHandlers(bot) {
       await upsertUserFromTelegram(ctx.from);
       const userId = ctx.from.id;
       const lang = await getUserLanguage(userId);
-      if (!(await ensureLegalOrGate(ctx, lang))) return;
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
       await updateSession(userId, { ui_mode: null });
       await deliverScreen(ctx, {
         text: await buildBalanceText(userId, lang),
@@ -280,7 +290,7 @@ function registerHandlers(bot) {
     try {
       await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
-      if (!(await ensureLegalOrGate(ctx, lang))) return;
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
       await ctx.sendChatAction('typing').catch(() => {});
       const payload = await handleCallback(ctx.from, 'lv:start');
       await sendScenarioReply(ctx, payload);
@@ -300,7 +310,7 @@ function registerHandlers(bot) {
     try {
       await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
-      if (!(await ensureLegalOrGate(ctx, lang))) return;
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
       await deliverScreen(ctx, {
         text: `${t(lang, 'settingsTitle')}\n\n${t(lang, 'settingsText')}`,
         keyboard: getSettingsKeyboard(lang),
@@ -319,7 +329,7 @@ function registerHandlers(bot) {
     try {
       await upsertUserFromTelegram(ctx.from);
       const lang = await getUserLanguage(ctx.from.id);
-      if (!(await ensureLegalOrGate(ctx, lang))) return;
+      if (!(await ensureAccessOrGate(ctx, lang))) return;
       await deliverScreen(ctx, {
         text: t(lang, 'helpText'),
         keyboard: getHelpKeyboard(lang),
@@ -350,7 +360,7 @@ function registerHandlers(bot) {
 
     try {
     if (callbackData === 'nav:legal_accept') {
-      const subscribed = await isUserInCommunity(ctx.telegram, userId);
+      const subscribed = await checkUserInCommunity(ctx.telegram, userId, { fresh: true });
       if (!subscribed) {
         const gateLang = await getUserLanguage(userId);
         await deliverScreen(ctx, {
@@ -375,8 +385,49 @@ function registerHandlers(bot) {
       return;
     }
 
+    if (callbackData === 'nav:sub_check') {
+      const subscribed = await checkUserInCommunity(ctx.telegram, userId, { fresh: true });
+      if (!subscribed) {
+        await deliverScreen(ctx, {
+          text: formatSubscriptionGateMessage(lang, { needSubscription: true }),
+          keyboard: getSubscriptionGateKeyboard(lang),
+          userId,
+          lang,
+          skipMainMenu: true,
+        });
+        return;
+      }
+
+      await deliverScreen(ctx, {
+        text: t(lang, 'welcome'),
+        keyboard: getMainMenuKeyboard(lang),
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
+      return;
+    }
+
     if (callbackData === 'nav:lang_swap') {
-      if (await hasLegalAccepted(userId)) {
+      const legalOk = await hasLegalAccepted(userId);
+
+      if (legalOk) {
+        const subscribed = await checkUserInCommunity(ctx.telegram, userId);
+        if (subscribed) {
+          return;
+        }
+
+        const current = await getUserLanguage(userId);
+        const newLang = current === 'en' ? 'ru' : 'en';
+        await setUserLanguage(userId, newLang);
+
+        await deliverScreen(ctx, {
+          text: formatSubscriptionGateMessage(newLang),
+          keyboard: getSubscriptionGateKeyboard(newLang),
+          userId,
+          lang: newLang,
+          skipMainMenu: true,
+        });
         return;
       }
 
@@ -394,16 +445,7 @@ function registerHandlers(bot) {
       return;
     }
 
-    if (!(await hasLegalAccepted(userId))) {
-      await deliverScreen(ctx, {
-        text: formatLegalGateMessage(lang),
-        keyboard: getLegalGateKeyboard(lang),
-        userId,
-        lang,
-        skipMainMenu: true,
-      });
-      return;
-    }
+    if (!(await ensureAccessOrGate(ctx, lang))) return;
 
     // ВАЖНО: Сценарные callback'ы (lv:*) обрабатываются ПЕРВЫМИ
     if (callbackData.startsWith('lv:')) {
@@ -777,7 +819,7 @@ function registerHandlers(bot) {
       return;
     }
 
-    if (!(await ensureLegalOrGate(ctx, lang))) return;
+    if (!(await ensureAccessOrGate(ctx, lang))) return;
     
     // Проверяем режим админа из БД
     const { getSession, updateSession } = await import('./db/sessions.js');
@@ -925,7 +967,7 @@ function registerHandlers(bot) {
     if (!ctx.from?.id || !isPrivateChat(ctx)) return;
 
     const lang = await getUserLanguage(ctx.from.id).catch(() => 'ru');
-    if (!(await ensureLegalOrGate(ctx, lang))) return;
+    if (!(await ensureAccessOrGate(ctx, lang))) return;
 
     const photos = ctx.message.photo ?? [];
     const largest = photos[photos.length - 1];
@@ -956,7 +998,7 @@ function registerHandlers(bot) {
     const session = await getSession(userId);
     const adminMode = session?.admin_mode;
 
-    if (!adminMode && !(await ensureLegalOrGate(ctx, lang))) return;
+    if (!(await ensureAccessOrGate(ctx, lang))) return;
     
     console.log(`[document] userId=${userId}, adminMode=${adminMode}, fileName=${document.file_name}`);
     

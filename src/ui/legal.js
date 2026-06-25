@@ -64,6 +64,43 @@ export function formatLegalGateMessage(lang = 'ru', { needSubscription = false }
   return lines.join('\n');
 }
 
+export function formatSubscriptionGateMessage(lang = 'ru', { needSubscription = false } = {}) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const community = `<a href="${COMMUNITY.telegramUrl}">${COMMUNITY.telegramMention}</a>`;
+
+  if (code === 'en') {
+    const lines = [
+      letterhead('Community', lang),
+      '',
+      `Lapis Vivus is available to members of ${community}.`,
+      '',
+      '1. Join the community',
+      '2. Tap «Check subscription»',
+      '',
+      '<i>Subscription is verified automatically when you continue.</i>',
+    ];
+    if (needSubscription) {
+      lines.push('', `⚠️ <b>Join ${community}, then tap «Check subscription».</b>`);
+    }
+    return lines.join('\n');
+  }
+
+  const lines = [
+    letterhead('Сообщество', lang),
+    '',
+    `Lapis Vivus доступен участникам ${community}.`,
+    '',
+    '1. Подпишитесь на сообщество',
+    '2. Нажмите «Проверить подписку»',
+    '',
+    '<i>Подписка проверяется автоматически при продолжении работы.</i>',
+  ];
+  if (needSubscription) {
+    lines.push('', `⚠️ <b>Подпишитесь на ${community}, затем нажмите «Проверить подписку».</b>`);
+  }
+  return lines.join('\n');
+}
+
 function legalLinkRows(lang) {
   const code = lang === 'en' ? 'en' : 'ru';
   const labels = LABELS[code];
@@ -93,6 +130,19 @@ export function getLegalGateKeyboard(lang) {
   rows.push(languageSwapRow(lang));
   rows.push([{ text: LABELS[code].accept, callback_data: 'nav:legal_accept' }]);
   return { inline_keyboard: rows };
+}
+
+/** Экран для пользователей с принятым согласием, но без подписки на сообщество. */
+export function getSubscriptionGateKeyboard(lang) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const checkLabel = code === 'en' ? '✓ Check subscription' : '✓ Проверить подписку';
+  return {
+    inline_keyboard: [
+      communityLinkRow(lang),
+      [{ text: checkLabel, callback_data: 'nav:sub_check' }],
+      languageSwapRow(lang),
+    ],
+  };
 }
 
 /** Ссылки на документы для справки (без «Принимаю»). */
