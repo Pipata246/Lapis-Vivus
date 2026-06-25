@@ -95,6 +95,31 @@ import {
 } from '../scenario/compareFlow.js';
 import { saveComparison } from '../db/comparisons.js';
 import { renderPagerPage } from '../ui/messagePager.js';
+import {
+  formatOracleHubScreen,
+  formatOracleEmptyProfile,
+  formatOracleActiveScreen,
+  formatOracleChatList,
+  formatOracleHistoryView,
+  getOracleWelcomeText,
+  oracleHubKeyboard,
+  oracleEmptyChatsKeyboard,
+  oracleChatListKeyboard,
+  oracleActiveChatKeyboard,
+  oracleViewChatKeyboard,
+  oracleEmptyProfileKeyboard,
+} from '../scenario/oracleFlow.js';
+import {
+  listArchivedOracleChats,
+  getOracleChat,
+  rotateActiveOracleChat,
+  ensureActiveOracleChat,
+  deleteOracleChat,
+  loadProfileSnapshotForOracle,
+  hasOracleReadyProfile,
+  ORACLE_STATUS,
+} from '../db/oracle.js';
+import { runOracleTurn } from './oracleService.js';
 
 function cb(action, value = null) {
   return value ? `${CALLBACK_PREFIX}:${action}:${value}` : `${CALLBACK_PREFIX}:${action}`;
@@ -150,6 +175,82 @@ function showGoalTree(nodeId, lang) {
 
 function reviewKeyboard(session, lang) {
   return nextBlockKeyboard(lang, isTargetedSession(session.collected_data));
+}
+
+async function enterOracleHub(from, chat, lang) {
+  await upsertSession(from.id, chat.id, {
+    step: STEPS.ORACLE_MENU,
+    collected_data: { oracle_mode: true },
+    block_index: 0,
+    last_block_id: null,
+    session_mode: 'oracle',
+    target_block_id: null,
+    goal_tree_path: [],
+  });
+
+  return {
+    text: formatOracleHubScreen(lang),
+    keyboard: oracleHubKeyboard(lang),
+  };
+}
+
+async function enterOracleActive(from, chat, oracleChatId, lang) {
+  const oracleChat = await getOracleChat(from.id, oracleChatId);
+  if (!oracleChat || oracleChat.status !== ORACLE_STATUS.ACTIVE) {
+    return enterOracleHub(from, chat, lang);
+  }
+
+  await updateSession(from.id, {
+    step: STEPS.ORACLE_CHAT,
+    collected_data: {
+      oracle_mode: true,
+      oracle_chat_id: oracleChatId,
+    },
+  });
+
+  return {
+    text: formatOracleActiveScreen(oracleChat, lang),
+    keyboard: oracleActiveChatKeyboard(lang),
+  };
+}
+
+async function enterOracleView(from, chat, oracleChatId, lang) {
+  const oracleChat = await getOracleChat(from.id, oracleChatId);
+  if (!oracleChat) {
+    return null;
+  }
+
+  if (oracleChat.status === ORACLE_STATUS.ACTIVE) {
+    return enterOracleActive(from, chat, oracleChatId, lang);
+  }
+
+  await updateSession(from.id, {
+    step: STEPS.ORACLE_VIEW,
+    collected_data: {
+      oracle_mode: true,
+      oracle_chat_id: oracleChatId,
+      oracle_view_only: true,
+    },
+  });
+
+  return {
+    text: formatOracleHistoryView(oracleChat, lang),
+    keyboard: oracleViewChatKeyboard(oracleChatId, lang),
+  };
+}
+
+async function openOracleNewChat(from, chat, lang) {
+  const snapshot = await loadProfileSnapshotForOracle(from.id);
+  const welcomeText = getOracleWelcomeText(lang);
+  const oracleChat = await rotateActiveOracleChat(from.id, snapshot, welcomeText);
+  return enterOracleActive(from, chat, oracleChat.id, lang);
+}
+
+async function openOracleLastChat(from, chat, lang) {
+  const snapshot = await loadProfileSnapshotForOracle(from.id);
+  const welcomeText = getOracleWelcomeText(lang);
+  const oracleChat = await ensureActiveOracleChat(from.id, snapshot, welcomeText);
+  return enterOracleActive(from, chat, oracleChat.id, lang);
 }
 
 async function persistSessionData(userId, collectedData) {
@@ -581,6 +682,18 @@ function resumePrompt(session, lang = 'en') {
       text: formatSessionComplete('', lang),
       keyboard: completedKeyboard(lang),
     },
+    [STEPS.ORACLE_MENU]: {
+      text: formatOracleHubScreen(lang),
+      keyboard: oracleHubKeyboard(lang),
+    },
+    [STEPS.ORACLE_CHAT]: {
+      text: formatOracleHubScreen(lang),
+      keyboard: oracleActiveChatKeyboard(lang),
+    },
+    [STEPS.ORACLE_VIEW]: {
+      text: letterhead(lang === 'en' ? 'Chat history' : 'История чата', lang),
+      keyboard: oracleHubKeyboard(lang),
+    },
   };
 
   // Для MENU возвращаем промис, который нужно будет await
@@ -866,6 +979,115 @@ export async function handleCallback(from, callbackData) {
         const fresh = await getSession(from.id).catch(() => session);
         return safeCompareErrorPayload(fresh ?? session, userLang, err);
       }
+    }
+
+    case 'oracle_start': {
+      scheduleChatFilesCleanup(chat.id);
+      const userLang = await resolveLang(from);
+      const snapshot = await loadProfileSnapshotForOracle(from.id);
+
+      if (!hasOracleReadyProfile(snapshot)) {
+        await upsertSession(from.id, chat.id, {
+          step: STEPS.MENU,
+          collected_data: {},
+          block_index: 0,
+          last_block_id: null,
+          session_mode: null,
+          target_block_id: null,
+          goal_tree_path: [],
+        });
+        return {
+          text: formatOracleEmptyProfile(userLang),
+          keyboard: oracleEmptyProfileKeyboard(userLang),
+        };
+      }
+
+      return enterOracleHub(from, chat, userLang);
+    }
+
+    case 'oracle_chats': {
+      const userLang = await resolveLang(from);
+      const chats = await listArchivedOracleChats(from.id);
+
+      await updateSession(from.id, {
+        step: STEPS.ORACLE_MENU,
+        collected_data: { oracle_mode: true },
+      });
+
+      if (!chats.length) {
+        return {
+          text: formatOracleChatList([], userLang),
+          keyboard: oracleEmptyChatsKeyboard(userLang),
+        };
+      }
+
+      return {
+        text: formatOracleChatList(chats, userLang),
+        keyboard: oracleChatListKeyboard(chats, userLang),
+      };
+    }
+
+    case 'oracle_new': {
+      const userLang = await resolveLang(from);
+      const snapshot = await loadProfileSnapshotForOracle(from.id);
+      if (!hasOracleReadyProfile(snapshot)) {
+        return {
+          text: formatOracleEmptyProfile(userLang),
+          keyboard: oracleEmptyProfileKeyboard(userLang),
+        };
+      }
+      return openOracleNewChat(from, chat, userLang);
+    }
+
+    case 'oracle_last': {
+      const userLang = await resolveLang(from);
+      const snapshot = await loadProfileSnapshotForOracle(from.id);
+      if (!hasOracleReadyProfile(snapshot)) {
+        return {
+          text: formatOracleEmptyProfile(userLang),
+          keyboard: oracleEmptyProfileKeyboard(userLang),
+        };
+      }
+      return openOracleLastChat(from, chat, userLang);
+    }
+
+    case 'oracle_open': {
+      const userLang = await resolveLang(from);
+      const view = await enterOracleView(from, chat, parsed.value, userLang);
+      if (!view) {
+        return enterOracleHub(from, chat, userLang);
+      }
+      return view;
+    }
+
+    case 'oracle_delete': {
+      const userLang = await resolveLang(from);
+      try {
+        await deleteOracleChat(from.id, parsed.value);
+      } catch (err) {
+        return {
+          text: mapErrorToUser(userLang, err),
+          keyboard: oracleHubKeyboard(userLang),
+        };
+      }
+
+      const chats = await listArchivedOracleChats(from.id);
+      await updateSession(from.id, {
+        step: STEPS.ORACLE_MENU,
+        collected_data: { oracle_mode: true },
+      });
+
+      if (!chats.length) {
+        return {
+          text: formatOracleChatList([], userLang),
+          keyboard: oracleEmptyChatsKeyboard(userLang),
+        };
+      }
+
+      return {
+        text: formatOracleChatList(chats, userLang),
+        keyboard: oracleChatListKeyboard(chats, userLang),
+      };
     }
 
     case 'page_prev':
@@ -1488,6 +1710,8 @@ export async function handleText(from, rawText) {
       [STEPS.COMPARE_CONTEXT_CUSTOM]: '✏️ Опишите контекст сравнения текстом.',
       [STEPS.PARTNER_GENDER]: '👤 Выберите пол второго человека кнопкой ниже.',
       [STEPS.COMPARE_CONFIRM]: '✓ Подтвердите данные пары кнопкой ниже.',
+      [STEPS.ORACLE_MENU]: '🔮 Выберите действие в меню Оракула.',
+      [STEPS.ORACLE_VIEW]: '🔮 История чата — используйте кнопки ниже.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: u(lang, 'stageRetryHint'),
@@ -1621,6 +1845,47 @@ export async function handleText(from, rawText) {
       return {
         text: formatComparePairProfile(data, lang),
         keyboard: compareConfirmKeyboard(lang),
+      };
+    }
+
+    case STEPS.ORACLE_CHAT: {
+      const oracleChatId = session.collected_data?.oracle_chat_id;
+      if (!oracleChatId) {
+        return enterOracleHub(from, chat, lang);
+      }
+
+      const oracleChat = await getOracleChat(from.id, oracleChatId);
+      if (!oracleChat) {
+        return enterOracleHub(from, chat, lang);
+      }
+
+      const result = await runOracleTurn({
+        userId: from.id,
+        chat: oracleChat,
+        userText: rawText,
+        lang,
+      });
+
+      if (!result.ok) {
+        return {
+          text: result.error,
+          keyboard: oracleActiveChatKeyboard(lang),
+        };
+      }
+
+      if (result.chat?.id && result.chat.id !== oracleChatId) {
+        await updateSession(from.id, {
+          collected_data: {
+            oracle_mode: true,
+            oracle_chat_id: result.chat.id,
+          },
+        });
+      }
+
+      return {
+        text: result.text,
+        extraMessages: result.extraMessages,
+        keyboard: oracleActiveChatKeyboard(lang),
       };
     }
 

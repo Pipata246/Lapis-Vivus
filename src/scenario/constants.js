@@ -25,6 +25,10 @@ export const STEPS = {
   COMPARE_CONFIRM: 'compare_confirm',
   /** Листание результата совместимости */
   COMPARE_RESULT: 'compare_result',
+  /** Оракул — свободный диалог */
+  ORACLE_MENU: 'oracle_menu',
+  ORACLE_CHAT: 'oracle_chat',
+  ORACLE_VIEW: 'oracle_view',
 };
 
 /**
@@ -335,6 +339,7 @@ export const TEXT_INPUT_STEPS = new Set([
   STEPS.PARTNER_BIRTH_PLACE,
   STEPS.BLOCK_PREP,
   STEPS.BLOCK_REVIEW,
+  STEPS.ORACLE_CHAT,
 ]);
 
 export const FILE_ONLY_STEPS = new Set([STEPS.BLOCK_PREP]);

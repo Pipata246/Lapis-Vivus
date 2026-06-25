@@ -10,6 +10,7 @@ export function getMainMenuKeyboard(lang) {
     inline_keyboard: [
       [{ text: btn(lang, 'startAnalysis'), callback_data: 'lv:start' }],
       [{ text: btn(lang, 'comparePair'), callback_data: 'lv:compare_start' }],
+      [{ text: btn(lang, 'oracle'), callback_data: 'lv:oracle_start' }],
       [
         { text: btn(lang, 'myProfile'), callback_data: 'nav:profile' },
         { text: btn(lang, 'balance'), callback_data: 'nav:balance' },

@@ -71,7 +71,15 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'partner_time_unknown',
   'page_prev',
   'page_next',
+  'oracle_start',
+  'oracle_chats',
+  'oracle_new',
+  'oracle_last',
+  'oracle_open',
+  'oracle_delete',
 ]);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseDateParts(dateStr) {
   const [day, month, year] = dateStr.split('.').map(Number);
@@ -137,8 +145,22 @@ export function parseCallbackData(data) {
     return null;
   }
 
+  if (
+    (action === 'oracle_open' || action === 'oracle_delete') &&
+    (value === null || !UUID_RE.test(value))
+  ) {
+    return null;
+  }
+
   /** Действия, которым разрешён параметр после «:» */
-  const actionsWithValue = new Set(['gender', 'partner_gender', 'quick_question', 'compare_context']);
+  const actionsWithValue = new Set([
+    'gender',
+    'partner_gender',
+    'quick_question',
+    'compare_context',
+    'oracle_open',
+    'oracle_delete',
+  ]);
   if (value !== null && !actionsWithValue.has(action)) {
     return null;
   }
@@ -290,6 +312,9 @@ export function hasAnalysisProgress(session) {
     'partner_birth_place',
     'compare_confirm',
     'compare_result',
+    'oracle_menu',
+    'oracle_chat',
+    'oracle_view',
   ]);
   return activeSteps.has(session.step);
 }
