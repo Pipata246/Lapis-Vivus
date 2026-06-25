@@ -102,6 +102,17 @@ function convertToTelegramHtml(text) {
   return result.trim();
 }
 
+/** Markdown → премиальный HTML для Telegram (Оракул и короткие ответы). */
+export function markdownToTelegramHtml(text, maxLen = 4000) {
+  let visible = String(text ?? '').trim();
+  visible = visible.replace(/^\*\s+/gm, '· ');
+  visible = visible.replace(/^[-•]\s+/gm, '· ');
+  visible = visible.replace(/\*\*/g, '');
+  let html = convertToTelegramHtml(visible);
+  if (html.length > maxLen) html = `${html.slice(0, maxLen - 1)}…`;
+  return html;
+}
+
 export function extractJsonFromAnswer(rawAnswer) {
   let match = rawAnswer.match(/```json\s*([\s\S]*?)```/i);
   if (!match) {

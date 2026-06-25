@@ -101,11 +101,13 @@ import {
   formatOracleActiveScreen,
   formatOracleChatList,
   formatOracleHistoryView,
+  formatOraclePastQuestionsScreen,
   getOracleWelcomeText,
   oracleHubKeyboard,
   oracleEmptyChatsKeyboard,
   oracleChatListKeyboard,
   oracleActiveChatKeyboard,
+  oraclePastQuestionsKeyboard,
   oracleViewChatKeyboard,
   oracleEmptyProfileKeyboard,
 } from '../scenario/oracleFlow.js';
@@ -221,7 +223,7 @@ async function enterOracleActive(from, chat, oracleChatId, lang) {
 
   return {
     text: formatOracleActiveScreen(oracleChat, lang),
-    keyboard: oracleActiveChatKeyboard(lang),
+    keyboard: oracleActiveChatKeyboard(lang, oracleChat),
   };
 }
 
@@ -746,7 +748,7 @@ async function safeResumePrompt(session, userId = null) {
         oracleChat = (await stripTrailingUserMessage(userId, oracleChatId)) ?? oracleChat;
         return {
           text: formatOracleActiveScreen(oracleChat, lang),
-          keyboard: oracleActiveChatKeyboard(lang),
+          keyboard: oracleActiveChatKeyboard(lang, oracleChat),
         };
       }
     }
@@ -1123,6 +1125,32 @@ export async function handleCallback(from, callbackData) {
         return enterOracleHub(from, chat, userLang);
       }
       return view;
+    }
+
+    case 'oracle_past': {
+      const userLang = await resolveLang(from);
+      const oracleChatId = session.collected_data?.oracle_chat_id;
+      if (!oracleChatId) {
+        return enterOracleHub(from, chat, userLang);
+      }
+      const oracleChat = await getOracleChat(from.id, oracleChatId);
+      if (!oracleChat) {
+        return enterOracleHub(from, chat, userLang);
+      }
+      return {
+        text: formatOraclePastQuestionsScreen(oracleChat, userLang),
+        keyboard: oraclePastQuestionsKeyboard(userLang),
+        skipMainMenu: true,
+      };
+    }
+
+    case 'oracle_back': {
+      const userLang = await resolveLang(from);
+      const oracleChatId = session.collected_data?.oracle_chat_id;
+      if (!oracleChatId) {
+        return enterOracleHub(from, chat, userLang);
+      }
+      return enterOracleActive(from, chat, oracleChatId, userLang);
     }
 
     case 'oracle_delete': {
@@ -1936,7 +1964,7 @@ export async function handleText(from, rawText) {
         const screen = freshChat ? formatOracleActiveScreen(freshChat, lang) : result.error;
         return {
           text: freshChat ? `${screen}\n\n<i>${result.error}</i>` : result.error,
-          keyboard: oracleActiveChatKeyboard(lang),
+          keyboard: freshChat ? oracleActiveChatKeyboard(lang, freshChat) : oracleActiveChatKeyboard(lang),
           skipMainMenu: true,
         };
       }
@@ -1952,7 +1980,7 @@ export async function handleText(from, rawText) {
 
       return {
         text: result.text,
-        keyboard: oracleActiveChatKeyboard(lang),
+        keyboard: oracleActiveChatKeyboard(lang, result.chat),
         skipMainMenu: true,
       };
     }

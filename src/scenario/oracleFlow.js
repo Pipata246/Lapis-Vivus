@@ -1,4 +1,5 @@
 ﻿import { letterhead, escapeHtml, btn, section } from '../ui/brand.js';
+import { markdownToTelegramHtml } from '../ai/formatResponse.js';
 import { CALLBACK_PREFIX } from './constants.js';
 import { MAX_ORACLE_AI_TURNS, MAX_ORACLE_HISTORY } from '../db/oracle.js';
 
@@ -27,6 +28,39 @@ function formatChatDate(iso, lang) {
 function dialogueMessages(chat) {
   const messages = Array.isArray(chat?.messages) ? chat.messages : [];
   return messages.filter((m) => m.kind !== 'welcome');
+}
+
+/** Пары вопрос–ответ в порядке диалога. */
+export function getDialoguePairs(chat) {
+  const pairs = [];
+  let pendingUser = null;
+
+  for (const msg of dialogueMessages(chat)) {
+    if (msg.role === 'user') {
+      pendingUser = msg.content;
+    } else if (msg.role === 'assistant' && pendingUser !== null) {
+      pairs.push({ user: pendingUser, assistant: msg.content });
+      pendingUser = null;
+    }
+  }
+
+  return pairs;
+}
+
+/** Премиальное оформление текста Оракула — без сырого markdown. */
+export function formatOracleBodyHtml(raw, maxLen = 3400) {
+  const html = markdownToTelegramHtml(raw, maxLen);
+  return html || '—';
+}
+
+function formatOracleHistoryPair(userText, assistantText, lang = 'ru') {
+  const yourLabel = lang === 'en' ? 'You' : 'Вы';
+  const myLabel = lang === 'en' ? 'Oracle' : 'Оракул';
+  return [
+    `<b>${yourLabel}</b>\n${formatOracleBodyHtml(userText, 1200)}`,
+    '',
+    `<b>${myLabel}</b>\n${formatOracleBodyHtml(assistantText, 2200)}`,
+  ].join('\n');
 }
 
 function countDialoguePairs(messages) {
@@ -71,8 +105,7 @@ export function getOracleWelcomeText(lang = 'ru') {
 }
 
 export function formatOracleReplyHtml(text) {
-  const safe = escapeHtml(String(text ?? ''));
-  return `🔮 <b>Оракул</b>\n\n${safe}`;
+  return section('Оракул', formatOracleBodyHtml(text), '🔮');
 }
 
 function formatTurnsHint(lang, left) {
@@ -81,39 +114,12 @@ function formatTurnsHint(lang, left) {
     : `Осталось ответов · ${left} из ${MAX_ORACLE_AI_TURNS}`;
 }
 
-function formatOracleHistoryPair(userText, assistantText, lang = 'ru') {
-  const yourLabel = lang === 'en' ? 'You' : 'Вы';
-  const myLabel = lang === 'en' ? 'Oracle' : 'Оракул';
-  return [
-    `<b>${yourLabel}</b>\n${escapeHtml(userText)}`,
-    '',
-    `<b>${myLabel}</b>\n${escapeHtml(assistantText)}`,
-  ].join('\n');
-}
-
-/** Полная история диалога — все пары, с обрезкой только при лимите Telegram. */
-function formatFullDialogue(chat, lang, maxChars = 3000) {
-  const messages = dialogueMessages(chat);
-  const pairs = [];
-  let pendingUser = null;
-
-  for (const msg of messages) {
-    if (msg.role === 'user') {
-      pendingUser = msg.content;
-    } else if (msg.role === 'assistant' && pendingUser !== null) {
-      pairs.push(formatOracleHistoryPair(pendingUser, msg.content, lang));
-      pendingUser = null;
-    }
-  }
-
-  if (pendingUser !== null) {
-    const label = lang === 'en' ? 'You' : 'Вы';
-    pairs.push(`<b>${label}</b>\n${escapeHtml(pendingUser)}`);
-  }
-
+/** Полная история диалога — для экрана «Прошлые вопросы». */
+function formatFullDialogue(chat, lang, maxChars = 3400) {
+  const pairs = getDialoguePairs(chat);
   if (!pairs.length) return '';
 
-  let body = pairs.join('\n\n—\n\n');
+  let body = pairs.map((p) => formatOracleHistoryPair(p.user, p.assistant, lang)).join('\n\n—\n\n');
   if (body.length > maxChars) {
     const trimmed = body.slice(body.length - maxChars + 16);
     const code = lang === 'en' ? 'en' : 'ru';
@@ -122,31 +128,6 @@ function formatFullDialogue(chat, lang, maxChars = 3000) {
   }
 
   return body;
-}
-
-function formatRecentDialogue(chat, lang, maxPairs = 3) {
-  const messages = dialogueMessages(chat);
-  const pairs = [];
-  let pendingUser = null;
-
-  for (const msg of messages) {
-    if (msg.role === 'user') {
-      pendingUser = msg.content;
-    } else if (msg.role === 'assistant' && pendingUser !== null) {
-      pairs.push(formatOracleHistoryPair(pendingUser, msg.content, lang));
-      pendingUser = null;
-    }
-  }
-
-  if (pendingUser !== null) {
-    const label = lang === 'en' ? 'You' : 'Вы';
-    pairs.push(`<b>${label}</b>\n${escapeHtml(pendingUser)}`);
-  }
-
-  if (!pairs.length) return '';
-
-  const recent = pairs.slice(-maxPairs);
-  return recent.join('\n\n—\n\n');
 }
 
 export function formatOracleWelcomeScreen(lang = 'ru', turnsLeft = MAX_ORACLE_AI_TURNS) {
@@ -182,19 +163,56 @@ export function formatOracleActiveScreen(chat, lang = 'ru') {
     return formatOracleWelcomeScreen(lang, left);
   }
 
-  const title = code === 'en' ? 'Oracle · dialogue' : 'Оракул · диалог';
-  const dialogue = formatFullDialogue(chat, lang);
-  const prompt =
-    code === 'en' ? 'Write your next message below.' : 'Напишите следующее сообщение.';
-
-  const lines = [letterhead(title, lang), '', `<i>${formatTurnsHint(code, left)}</i>`];
-
-  if (dialogue) {
-    lines.push('', section(code === 'en' ? 'Dialogue' : 'Диалог', dialogue, '💬'));
+  const pairs = getDialoguePairs(chat);
+  const last = pairs[pairs.length - 1];
+  if (!last) {
+    return formatOracleWelcomeScreen(lang, left);
   }
 
-  lines.push('', `<i>${prompt}</i>`);
-  return lines.join('\n');
+  const title = code === 'en' ? 'Oracle · dialogue' : 'Оракул · диалог';
+  const qLabel = code === 'en' ? 'Your question' : 'Ваш вопрос';
+  const aLabel = code === 'en' ? 'Oracle' : 'Оракул';
+
+  return [
+    letterhead(title, lang),
+    '',
+    `<i>${formatTurnsHint(code, left)}</i>`,
+    '',
+    section(qLabel, formatOracleBodyHtml(last.user, 900), '💬'),
+    '',
+    section(aLabel, formatOracleBodyHtml(last.assistant, 2800), '🔮'),
+    '',
+    `<i>${code === 'en' ? 'Write your next message.' : 'Напишите следующее сообщение.'}</i>`,
+  ].join('\n');
+}
+
+/** Экран «Прошлые вопросы» — вся переписка кроме последнего обмена. */
+export function formatOraclePastQuestionsScreen(chat, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const pairs = getDialoguePairs(chat);
+  const past = pairs.length > 1 ? pairs.slice(0, -1) : pairs;
+
+  const title = code === 'en' ? 'Previous questions' : 'Прошлые вопросы';
+
+  if (!past.length) {
+    return [
+      letterhead(title, lang),
+      '',
+      `<i>${code === 'en' ? 'No earlier messages in this chat.' : 'В этом чате пока нет более ранних сообщений.'}</i>`,
+    ].join('\n');
+  }
+
+  const body = past
+    .map((p) => formatOracleHistoryPair(p.user, p.assistant, lang))
+    .join('\n\n—\n\n');
+
+  const clipped = body.length > 3600 ? `${body.slice(0, 3600)}\n\n<i>…</i>` : body;
+
+  return [letterhead(title, lang), '', clipped].join('\n');
+}
+
+export function hasOraclePastQuestions(chat) {
+  return getDialoguePairs(chat).length > 1;
 }
 
 export function formatOracleThinkingScreen(lang = 'ru') {
@@ -375,13 +393,26 @@ export function oracleChatListKeyboard(chats, lang = 'ru') {
   return { inline_keyboard: rows };
 }
 
-export function oracleActiveChatKeyboard(lang = 'ru') {
+export function oracleActiveChatKeyboard(lang = 'ru', chat = null) {
+  const rows = [];
+
+  if (chat && hasOraclePastQuestions(chat)) {
+    rows.push([{ text: btn(lang, 'oraclePast'), callback_data: cb('oracle_past') }]);
+  }
+
+  rows.push([
+    { text: btn(lang, 'oracleHistory'), callback_data: cb('oracle_chats') },
+    { text: btn(lang, 'oracleNewChat'), callback_data: cb('oracle_new') },
+  ]);
+  rows.push([{ text: btn(lang, 'menu'), callback_data: cb('menu') }]);
+
+  return { inline_keyboard: rows };
+}
+
+export function oraclePastQuestionsKeyboard(lang = 'ru') {
   return {
     inline_keyboard: [
-      [
-        { text: btn(lang, 'oracleHistory'), callback_data: cb('oracle_chats') },
-        { text: btn(lang, 'oracleNewChat'), callback_data: cb('oracle_new') },
-      ],
+      [{ text: btn(lang, 'back'), callback_data: cb('oracle_back') }],
       [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
     ],
   };
