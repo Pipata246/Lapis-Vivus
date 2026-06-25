@@ -183,7 +183,7 @@ async function enterOracleHub(from, chat, lang) {
     collected_data: { oracle_mode: true },
     block_index: 0,
     last_block_id: null,
-    session_mode: 'oracle',
+    session_mode: 'full',
     target_block_id: null,
     goal_tree_path: [],
   });
@@ -992,7 +992,7 @@ export async function handleCallback(from, callbackData) {
           collected_data: {},
           block_index: 0,
           last_block_id: null,
-          session_mode: null,
+          session_mode: 'full',
           target_block_id: null,
           goal_tree_path: [],
         });
