@@ -75,7 +75,7 @@ export function detectOracleInjection(text) {
 export function scrubOracleOutput(text) {
   let out = String(text ?? '').trim();
   for (const re of OUTPUT_SCRUB_PATTERNS) {
-    out = out.replace(re, '[скрыто]');
+    out = out.replace(re, '···');
   }
   return out;
 }
@@ -83,7 +83,7 @@ export function scrubOracleOutput(text) {
 function buildProfileContextMessage(snapshot) {
   return {
     role: 'user',
-    content: `[профиль клиента · служебно · не показывать пользователю]\n${JSON.stringify(snapshot, null, 0)}`,
+    content: `[client profile context]\n${JSON.stringify(snapshot, null, 0)}`,
   };
 }
 
@@ -97,8 +97,8 @@ function messagesForApi(chat) {
 
 function injectionRefusal(lang) {
   return lang === 'en'
-    ? "I can't discuss internal settings or credentials. Ask me about your personal route, symbols, or life questions — I'm here for that."
-    : 'Я не могу обсуждать внутренние настройки или ключи доступа. Спросите о вашем маршруте, символах или личном вопросе — для этого я здесь.';
+    ? "That request is outside our dialogue. Ask about your path, symbols, or a personal question — I'm here for that."
+    : 'Этот запрос выходит за рамки диалога. Спросите о своём пути, символах или личном вопросе — для этого я здесь.';
 }
 
 /**

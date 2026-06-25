@@ -72,6 +72,7 @@ const ALLOWED_CALLBACK_ACTIONS = new Set([
   'page_prev',
   'page_next',
   'oracle_start',
+  'oracle_open_chat',
   'oracle_chats',
   'oracle_new',
   'oracle_last',

@@ -112,6 +112,7 @@ import {
 import {
   listArchivedOracleChats,
   getOracleChat,
+  getActiveOracleChat,
   rotateActiveOracleChat,
   ensureActiveOracleChat,
   deleteOracleChat,
@@ -177,6 +178,11 @@ function reviewKeyboard(session, lang) {
   return nextBlockKeyboard(lang, isTargetedSession(session.collected_data));
 }
 
+function isInternalUserMessage(content) {
+  const text = String(content ?? '');
+  return text.includes('[служебно]') || text.startsWith('[client profile context]');
+}
+
 async function enterOracleHub(from, chat, lang) {
   await upsertSession(from.id, chat.id, {
     step: STEPS.ORACLE_MENU,
@@ -188,8 +194,10 @@ async function enterOracleHub(from, chat, lang) {
     goal_tree_path: [],
   });
 
+  const activeChat = await getActiveOracleChat(from.id);
+
   return {
-    text: formatOracleHubScreen(lang),
+    text: formatOracleHubScreen(lang, activeChat),
     keyboard: oracleHubKeyboard(lang),
   };
 }
@@ -687,12 +695,12 @@ function resumePrompt(session, lang = 'en') {
       keyboard: oracleHubKeyboard(lang),
     },
     [STEPS.ORACLE_CHAT]: {
-      text: formatOracleHubScreen(lang),
+      text: formatOracleActiveScreen({ messages: [], ai_turns: 0 }, lang),
       keyboard: oracleActiveChatKeyboard(lang),
     },
     [STEPS.ORACLE_VIEW]: {
-      text: letterhead(lang === 'en' ? 'Chat history' : 'История чата', lang),
-      keyboard: oracleHubKeyboard(lang),
+      text: formatOracleChatList([], lang),
+      keyboard: oracleEmptyChatsKeyboard(lang),
     },
   };
 
@@ -715,6 +723,58 @@ async function safeResumePrompt(session, userId = null) {
     } catch (err) {
       console.error('Error getting user language in safeResumePrompt:', err.message);
     }
+  }
+
+  const step = session.step;
+
+  if (userId && step === STEPS.ORACLE_MENU) {
+    const activeChat = await getActiveOracleChat(userId);
+    return {
+      text: formatOracleHubScreen(lang, activeChat),
+      keyboard: oracleHubKeyboard(lang),
+    };
+  }
+
+  if (userId && step === STEPS.ORACLE_CHAT) {
+    const oracleChatId = session.collected_data?.oracle_chat_id;
+    if (oracleChatId) {
+      const oracleChat = await getOracleChat(userId, oracleChatId);
+      if (oracleChat) {
+        return {
+          text: formatOracleActiveScreen(oracleChat, lang),
+          keyboard: oracleActiveChatKeyboard(lang),
+        };
+      }
+    }
+    const activeChat = await getActiveOracleChat(userId);
+    return {
+      text: formatOracleHubScreen(lang, activeChat),
+      keyboard: oracleHubKeyboard(lang),
+    };
+  }
+
+  if (userId && step === STEPS.ORACLE_VIEW) {
+    const oracleChatId = session.collected_data?.oracle_chat_id;
+    if (oracleChatId) {
+      const oracleChat = await getOracleChat(userId, oracleChatId);
+      if (oracleChat) {
+        return {
+          text: formatOracleHistoryView(oracleChat, lang),
+          keyboard: oracleViewChatKeyboard(oracleChatId, lang),
+        };
+      }
+    }
+    const chats = await listArchivedOracleChats(userId);
+    if (!chats.length) {
+      return {
+        text: formatOracleChatList([], lang),
+        keyboard: oracleEmptyChatsKeyboard(lang),
+      };
+    }
+    return {
+      text: formatOracleChatList(chats, lang),
+      keyboard: oracleChatListKeyboard(chats, lang),
+    };
   }
   
   const result = resumePrompt(session, lang);
@@ -1039,6 +1099,7 @@ export async function handleCallback(from, callbackData) {
       return openOracleNewChat(from, chat, userLang);
     }
 
+    case 'oracle_open_chat':
     case 'oracle_last': {
       const userLang = await resolveLang(from);
       const snapshot = await loadProfileSnapshotForOracle(from.id);
@@ -1479,7 +1540,7 @@ export async function handleCallback(from, callbackData) {
 
       const cleanedMessages = compressMessagesForAI(
         sessionMessages.filter(
-          (msg) => !(msg.role === 'user' && msg.content.includes('[служебно]'))
+          (msg) => !(msg.role === 'user' && isInternalUserMessage(msg.content))
         )
       );
 
@@ -1710,8 +1771,8 @@ export async function handleText(from, rawText) {
       [STEPS.COMPARE_CONTEXT_CUSTOM]: '✏️ Опишите контекст сравнения текстом.',
       [STEPS.PARTNER_GENDER]: '👤 Выберите пол второго человека кнопкой ниже.',
       [STEPS.COMPARE_CONFIRM]: '✓ Подтвердите данные пары кнопкой ниже.',
-      [STEPS.ORACLE_MENU]: '🔮 Выберите действие в меню Оракула.',
-      [STEPS.ORACLE_VIEW]: '🔮 История чата — используйте кнопки ниже.',
+      [STEPS.ORACLE_MENU]: '🔮 Выберите действие: открыть чат, историю или новый диалог.',
+      [STEPS.ORACLE_VIEW]: '🔮 Сохранённый диалог — используйте кнопки ниже.',
       [STEPS.GENDER]: '👤 На этом шаге выберите пол кнопкой ниже.',
       [STEPS.CONFIRM]: '✓ Подтвердите профиль кнопкой ниже.',
       [STEPS.BLOCK_FAILED]: u(lang, 'stageRetryHint'),
@@ -1947,7 +2008,7 @@ export async function handleText(from, rawText) {
 
       const cleanedMessages = compressMessagesForAI(
         sessionMessages.filter(
-          (msg) => !(msg.role === 'user' && msg.content.includes('[служебно]'))
+          (msg) => !(msg.role === 'user' && isInternalUserMessage(msg.content))
         )
       );
 
