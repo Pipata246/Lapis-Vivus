@@ -53,13 +53,15 @@ export function formatOracleBodyHtml(raw, maxLen = 3400) {
   return html || '—';
 }
 
-function formatOracleHistoryPair(userText, assistantText, lang = 'ru') {
+function formatOracleHistoryPair(userText, assistantText, lang = 'ru', limits = {}) {
+  const userMax = limits.userMax ?? 1200;
+  const assistantMax = limits.assistantMax ?? 2200;
   const yourLabel = lang === 'en' ? 'You' : 'Вы';
   const myLabel = lang === 'en' ? 'Oracle' : 'Оракул';
   return [
-    `<b>${yourLabel}</b>\n${formatOracleBodyHtml(userText, 1200)}`,
+    `<b>${yourLabel}</b>\n${formatOracleBodyHtml(userText, userMax)}`,
     '',
-    `<b>${myLabel}</b>\n${formatOracleBodyHtml(assistantText, 2200)}`,
+    `<b>${myLabel}</b>\n${formatOracleBodyHtml(assistantText, assistantMax)}`,
   ].join('\n');
 }
 
@@ -186,33 +188,76 @@ export function formatOracleActiveScreen(chat, lang = 'ru') {
   ].join('\n');
 }
 
-/** Экран «Прошлые вопросы» — вся переписка кроме последнего обмена. */
-export function formatOraclePastQuestionsScreen(chat, lang = 'ru') {
+/** Экран «Прошлые вопросы» — все обмены из БД, разбитые на страницы. */
+const ORACLE_HISTORY_PAGE_MAX = 3000;
+
+export function buildOracleHistoryPages(pairs, lang = 'ru') {
+  if (!pairs?.length) return [];
+
   const code = lang === 'en' ? 'en' : 'ru';
-  const pairs = getDialoguePairs(chat);
-  const past = pairs.length > 1 ? pairs.slice(0, -1) : pairs;
+  const pages = [];
+  let chunk = '';
 
+  for (let i = 0; i < pairs.length; i += 1) {
+    const block = formatOracleHistoryPair(pairs[i].user, pairs[i].assistant, lang, {
+      userMax: 2000,
+      assistantMax: 3500,
+    });
+    const labeled =
+      pairs.length > 1
+        ? `◆ <b>${code === 'en' ? `Exchange ${i + 1}` : `Обмен ${i + 1}`}</b>\n\n${block}`
+        : block;
+
+    if (!chunk) {
+      chunk = labeled;
+      continue;
+    }
+
+    const candidate = `${chunk}\n\n—\n\n${labeled}`;
+    if (candidate.length > ORACLE_HISTORY_PAGE_MAX) {
+      pages.push(chunk);
+      chunk = labeled;
+    } else {
+      chunk = candidate;
+    }
+  }
+
+  if (chunk) pages.push(chunk);
+  return pages;
+}
+
+export function formatOraclePastQuestionsPage(pager, lang = 'ru') {
+  const code = lang === 'en' ? 'en' : 'ru';
   const title = code === 'en' ? 'Previous questions' : 'Прошлые вопросы';
+  const pages = pager?.pages ?? [];
+  const total = Math.max(pages.length, 1);
+  const index = Math.min(Math.max(pager?.index ?? 0, 0), total - 1);
+  const body = pages[index];
 
-  if (!past.length) {
+  if (!body) {
     return [
       letterhead(title, lang),
       '',
-      `<i>${code === 'en' ? 'No earlier messages in this chat.' : 'В этом чате пока нет более ранних сообщений.'}</i>`,
+      `<i>${code === 'en' ? 'No messages in this chat.' : 'В этом чате пока нет сообщений.'}</i>`,
     ].join('\n');
   }
 
-  const body = past
-    .map((p) => formatOracleHistoryPair(p.user, p.assistant, lang))
-    .join('\n\n—\n\n');
+  const indicator =
+    total > 1
+      ? `<i>${code === 'en' ? 'Page' : 'Страница'} ${index + 1} / ${total}</i>`
+      : '';
 
-  const clipped = body.length > 3600 ? `${body.slice(0, 3600)}\n\n<i>…</i>` : body;
+  return [letterhead(title, lang), '', body, indicator].filter(Boolean).join('\n');
+}
 
-  return [letterhead(title, lang), '', clipped].join('\n');
+/** @deprecated — используйте buildOracleHistoryPages + formatOraclePastQuestionsPage */
+export function formatOraclePastQuestionsScreen(chat, lang = 'ru') {
+  const pages = buildOracleHistoryPages(getDialoguePairs(chat), lang);
+  return formatOraclePastQuestionsPage({ pages, index: 0 }, lang);
 }
 
 export function hasOraclePastQuestions(chat) {
-  return getDialoguePairs(chat).length > 1;
+  return getDialoguePairs(chat).length >= 1;
 }
 
 export function formatOracleThinkingScreen(lang = 'ru') {
@@ -409,13 +454,23 @@ export function oracleActiveChatKeyboard(lang = 'ru', chat = null) {
   return { inline_keyboard: rows };
 }
 
-export function oraclePastQuestionsKeyboard(lang = 'ru') {
-  return {
-    inline_keyboard: [
-      [{ text: btn(lang, 'back'), callback_data: cb('oracle_back') }],
-      [{ text: btn(lang, 'menu'), callback_data: cb('menu') }],
-    ],
-  };
+export function oraclePastQuestionsKeyboard(lang = 'ru', pageIndex = 0, totalPages = 1) {
+  const code = lang === 'en' ? 'en' : 'ru';
+  const rows = [];
+  const navRow = [];
+
+  if (totalPages > 1 && pageIndex > 0) {
+    navRow.push({ text: code === 'en' ? '◀ Back' : '◀ Назад', callback_data: cb('oracle_hist_prev') });
+  }
+  if (totalPages > 1 && pageIndex < totalPages - 1) {
+    navRow.push({ text: code === 'en' ? 'Next ▶' : 'Далее ▶', callback_data: cb('oracle_hist_next') });
+  }
+  if (navRow.length) rows.push(navRow);
+
+  rows.push([{ text: btn(lang, 'back'), callback_data: cb('oracle_back') }]);
+  rows.push([{ text: btn(lang, 'menu'), callback_data: cb('menu') }]);
+
+  return { inline_keyboard: rows };
 }
 
 export function oracleViewChatKeyboard(chatId, lang = 'ru') {

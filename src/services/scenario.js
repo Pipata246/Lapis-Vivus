@@ -102,6 +102,9 @@ import {
   formatOracleChatList,
   formatOracleHistoryView,
   formatOraclePastQuestionsScreen,
+  formatOraclePastQuestionsPage,
+  buildOracleHistoryPages,
+  getDialoguePairs,
   getOracleWelcomeText,
   oracleHubKeyboard,
   oracleEmptyChatsKeyboard,
@@ -1137,9 +1140,53 @@ export async function handleCallback(from, callbackData) {
       if (!oracleChat) {
         return enterOracleHub(from, chat, userLang);
       }
+
+      const pages = buildOracleHistoryPages(getDialoguePairs(oracleChat), userLang);
+      const pager = { pages, index: 0 };
+
+      await updateSession(from.id, {
+        collected_data: mergeCollectedData(session, { oracle_history_pager: pager }),
+      });
+
       return {
-        text: formatOraclePastQuestionsScreen(oracleChat, userLang),
-        keyboard: oraclePastQuestionsKeyboard(userLang),
+        text: formatOraclePastQuestionsPage(pager, userLang),
+        keyboard: oraclePastQuestionsKeyboard(userLang, 0, pages.length),
+        skipMainMenu: true,
+      };
+    }
+
+    case 'oracle_hist_prev':
+    case 'oracle_hist_next': {
+      const userLang = await resolveLang(from);
+      let pager = session.collected_data?.oracle_history_pager;
+
+      if (!pager?.pages?.length) {
+        const oracleChatId = session.collected_data?.oracle_chat_id;
+        if (!oracleChatId) {
+          return enterOracleHub(from, chat, userLang);
+        }
+        const oracleChat = await getOracleChat(from.id, oracleChatId);
+        if (!oracleChat) {
+          return enterOracleHub(from, chat, userLang);
+        }
+        const pages = buildOracleHistoryPages(getDialoguePairs(oracleChat), userLang);
+        pager = { pages, index: 0 };
+      }
+
+      const delta = parsed.action === 'oracle_hist_next' ? 1 : -1;
+      const newIndex = Math.min(
+        Math.max((pager.index ?? 0) + delta, 0),
+        Math.max(pager.pages.length - 1, 0),
+      );
+      const updatedPager = { ...pager, index: newIndex };
+
+      await updateSession(from.id, {
+        collected_data: mergeCollectedData(session, { oracle_history_pager: updatedPager }),
+      });
+
+      return {
+        text: formatOraclePastQuestionsPage(updatedPager, userLang),
+        keyboard: oraclePastQuestionsKeyboard(userLang, newIndex, pager.pages.length),
         skipMainMenu: true,
       };
     }
