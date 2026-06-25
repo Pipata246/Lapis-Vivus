@@ -2,7 +2,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { askGpt } from '../ai/gptunnel.js';
-import { splitTelegramMessages } from '../ai/formatResponse.js';
 import {
   MAX_ORACLE_AI_TURNS,
   dialogueMessages,
@@ -10,8 +9,13 @@ import {
   rotateActiveOracleChat,
   loadProfileSnapshotForOracle,
   getOracleChat,
+  stripTrailingUserMessage,
 } from '../db/oracle.js';
-import { getOracleWelcomeText, formatOracleWelcomeScreen, formatOracleReplyHtml } from '../scenario/oracleFlow.js';
+import {
+  getOracleWelcomeText,
+  formatOracleWelcomeScreen,
+  formatOracleActiveScreen,
+} from '../scenario/oracleFlow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORACLE_PROMPT_PATH = path.join(__dirname, '../prompts/oracle-system.txt');
@@ -87,12 +91,18 @@ function buildProfileContextMessage(snapshot) {
   };
 }
 
-function messagesForApi(chat) {
+function messagesForApi(chat, pendingUserText = null) {
   const recent = dialogueMessages(chat).slice(-MAX_CONTEXT_MESSAGES);
-  return recent.map((m) => ({
+  const mapped = recent.map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: m.content,
   }));
+
+  if (pendingUserText) {
+    mapped.push({ role: 'user', content: pendingUserText });
+  }
+
+  return mapped;
 }
 
 function injectionRefusal(lang) {
@@ -113,7 +123,14 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
     };
   }
 
-  let workingChat = chat;
+  let workingChat = await stripTrailingUserMessage(userId, chat.id);
+  if (!workingChat) {
+    return {
+      ok: false,
+      error: lang === 'en' ? 'Chat not found.' : 'Чат не найден.',
+    };
+  }
+
   let rotated = false;
 
   if ((workingChat.ai_turns ?? 0) >= MAX_ORACLE_AI_TURNS) {
@@ -135,25 +152,19 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
       { aiTurnDelta: 1 },
     );
 
-    const extraMessages = rotated ? [{ text: formatOracleReplyHtml(refusal) }] : [];
-
     return {
       ok: true,
-      text: rotated ? formatOracleWelcomeScreen(lang) : formatOracleReplyHtml(refusal),
-      extraMessages,
+      text: formatOracleActiveScreen(updated, lang),
       chat: updated,
       rotated,
     };
   }
 
-  await appendOracleMessages(userId, workingChat.id, [{ role: 'user', content: trimmed }]);
-  workingChat = await getOracleChat(userId, workingChat.id);
-
   await waitForRateLimit(userId);
 
   const systemPrompt = loadOracleSystemPrompt();
   const profileMsg = buildProfileContextMessage(workingChat.profile_snapshot ?? {});
-  const history = messagesForApi(workingChat);
+  const history = messagesForApi(workingChat, trimmed);
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -188,29 +199,17 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
   workingChat = await appendOracleMessages(
     userId,
     workingChat.id,
-    [{ role: 'assistant', content: aiResponse }],
+    [
+      { role: 'user', content: trimmed },
+      { role: 'assistant', content: aiResponse },
+    ],
     { aiTurnDelta: 1 },
   );
 
-  const aiHtml = formatOracleReplyHtml(aiResponse);
-  const aiChunks = splitTelegramMessages(aiHtml);
-
-  if (rotated) {
-    const welcomeHtml = formatOracleWelcomeScreen(lang, MAX_ORACLE_AI_TURNS - 1);
-    return {
-      ok: true,
-      text: welcomeHtml,
-      extraMessages: aiChunks.map((part) => ({ text: part })),
-      chat: workingChat,
-      rotated: true,
-    };
-  }
-
   return {
     ok: true,
-    text: aiChunks[0],
-    extraMessages: aiChunks.slice(1).map((part) => ({ text: part })),
+    text: formatOracleActiveScreen(workingChat, lang),
     chat: workingChat,
-    rotated: false,
+    rotated,
   };
 }

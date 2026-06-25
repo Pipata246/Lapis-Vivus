@@ -119,6 +119,7 @@ import {
   loadProfileSnapshotForOracle,
   hasOracleReadyProfile,
   ORACLE_STATUS,
+  stripTrailingUserMessage,
 } from '../db/oracle.js';
 import { runOracleTurn } from './oracleService.js';
 
@@ -203,10 +204,12 @@ async function enterOracleHub(from, chat, lang) {
 }
 
 async function enterOracleActive(from, chat, oracleChatId, lang) {
-  const oracleChat = await getOracleChat(from.id, oracleChatId);
+  let oracleChat = await getOracleChat(from.id, oracleChatId);
   if (!oracleChat || oracleChat.status !== ORACLE_STATUS.ACTIVE) {
     return enterOracleHub(from, chat, lang);
   }
+
+  oracleChat = (await stripTrailingUserMessage(from.id, oracleChatId)) ?? oracleChat;
 
   await updateSession(from.id, {
     step: STEPS.ORACLE_CHAT,
@@ -738,8 +741,9 @@ async function safeResumePrompt(session, userId = null) {
   if (userId && step === STEPS.ORACLE_CHAT) {
     const oracleChatId = session.collected_data?.oracle_chat_id;
     if (oracleChatId) {
-      const oracleChat = await getOracleChat(userId, oracleChatId);
+      let oracleChat = await getOracleChat(userId, oracleChatId);
       if (oracleChat) {
+        oracleChat = (await stripTrailingUserMessage(userId, oracleChatId)) ?? oracleChat;
         return {
           text: formatOracleActiveScreen(oracleChat, lang),
           keyboard: oracleActiveChatKeyboard(lang),
@@ -1928,9 +1932,12 @@ export async function handleText(from, rawText) {
       });
 
       if (!result.ok) {
+        const freshChat = await getOracleChat(from.id, oracleChatId);
+        const screen = freshChat ? formatOracleActiveScreen(freshChat, lang) : result.error;
         return {
-          text: result.error,
+          text: freshChat ? `${screen}\n\n<i>${result.error}</i>` : result.error,
           keyboard: oracleActiveChatKeyboard(lang),
+          skipMainMenu: true,
         };
       }
 
@@ -1945,8 +1952,8 @@ export async function handleText(from, rawText) {
 
       return {
         text: result.text,
-        extraMessages: result.extraMessages,
         keyboard: oracleActiveChatKeyboard(lang),
+        skipMainMenu: true,
       };
     }
 

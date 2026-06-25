@@ -270,6 +270,30 @@ export function dialogueMessages(chat) {
   return messages.filter((m) => m.kind !== 'welcome');
 }
 
+/** Убирает «висящее» сообщение пользователя без ответа (сбой ИИ). */
+export async function stripTrailingUserMessage(userId, chatId) {
+  const chat = await getOracleChat(userId, chatId);
+  if (!chat) return null;
+
+  const dialogue = dialogueMessages(chat);
+  if (!dialogue.length || dialogue[dialogue.length - 1].role !== 'user') {
+    return chat;
+  }
+
+  const all = Array.isArray(chat.messages) ? [...chat.messages] : [];
+  for (let i = all.length - 1; i >= 0; i -= 1) {
+    const m = all[i];
+    if (m.kind === 'welcome') continue;
+    if (m.role === 'user') {
+      all.splice(i, 1);
+      break;
+    }
+    break;
+  }
+
+  return updateOracleChat(userId, chatId, { messages: all });
+}
+
 export async function appendOracleMessages(userId, chatId, newMessages, { aiTurnDelta = 0 } = {}) {
   const chat = await getOracleChat(userId, chatId);
   if (!chat) {

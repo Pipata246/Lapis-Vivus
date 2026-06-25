@@ -41,6 +41,8 @@ import {
 } from './db/users.js';
 import { expireStalePayments } from './db/payments.js';
 import { getSession, updateSession, resetSession } from './db/sessions.js';
+import { STEPS } from './scenario/constants.js';
+import { formatOracleThinkingScreen, oracleRunningKeyboard } from './scenario/oracleFlow.js';
 import { getOrCreateUserChat } from './db/chats.js';
 import { deliverSingleMessage } from './ui/singleMessage.js';
 import {
@@ -944,6 +946,17 @@ function registerHandlers(bot) {
     }
 
     await ctx.sendChatAction('typing').catch(() => {});
+
+    const sessionForOracle = await getSession(userId);
+    if (sessionForOracle?.step === STEPS.ORACLE_CHAT) {
+      await deliverScreen(ctx, {
+        text: formatOracleThinkingScreen(lang),
+        keyboard: oracleRunningKeyboard(lang),
+        userId,
+        lang,
+        skipMainMenu: true,
+      });
+    }
 
     try {
       const payload = await handleText(ctx.from, text);
