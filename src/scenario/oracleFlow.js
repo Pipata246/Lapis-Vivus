@@ -11,7 +11,7 @@ function cb(action, value = null) {
 }
 
 function formatChatDate(iso, lang) {
-  if (!iso) return 'тАФ';
+  if (!iso) return '—';
   try {
     return new Date(iso).toLocaleString(lang === 'en' ? 'en-GB' : 'ru-RU', {
       day: 'numeric',
@@ -20,7 +20,7 @@ function formatChatDate(iso, lang) {
       minute: '2-digit',
     });
   } catch {
-    return 'тАФ';
+    return '—';
   }
 }
 
@@ -29,7 +29,7 @@ function countDialoguePairs(messages) {
   return messages.filter((m) => m.role === 'assistant' && m.kind !== 'welcome').length;
 }
 
-/** ╨в╨╡╨║╤Б╤В ╨┐╤А╨╕╨▓╨╡╤В╤Б╤В╨▓╨╕╤П (╤Б╨╛╤Е╤А╨░╨╜╤П╨╡╤В╤Б╤П ╨▓ ╨С╨Ф ╨╕ ╨┐╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤О). */
+/** Текст приветствия (сохраняется в БД и показывается пользователю). */
 export function getOracleWelcomeText(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
 
@@ -46,24 +46,24 @@ export function getOracleWelcomeText(lang = 'ru') {
   }
 
   return [
-    '╨Ф╨╛╨▒╤А╨╛ ╨┐╨╛╨╢╨░╨╗╨╛╨▓╨░╤В╤М ╨▓ ╤Б╨▓╨╛╨▒╨╛╨┤╨╜╤Л╨╣ ╨┤╨╕╨░╨╗╨╛╨│ ╤Б ╨Ю╤А╨░╨║╤Г╨╗╨╛╨╝.',
+    'Добро пожаловать в свободный диалог с Оракулом.',
     '',
-    '╨п ╨▓╨╕╨╢╤Г ╨▓╨░╤И ╨┐╤А╨╛╤Д╨╕╨╗╤М Lapis Vivus ╨╕ ╨╝╨╛╨│╤Г ╨│╨╛╨▓╨╛╤А╨╕╤В╤М ╤Б ╨▓╨░╨╝╨╕ ╨╛ ╨╗╨╕╤З╨╜╤Л╤Е ╨▓╨╛╨┐╤А╨╛╤Б╨░╤Е, ╤Б╨╕╨╝╨▓╨╛╨╗╨░╤Е ╨╕ ╨▓╨░╤И╨╡╨╝ ╨╝╨░╤А╤И╤А╤Г╤В╨╡.',
+    'Я вижу ваш профиль Lapis Vivus и могу говорить с вами о личных вопросах, символах и вашем маршруте.',
     '',
-    `╨Т ╤Н╤В╨╛╨╝ ╤З╨░╤В╨╡ тАФ ╨┤╨╛ ${MAX_ORACLE_AI_TURNS} ╨╝╨╛╨╕╤Е ╨╛╤В╨▓╨╡╤В╨╛╨▓. ╨Ч╨░╤В╨╡╨╝ ╨┤╨╕╨░╨╗╨╛╨│ ╤Б╨╛╤Е╤А╨░╨╜╨╕╤В╤Б╤П ╨▓ ╨╕╤Б╤В╨╛╤А╨╕╤О, ╨╕ ╨╜╨░╤З╨╜╤С╤В╤Б╤П ╨╜╨╛╨▓╤Л╨╣ ╤З╨░╤В.`,
+    `В этом чате — до ${MAX_ORACLE_AI_TURNS} моих ответов. Затем диалог сохранится в историю, и начнётся новый чат.`,
     '',
-    '╨Э╨░╨┐╨╕╤И╨╕╤В╨╡ ╨▓╨╛╨┐╤А╨╛╤Б ╨╕╨╗╨╕ ╨╝╤Л╤Б╨╗╤М.',
+    'Напишите вопрос или мысль.',
   ].join('\n');
 }
 
 export function formatOracleReplyHtml(text) {
   const safe = escapeHtml(String(text ?? ''));
-  return `ЁЯФо <b>╨Ю╤А╨░╨║╤Г╨╗</b>\n\n${safe}`;
+  return `🔮 <b>Оракул</b>\n\n${safe}`;
 }
 
 function formatOracleHistoryPair(userText, assistantText, lang = 'ru') {
-  const yourLabel = lang === 'en' ? 'Your message' : '╨Т╨░╤И ╨╛╤В╨▓╨╡╤В';
-  const myLabel = lang === 'en' ? 'Oracle' : '╨Ь╨╛╨╣ ╨╛╤В╨▓╨╡╤В';
+  const yourLabel = lang === 'en' ? 'Your message' : 'Ваш вопрос';
+  const myLabel = lang === 'en' ? 'Oracle' : 'Мой ответ';
   return [
     `<b>${yourLabel}:</b>\n${escapeHtml(userText)}`,
     '',
@@ -76,10 +76,10 @@ export function formatOracleWelcomeScreen(lang = 'ru', turnsLeft = MAX_ORACLE_AI
   const status =
     code === 'en'
       ? `Replies left: ${turnsLeft} of ${MAX_ORACLE_AI_TURNS}`
-      : `╨Ю╤Б╤В╨░╨╗╨╛╤Б╤М ╨╛╤В╨▓╨╡╤В╨╛╨▓: ${turnsLeft} ╨╕╨╖ ${MAX_ORACLE_AI_TURNS}`;
+      : `Осталось ответов: ${turnsLeft} из ${MAX_ORACLE_AI_TURNS}`;
 
   return [
-    letterhead(code === 'en' ? 'Oracle' : '╨Ю╤А╨░╨║╤Г╨╗', lang),
+    letterhead(code === 'en' ? 'Oracle' : 'Оракул', lang),
     '',
     escapeHtml(getOracleWelcomeText(lang)),
     '',
@@ -106,42 +106,42 @@ export function formatOracleActiveScreen(chat, lang = 'ru') {
   const status =
     code === 'en'
       ? `Replies left: ${left} of ${MAX_ORACLE_AI_TURNS}`
-      : `╨Ю╤Б╤В╨░╨╗╨╛╤Б╤М ╨╛╤В╨▓╨╡╤В╨╛╨▓: ${left} ╨╕╨╖ ${MAX_ORACLE_AI_TURNS}`;
+      : `Осталось ответов: ${left} из ${MAX_ORACLE_AI_TURNS}`;
 
   return [
-    letterhead(code === 'en' ? 'Oracle ┬╖ dialogue' : '╨Ю╤А╨░╨║╤Г╨╗ ┬╖ ╨┤╨╕╨░╨╗╨╛╨│', lang),
+    letterhead(code === 'en' ? 'Oracle · dialogue' : 'Оракул · диалог', lang),
     '',
     `<i>${status}</i>`,
     '',
-    code === 'en' ? 'Write your question or thought.' : '╨Э╨░╨┐╨╕╤И╨╕╤В╨╡ ╨▓╨╛╨┐╤А╨╛╤Б ╨╕╨╗╨╕ ╨╝╤Л╤Б╨╗╤М.',
+    code === 'en' ? 'Write your question or thought.' : 'Напишите вопрос или мысль.',
   ].join('\n');
 }
 
 export function formatOracleHubScreen(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const title = code === 'en' ? 'Oracle' : '╨Ю╤А╨░╨║╤Г╨╗';
+  const title = code === 'en' ? 'Oracle' : 'Оракул';
   const body =
     code === 'en'
-      ? 'One active dialogue at a time. Up to 10 Oracle replies per chat тАФ then it moves to history and a new chat opens.'
-      : '╨Ю╨┤╨╕╨╜ ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╨┤╨╕╨░╨╗╨╛╨│. ╨Ф╨╛ 10 ╨╛╤В╨▓╨╡╤В╨╛╨▓ ╨Ю╤А╨░╨║╤Г╨╗╨░ ╨▓ ╤З╨░╤В╨╡ тАФ ╨╖╨░╤В╨╡╨╝ ╨╛╨╜ ╤Г╤Е╨╛╨┤╨╕╤В ╨▓ ╨╕╤Б╤В╨╛╤А╨╕╤О ╨╕ ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В╤Б╤П ╨╜╨╛╨▓╤Л╨╣.';
+      ? 'One active dialogue at a time. Up to 10 Oracle replies per chat — then it moves to history and a new chat opens.'
+      : 'Один активный диалог. До 10 ответов Оракула в чате — затем он уходит в историю и открывается новый.';
 
-  return [letterhead(title, lang), '', body, '', code === 'en' ? 'Choose:' : '╨Т╤Л╨▒╨╡╤А╨╕╤В╨╡:'].join('\n');
+  return [letterhead(title, lang), '', body, '', code === 'en' ? 'Choose:' : 'Выберите:'].join('\n');
 }
 
 export function formatOracleEmptyProfile(lang = 'ru') {
   const code = lang === 'en' ? 'en' : 'ru';
-  const title = code === 'en' ? 'Oracle' : '╨Ю╤А╨░╨║╤Г╨╗';
+  const title = code === 'en' ? 'Oracle' : 'Оракул';
   const body =
     code === 'en'
       ? 'Your birth profile is not filled yet. The Oracle needs your protocol data to speak personally with you.'
-      : '╨Т╨░╤И ╨┐╤А╨╛╤Д╨╕╨╗╤М ╤А╨╛╨╢╨┤╨╡╨╜╨╕╤П ╨╡╤Й╤С ╨╜╨╡ ╨╖╨░╨┐╨╛╨╗╨╜╨╡╨╜. ╨Ю╤А╨░╨║╤Г╨╗╤Г ╨╜╤Г╨╢╨╜╤Л ╨┤╨░╨╜╨╜╤Л╨╡ ╨┐╤А╨╛╤В╨╛╨║╨╛╨╗╨░, ╤З╤В╨╛╨▒╤Л ╨│╨╛╨▓╨╛╤А╨╕╤В╤М ╤Б ╨▓╨░╨╝╨╕ ╨┐╨╡╤А╤Б╨╛╨╜╨░╨╗╤М╨╜╨╛.';
+      : 'Ваш профиль рождения ещё не заполнен. Оракулу нужны данные протокола, чтобы говорить с вами персонально.';
 
   return [
     letterhead(title, lang),
     '',
     body,
     '',
-    code === 'en' ? 'Complete the protocol first тАФ it takes about a minute.' : '╨б╨╜╨░╤З╨░╨╗╨░ ╨┐╤А╨╛╨╣╨┤╨╕╤В╨╡ ╨┐╤А╨╛╤В╨╛╨║╨╛╨╗ тАФ ╤Н╤В╨╛ ╨╖╨░╨╣╨╝╤С╤В ╨╛╨║╨╛╨╗╨╛ ╨╝╨╕╨╜╤Г╤В╤Л.',
+    code === 'en' ? 'Complete the protocol first — it takes about a minute.' : 'Сначала пройдите протокол — это займёт около минуты.',
   ].join('\n');
 }
 
@@ -150,23 +150,23 @@ export function formatOracleChatList(chats, lang = 'ru') {
 
   if (!chats?.length) {
     return [
-      letterhead(code === 'en' ? 'Chat history' : '╨Ш╤Б╤В╨╛╤А╨╕╤П ╤З╨░╤В╨╛╨▓', lang),
+      letterhead(code === 'en' ? 'Chat history' : 'История чатов', lang),
       '',
-      code === 'en' ? 'No archived chats yet.' : '╨Р╤А╤Е╨╕╨▓╨╜╤Л╤Е ╤З╨░╤В╨╛╨▓ ╨┐╨╛╨║╨░ ╨╜╨╡╤В.',
+      code === 'en' ? 'No archived chats yet.' : 'Архивных чатов пока нет.',
     ].join('\n');
   }
 
   const lines = chats.map((chat, index) => {
     const pairs = countDialoguePairs(chat.messages);
     const date = formatChatDate(chat.updated_at ?? chat.created_at, lang);
-    const label = code === 'en' ? `Chat ${index + 1}` : `╨з╨░╤В ${index + 1}`;
-    return `тЧЖ <b>${label}</b> ┬╖ ${date}\n<i>${code === 'en' ? 'Exchanges' : '╨Ф╨╕╨░╨╗╨╛╨│╨╛╨▓'}: ${pairs}</i>`;
+    const label = code === 'en' ? `Chat ${index + 1}` : `Чат ${index + 1}`;
+    return `◆ <b>${label}</b> · ${date}\n<i>${code === 'en' ? 'Exchanges' : 'Диалогов'}: ${pairs}</i>`;
   });
 
   return [
-    letterhead(code === 'en' ? 'Chat history' : '╨Ш╤Б╤В╨╛╤А╨╕╤П ╤З╨░╤В╨╛╨▓', lang),
+    letterhead(code === 'en' ? 'Chat history' : 'История чатов', lang),
     '',
-    `<i>${code === 'en' ? `Up to ${MAX_ORACLE_HISTORY} archived chats` : `╨Ф╨╛ ${MAX_ORACLE_HISTORY} ╤З╨░╤В╨╛╨▓ ╨▓ ╨╕╤Б╤В╨╛╤А╨╕╨╕`}</i>`,
+    `<i>${code === 'en' ? `Up to ${MAX_ORACLE_HISTORY} archived chats` : `До ${MAX_ORACLE_HISTORY} чатов в истории`}</i>`,
     '',
     lines.join('\n\n'),
   ].join('\n');
@@ -180,9 +180,9 @@ export function formatOracleHistoryView(chat, lang = 'ru') {
 
   if (messages.length === 0) {
     return [
-      letterhead(code === 'en' ? 'Chat history' : '╨Ш╤Б╤В╨╛╤А╨╕╤П ╤З╨░╤В╨░', lang),
+      letterhead(code === 'en' ? 'Chat history' : 'История чата', lang),
       '',
-      code === 'en' ? 'This chat is empty.' : '╨Т ╤Н╤В╨╛╨╝ ╤З╨░╤В╨╡ ╨╜╨╡╤В ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╣.',
+      code === 'en' ? 'This chat is empty.' : 'В этом чате нет сообщений.',
     ].join('\n');
   }
 
@@ -196,18 +196,18 @@ export function formatOracleHistoryView(chat, lang = 'ru') {
       pairs.push(formatOracleHistoryPair(pendingUser, msg.content, lang));
       pendingUser = null;
     } else if (msg.role === 'assistant') {
-      pairs.push(`<b>${code === 'en' ? 'Oracle' : '╨Ь╨╛╨╣ ╨╛╤В╨▓╨╡╤В'}:</b>\n${escapeHtml(msg.content)}`);
+      pairs.push(`<b>${code === 'en' ? 'Oracle' : 'Мой ответ'}:</b>\n${escapeHtml(msg.content)}`);
     }
   }
 
   if (pendingUser !== null) {
-    pairs.push(`<b>${code === 'en' ? 'Your message' : '╨Т╨░╤И ╨╛╤В╨▓╨╡╤В'}:</b>\n${escapeHtml(pendingUser)}`);
+    pairs.push(`<b>${code === 'en' ? 'Your message' : 'Ваш вопрос'}:</b>\n${escapeHtml(pendingUser)}`);
   }
 
-  const body = pairs.join('\n\nтАФ\n\n');
-  const truncated = body.length > 3600 ? `${body.slice(0, 3600)}\n\n<i>тАж</i>` : body;
+  const body = pairs.join('\n\n—\n\n');
+  const truncated = body.length > 3600 ? `${body.slice(0, 3600)}\n\n<i>…</i>` : body;
 
-  return [letterhead(code === 'en' ? 'Chat history' : '╨Ш╤Б╤В╨╛╤А╨╕╤П ╤З╨░╤В╨░', lang), '', truncated].join('\n');
+  return [letterhead(code === 'en' ? 'Chat history' : 'История чата', lang), '', truncated].join('\n');
 }
 
 export function oracleHubKeyboard(lang = 'ru') {
@@ -231,7 +231,7 @@ export function oracleEmptyChatsKeyboard(lang = 'ru') {
 
 export function oracleChatListKeyboard(chats, lang = 'ru') {
   const rows = (chats ?? []).map((chat, index) => {
-    const label = lang === 'en' ? `ЁЯУЬ Chat ${index + 1}` : `ЁЯУЬ ╨з╨░╤В ${index + 1}`;
+    const label = lang === 'en' ? `📜 Chat ${index + 1}` : `📜 Чат ${index + 1}`;
     return [
       { text: label, callback_data: cb('oracle_open', chat.id) },
       { text: btn(lang, 'oracleDelete'), callback_data: cb('oracle_delete', chat.id) },

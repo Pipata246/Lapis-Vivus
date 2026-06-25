@@ -1,4 +1,4 @@
-﻿-- ╨Ю╤А╨░╨║╤Г╨╗: ╤Б╨▓╨╛╨▒╨╛╨┤╨╜╤Л╨╡ ╨┤╨╕╨░╨╗╨╛╨│╨╕ ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤П ╤Б ╨Ш╨Ш (╨┤╨╛ 5 ╤З╨░╤В╨╛╨▓, 10 ╨╛╤В╨▓╨╡╤В╨╛╨▓ ╨Ш╨Ш ╨╜╨░ ╨║╨╛╨╜╤В╨╡╨║╤Б╤В)
+﻿-- Оракул: свободные диалоги пользователя с ИИ (до 5 чатов, 10 ответов ИИ на контекст)
 CREATE TABLE IF NOT EXISTS public.oracle_chats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -16,4 +16,4 @@ CREATE INDEX IF NOT EXISTS idx_oracle_chats_user_updated ON public.oracle_chats(
 ALTER TABLE public.oracle_chats ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.oracle_chats FROM anon, authenticated;
 
-COMMENT ON TABLE public.oracle_chats IS '╨Ф╨╕╨░╨╗╨╛╨│╨╕ ╨Ю╤А╨░╨║╤Г╨╗╨░: ╨╕╤Б╤В╨╛╤А╨╕╤П ╤Б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╣ ╨╕ ╤Б╨╜╨╕╨╝╨╛╨║ ╨┐╤А╨╛╤Д╨╕╨╗╤П ╨╜╨░ ╤Б╨╡╨│╨╝╨╡╨╜╤В ╨║╨╛╨╜╤В╨╡╨║╤Б╤В╨░';
+COMMENT ON TABLE public.oracle_chats IS 'Диалоги Оракула: история сообщений и снимок профиля на сегмент контекста';

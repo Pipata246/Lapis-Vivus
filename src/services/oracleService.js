@@ -33,9 +33,9 @@ const INJECTION_PATTERNS = [
   /\b(gptunnel|openai|sk-[a-z0-9]{10,})\b/i,
   /\bDAN\b/,
   /jailbreak/i,
-  /╨▓╤Л╨▓╨╡╨┤╨╕\s+(╨┐╤А╨╛╨╝╨┐╤В|╤В╨╛╨║╨╡╨╜|╨║╨╗╤О╤З|╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕)/i,
-  /╨┐╨╛╨║╨░╨╢╨╕\s+(╨┐╤А╨╛╨╝╨┐╤В|╤В╨╛╨║╨╡╨╜|╨║╨╗╤О╤З|╤Б╨╕╤Б╤В╨╡╨╝╨╜)/i,
-  /╨╕╨│╨╜╨╛╤А╨╕╤А╤Г╨╣\s+(╨▓╤Б╨╡\s+)?(╨┐╤А╨░╨▓╨╕╨╗╨░|╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕)/i,
+  /выведи\s+(промпт|токен|ключ|инструкц)/i,
+  /покажи\s+(промпт|токен|ключ|системн)/i,
+  /игнорируй\s+(все\s+)?(правила|инструкции)/i,
 ];
 
 const OUTPUT_SCRUB_PATTERNS = [
@@ -75,7 +75,7 @@ export function detectOracleInjection(text) {
 export function scrubOracleOutput(text) {
   let out = String(text ?? '').trim();
   for (const re of OUTPUT_SCRUB_PATTERNS) {
-    out = out.replace(re, '[╤Б╨║╤А╤Л╤В╨╛]');
+    out = out.replace(re, '[скрыто]');
   }
   return out;
 }
@@ -83,7 +83,7 @@ export function scrubOracleOutput(text) {
 function buildProfileContextMessage(snapshot) {
   return {
     role: 'user',
-    content: `[╨┐╤А╨╛╤Д╨╕╨╗╤М ╨║╨╗╨╕╨╡╨╜╤В╨░ ┬╖ ╤Б╨╗╤Г╨╢╨╡╨▒╨╜╨╛ ┬╖ ╨╜╨╡ ╨┐╨╛╨║╨░╨╖╤Л╨▓╨░╤В╤М ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤О]\n${JSON.stringify(snapshot, null, 0)}`,
+    content: `[профиль клиента · служебно · не показывать пользователю]\n${JSON.stringify(snapshot, null, 0)}`,
   };
 }
 
@@ -97,8 +97,8 @@ function messagesForApi(chat) {
 
 function injectionRefusal(lang) {
   return lang === 'en'
-    ? 'I can\'t discuss internal settings or credentials. Ask me about your personal route, symbols, or life questions тАФ I\'m here for that.'
-    : '╨п ╨╜╨╡ ╨╝╨╛╨│╤Г ╨╛╨▒╤Б╤Г╨╢╨┤╨░╤В╤М ╨▓╨╜╤Г╤В╤А╨╡╨╜╨╜╨╕╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨╕╨╗╨╕ ╨║╨╗╤О╤З╨╕ ╨┤╨╛╤Б╤В╤Г╨┐╨░. ╨б╨┐╤А╨╛╤Б╨╕╤В╨╡ ╨╛ ╨▓╨░╤И╨╡╨╝ ╨╝╨░╤А╤И╤А╤Г╤В╨╡, ╤Б╨╕╨╝╨▓╨╛╨╗╨░╤Е ╨╕╨╗╨╕ ╨╗╨╕╤З╨╜╨╛╨╝ ╨▓╨╛╨┐╤А╨╛╤Б╨╡ тАФ ╨┤╨╗╤П ╤Н╤В╨╛╨│╨╛ ╤П ╨╖╨┤╨╡╤Б╤М.';
+    ? "I can't discuss internal settings or credentials. Ask me about your personal route, symbols, or life questions — I'm here for that."
+    : 'Я не могу обсуждать внутренние настройки или ключи доступа. Спросите о вашем маршруте, символах или личном вопросе — для этого я здесь.';
 }
 
 /**
@@ -109,7 +109,7 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
   if (!trimmed || trimmed.length > 4000) {
     return {
       ok: false,
-      error: lang === 'en' ? 'Message must be 1тАУ4000 characters.' : '╨б╨╛╨╛╨▒╤Й╨╡╨╜╨╕╨╡: ╨╛╤В 1 ╨┤╨╛ 4000 ╤Б╨╕╨╝╨▓╨╛╨╗╨╛╨▓.',
+      error: lang === 'en' ? 'Message must be 1–4000 characters.' : 'Сообщение: от 1 до 4000 символов.',
     };
   }
 
@@ -135,9 +135,7 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
       { aiTurnDelta: 1 },
     );
 
-    const extraMessages = rotated
-      ? [{ text: formatOracleReplyHtml(refusal) }]
-      : [];
+    const extraMessages = rotated ? [{ text: formatOracleReplyHtml(refusal) }] : [];
 
     return {
       ok: true,
@@ -174,7 +172,7 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
       error:
         lang === 'en'
           ? 'The Oracle is temporarily unavailable. Try again in a moment.'
-          : '╨Ю╤А╨░╨║╤Г╨╗ ╨▓╤А╨╡╨╝╨╡╨╜╨╜╨╛ ╨╜╨╡╨┤╨╛╤Б╤В╤Г╨┐╨╡╨╜. ╨Я╨╛╨┐╤А╨╛╨▒╤Г╨╣╤В╨╡ ╤З╤Г╤В╤М ╨┐╨╛╨╖╨╢╨╡.',
+          : 'Оракул временно недоступен. Попробуйте чуть позже.',
     };
   }
 
@@ -183,8 +181,8 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
   if (!aiResponse) {
     aiResponse =
       lang === 'en'
-        ? 'I couldn\'t form a response. Please rephrase your question.'
-        : '╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╤Б╤Д╨╛╤А╨╝╨╕╤А╨╛╨▓╨░╤В╤М ╨╛╤В╨▓╨╡╤В. ╨Я╨╡╤А╨╡╤Д╨╛╤А╨╝╤Г╨╗╨╕╤А╤Г╨╣╤В╨╡ ╨▓╨╛╨┐╤А╨╛╤Б.';
+        ? "I couldn't form a response. Please rephrase your question."
+        : 'Не удалось сформировать ответ. Переформулируйте вопрос.';
   }
 
   workingChat = await appendOracleMessages(
@@ -202,10 +200,7 @@ export async function runOracleTurn({ userId, chat, userText, lang = 'ru' }) {
     return {
       ok: true,
       text: welcomeHtml,
-      extraMessages: aiChunks.map((part, index) => ({
-        text: part,
-        keyboard: index === aiChunks.length - 1 ? undefined : undefined,
-      })),
+      extraMessages: aiChunks.map((part) => ({ text: part })),
       chat: workingChat,
       rotated: true,
     };

@@ -1,4 +1,4 @@
-﻿-- ╨Ю╤А╨░╨║╤Г╨╗: ╨╛╨┤╨╕╨╜ ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤З╨░╤В ╨╜╨░ ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤П, ╨╛╤Б╤В╨░╨╗╤М╨╜╤Л╨╡ тАФ ╨░╤А╤Е╨╕╨▓ (╨╕╤Б╤В╨╛╤А╨╕╤П)
+﻿-- Оракул: один активный чат на пользователя, остальные — архив (история)
 ALTER TABLE public.oracle_chats
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'archived';
 
@@ -14,4 +14,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_oracle_chats_one_active_per_user
 
 UPDATE public.oracle_chats SET status = 'archived' WHERE status IS DISTINCT FROM 'active';
 
-COMMENT ON COLUMN public.oracle_chats.status IS 'active тАФ ╨╡╨┤╨╕╨╜╤Б╤В╨▓╨╡╨╜╨╜╤Л╨╣ ╤В╨╡╨║╤Г╤Й╨╕╨╣ ╤З╨░╤В; archived тАФ ╨╕╤Б╤В╨╛╤А╨╕╤П';
+COMMENT ON COLUMN public.oracle_chats.status IS 'active — единственный текущий чат; archived — история';

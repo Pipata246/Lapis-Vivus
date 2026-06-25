@@ -11,17 +11,17 @@ export const ORACLE_STATUS = {
 
 function assertUserId(userId) {
   if (!Number.isInteger(userId) || userId <= 0) {
-    throw new Error('╨Э╨╡╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Л╨╣ user_id.');
+    throw new Error('Некорректный user_id.');
   }
 }
 
 function assertChatId(chatId) {
   if (typeof chatId !== 'string' || !/^[0-9a-f-]{36}$/i.test(chatId)) {
-    throw new Error('╨Э╨╡╨║╨╛╤А╤А╨╡╨║╤В╨╜╤Л╨╣ id ╤З╨░╤В╨░ ╨Ю╤А╨░╨║╤Г╨╗╨░.');
+    throw new Error('Некорректный id чата Оракула.');
   }
 }
 
-/** ╨б╨╢╨░╤В╤Л╨╣ ╤Б╨╜╨╕╨╝╨╛╨║ ╨┐╤А╨╛╤Д╨╕╨╗╤П ╨┤╨╗╤П ╨║╨╛╨╜╤В╨╡╨║╤Б╤В╨░ ╨Ш╨Ш (╨▒╨╡╨╖ ╨┐╨╛╨╗╨╜╤Л╤Е JSON ╨▒╨╗╨╛╨║╨╛╨▓). */
+/** Сжатый снимок профиля для контекста ИИ (без полных JSON блоков). */
 export function buildProfileSnapshot(analysisProfile) {
   const blocks = analysisProfile?.blocks ?? {};
   const blocksSummary = {};
@@ -74,7 +74,7 @@ async function pruneArchivedChats(userId) {
   await supabase.from('oracle_chats').delete().in('id', toDelete);
 }
 
-/** ╨Р╤А╤Е╨╕╨▓╨╜╤Л╨╡ ╤З╨░╤В╤Л (╨╕╤Б╤В╨╛╤А╨╕╤П), ╨▒╨╡╨╖ ╨░╨║╤В╨╕╨▓╨╜╨╛╨│╨╛. */
+/** Архивные чаты (история), без активного. */
 export async function listArchivedOracleChats(userId, limit = MAX_ORACLE_HISTORY) {
   assertUserId(userId);
   const supabase = getSupabase();
@@ -95,7 +95,7 @@ export async function listArchivedOracleChats(userId, limit = MAX_ORACLE_HISTORY
   return data ?? [];
 }
 
-/** @deprecated ╨╕╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╣╤В╨╡ listArchivedOracleChats */
+/** @deprecated используйте listArchivedOracleChats */
 export async function listOracleChats(userId, limit = MAX_ORACLE_HISTORY) {
   return listArchivedOracleChats(userId, limit);
 }
@@ -145,7 +145,7 @@ export async function archiveOracleChat(userId, chatId) {
 
   const chat = await getOracleChat(userId, chatId);
   if (!chat) {
-    throw new Error('╨з╨░╤В ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜.');
+    throw new Error('Чат не найден.');
   }
 
   if (chat.status === ORACLE_STATUS.ARCHIVED) {
@@ -160,7 +160,7 @@ export async function createActiveOracleChat(userId, profileSnapshot, welcomeTex
 
   const existing = await getActiveOracleChat(userId);
   if (existing) {
-    throw new Error('╨г ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤П ╤Г╨╢╨╡ ╨╡╤Б╤В╤М ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤З╨░╤В ╨Ю╤А╨░╨║╤Г╨╗╨░.');
+    throw new Error('У пользователя уже есть активный чат Оракула.');
   }
 
   const supabase = getSupabase();
@@ -188,15 +188,15 @@ export async function createActiveOracleChat(userId, profileSnapshot, welcomeTex
 
   if (error) {
     console.error('[oracle] create active:', error.message);
-    throw new Error(`╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╤Б╨╛╨╖╨┤╨░╤В╤М ╤З╨░╤В ╨Ю╤А╨░╨║╤Г╨╗╨░: ${error.message}`);
+    throw new Error(`Не удалось создать чат Оракула: ${error.message}`);
   }
 
   return data;
 }
 
 /**
- * ╨Р╤А╤Е╨╕╨▓╨╕╤А╤Г╨╡╤В ╤В╨╡╨║╤Г╤Й╨╕╨╣ ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤З╨░╤В ╨╕ ╤Б╨╛╨╖╨┤╨░╤С╤В ╨╜╨╛╨▓╤Л╨╣ ╤Б ╨┐╤А╨╕╨▓╨╡╤В╤Б╤В╨▓╨╕╨╡╨╝.
- * ╨б╤В╨░╤А╤Л╨╣ ╤З╨░╤В ╤Б╨╛╤Е╤А╨░╨╜╤П╨╡╤В╤Б╤П ╨▓ ╨╕╤Б╤В╨╛╤А╨╕╨╕ (╨╡╤Б╨╗╨╕ ╨▒╤Л╨╗ ╨┤╨╕╨░╨╗╨╛╨│).
+ * Архивирует текущий активный чат и создаёт новый с приветствием.
+ * Старый чат сохраняется в истории (если был диалог).
  */
 export async function rotateActiveOracleChat(userId, profileSnapshot, welcomeText) {
   assertUserId(userId);
@@ -232,7 +232,7 @@ export async function deleteOracleChat(userId, chatId, { allowActive = false } =
   }
 
   if (chat.status === ORACLE_STATUS.ACTIVE && !allowActive) {
-    throw new Error('╨Э╨╡╨╗╤М╨╖╤П ╤Г╨┤╨░╨╗╨╕╤В╤М ╨░╨║╤В╨╕╨▓╨╜╤Л╨╣ ╤З╨░╤В. ╨Э╨░╤З╨╜╨╕╤В╨╡ ╨╜╨╛╨▓╤Л╨╣ ╨┤╨╕╨░╨╗╨╛╨│.');
+    throw new Error('Нельзя удалить активный чат. Начните новый диалог.');
   }
 
   const supabase = getSupabase();
@@ -240,7 +240,7 @@ export async function deleteOracleChat(userId, chatId, { allowActive = false } =
 
   if (error) {
     console.error('[oracle] delete:', error.message);
-    throw new Error(`╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╤Г╨┤╨░╨╗╨╕╤В╤М ╤З╨░╤В: ${error.message}`);
+    throw new Error(`Не удалось удалить чат: ${error.message}`);
   }
 }
 
@@ -259,7 +259,7 @@ export async function updateOracleChat(userId, chatId, patch) {
 
   if (error) {
     console.error('[oracle] update:', error.message);
-    throw new Error(`╨Э╨╡ ╤Г╨┤╨░╨╗╨╛╤Б╤М ╨╛╨▒╨╜╨╛╨▓╨╕╤В╤М ╤З╨░╤В: ${error.message}`);
+    throw new Error(`Не удалось обновить чат: ${error.message}`);
   }
 
   return data;
@@ -273,11 +273,11 @@ export function dialogueMessages(chat) {
 export async function appendOracleMessages(userId, chatId, newMessages, { aiTurnDelta = 0 } = {}) {
   const chat = await getOracleChat(userId, chatId);
   if (!chat) {
-    throw new Error('╨з╨░╤В ╨╜╨╡ ╨╜╨░╨╣╨┤╨╡╨╜.');
+    throw new Error('Чат не найден.');
   }
 
   if (chat.status !== ORACLE_STATUS.ACTIVE) {
-    throw new Error('╨з╨░╤В ╨╜╨╡ ╨░╨║╤В╨╕╨▓╨╡╨╜.');
+    throw new Error('Чат не активен.');
   }
 
   const stamped = newMessages.map((m) => ({
