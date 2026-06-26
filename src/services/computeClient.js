@@ -1,13 +1,13 @@
 /**
- * HTTP-клиент для Python compute-сервиса на VPS (Human Design и др.).
+ * HTTP-клиент для Python compute-сервиса на VPS (Human Design, цифровые матрицы).
  */
 
 import { loadComputeConfig } from '../config.js';
 
-/** Блоки, для которых сервер делает детерминированный расчёт до вызова ИИ */
-export const SERVER_COMPUTE_BLOCKS = new Set(['1A']);
+/** Блоки прогона с детерминированным расчётом на сервере до вызова ИИ */
+export const SERVER_COMPUTE_BLOCKS = new Set(['1A', '1B']);
 
-const COMPUTE_TIMEOUT_MS = 45_000;
+const COMPUTE_TIMEOUT_MS = 60_000;
 
 /**
  * @param {Record<string, unknown>} collectedData
@@ -62,11 +62,11 @@ export async function fetchPrecomputedForBlock(blockId, collectedData) {
   const profile = parseBirthProfile(collectedData);
   if (!profile) {
     throw new Error(
-      'Для блока 1A (Human Design) нужны точные дата, время (ЧЧ:ММ) и место рождения из анкеты.',
+      `Для блока ${blockId} нужны точные дата, время (ЧЧ:ММ) и место рождения из анкеты.`,
     );
   }
 
-  return fetchHumanDesign(blockId, profile);
+  return fetchBlockCompute(blockId, profile);
 }
 
 /** Профиль партнёра из полей partner_* в collected_data. */
@@ -97,29 +97,34 @@ export async function fetchPrecomputedPairForBlock(blockId, collectedData) {
     return subject ? { subject, partner: null } : null;
   }
 
-  const partner = await fetchHumanDesign(blockId, partnerProfile);
+  const partner = await fetchBlockCompute(blockId, partnerProfile);
   return { subject, partner };
 }
 
-async function fetchHumanDesign(blockId, profile) {
+function birthRequestBody(blockId, profile) {
+  return {
+    block_id: blockId,
+    birth_date: `${String(profile.day).padStart(2, '0')}.${String(profile.month).padStart(2, '0')}.${profile.year}`,
+    birth_time: `${String(profile.hour).padStart(2, '0')}:${String(profile.minute).padStart(2, '0')}`,
+    birth_place: profile.city,
+    gender: profile.gender ?? null,
+  };
+}
+
+async function fetchBlockCompute(blockId, profile) {
   const cfg = loadComputeConfig();
+  const endpoint = blockId === '1B' ? '/v1/compute/genesis' : '/v1/compute/human-design';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), COMPUTE_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${cfg.apiUrl}/v1/compute/human-design`, {
+    const response = await fetch(`${cfg.apiUrl}${endpoint}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${cfg.apiSecret}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        block_id: blockId,
-        birth_date: `${String(profile.day).padStart(2, '0')}.${String(profile.month).padStart(2, '0')}.${profile.year}`,
-        birth_time: `${String(profile.hour).padStart(2, '0')}:${String(profile.minute).padStart(2, '0')}`,
-        birth_place: profile.city,
-        gender: profile.gender ?? null,
-      }),
+      body: JSON.stringify(birthRequestBody(blockId, profile)),
       signal: controller.signal,
     });
 
@@ -141,10 +146,17 @@ async function fetchHumanDesign(blockId, profile) {
     return payload.data;
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('Compute-сервис не ответил за 45 секунд. Проверьте VPS.');
+      throw new Error('Compute-сервис не ответил за 60 секунд. Проверьте VPS.');
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
 }
+
+/** @deprecated используйте fetchBlockCompute */
+async function fetchHumanDesign(blockId, profile) {
+  return fetchBlockCompute(blockId, profile);
+}
+
+export { fetchHumanDesign };

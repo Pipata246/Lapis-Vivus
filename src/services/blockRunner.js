@@ -50,9 +50,10 @@ function buildBlockMandate(block, blockIndex, precomputed = null) {
   const forbidden = BLOCK_IDS.filter((id) => id !== block.id);
   const remaining = remainingBlocksAfter(blockIndex);
 
-  const precomputedSection =
-    precomputed && block.id === '1A'
-      ? precomputed.subject && precomputed.partner
+  let precomputedSection = '';
+  if (precomputed && block.id === '1A') {
+    precomputedSection =
+      precomputed.subject && precomputed.partner
         ? [
             '',
             '🧬 СЕРВЕРНЫЙ РАСЧЁТ HUMAN DESIGN ДЛЯ ПАРЫ УЖЕ ВЫПОЛНЕН',
@@ -66,8 +67,21 @@ function buildBlockMandate(block, blockIndex, precomputed = null) {
             '✅ Используй precomputed.bodygraph.tropical как единственный источник фактуры',
             '✅ Твоя задача — интерпретация по протоколу блока 1A и four_level_conceptual_output',
             '',
-          ].join('\n')
-      : '';
+          ].join('\n');
+  } else if (precomputed && block.id === '1B') {
+    precomputedSection = [
+      '',
+      '🧮 СЕРВЕРНЫЙ РАСЧЁТ ЦИФРОВЫХ МАТРИЦ И СТЕНТОВ УЖЕ ВЫПОЛНЕН (VPS)',
+      '⛔️ ЗАПРЕЩЕНО пересчитывать Пифагор, Ладини, стенты, TSP-тензор',
+      '✅ Используй precomputed.monolith как единственный источник фактуры:',
+      '   • block_1b_pythagoras_data',
+      '   • block_1b_ladini_monolith',
+      '   • cross_system_stent_matrix',
+      '   • block_1a_rave_data (для кросс-стыковки, не пересчитывать)',
+      '✅ Твоя задача — интерпретация по протоколу блока 1B и four_level_conceptual_output',
+      '',
+    ].join('\n');
+  }
 
   return [
     '═══════════════════════════════════════════════════════════════',
@@ -162,9 +176,14 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
           `Use precomputed.bodygraph ONLY. Do NOT recalculate astronomy. ` +
           `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
           'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
-        : `STRICT: Execute ONLY ${block.description}. ` +
-          `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
-          'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.',
+        : precomputed && block.id === '1B'
+          ? `STRICT: Block 1B — digital matrices and stent tensor already computed on server. ` +
+            `Use precomputed.monolith ONLY. Do NOT recalculate Pythagoras, Ladini or cross-system stents. ` +
+            `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
+            'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
+          : `STRICT: Execute ONLY ${block.description}. ` +
+            `JSON artifact: ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
+            'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.',
   };
 
   if (precomputed) {
