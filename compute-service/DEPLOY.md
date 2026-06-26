@@ -1,4 +1,4 @@
-# Lapis Vivus — Python Compute Service (прогон: блоки 1A и 1B)
+# Lapis Vivus — Python Compute Service (Human Design / блок 1A)
 
 HTTP API для детерминированных расчётов на VPS. Vercel вызывает его перед GPTunnel.
 
