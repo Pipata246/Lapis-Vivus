@@ -55,14 +55,21 @@ export async function fetchPrecomputedForBlock(blockId, collectedData) {
 
   const cfg = loadComputeConfig();
   if (!cfg.enabled) {
-    console.warn(`[compute] COMPUTE_API_URL не задан — блок ${blockId} без серверного расчёта`);
-    return null;
+    throw new Error(
+      'Compute-сервис не настроен: задайте COMPUTE_API_URL и COMPUTE_API_SECRET в Vercel → Settings → Environment Variables и передеплойте проект.',
+    );
   }
 
   const profile = parseBirthProfile(collectedData);
   if (!profile) {
+    const timeRaw = String(collectedData?.birth_time ?? '').trim().toLowerCase();
+    if (timeRaw === 'неизвестно' || timeRaw === 'unknown') {
+      throw new Error(
+        `Для серверного расчёта блока ${blockId} нужно точное время рождения (ЧЧ:ММ). Выберите «Время неизвестно» нельзя — начните сессию заново и укажите время.`,
+      );
+    }
     throw new Error(
-      `Для блока ${blockId} нужны точные дата, время (ЧЧ:ММ) и место рождения из анкеты.`,
+      `Для серверного расчёта блока ${blockId} нужны дата (ДД.ММ.ГГГГ), время (ЧЧ:ММ) и место рождения из анкеты.`,
     );
   }
 
@@ -90,11 +97,6 @@ export async function fetchPrecomputedPairForBlock(blockId, collectedData) {
   const partnerProfile = parsePartnerBirthProfile(collectedData);
   if (!partnerProfile) {
     throw new Error('Для сравнения нужны полные данные рождения партнёра.');
-  }
-
-  const cfg = loadComputeConfig();
-  if (!cfg.enabled) {
-    return subject ? { subject, partner: null } : null;
   }
 
   const partner = await fetchBlockCompute(blockId, partnerProfile);

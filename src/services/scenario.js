@@ -48,6 +48,7 @@ import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.
 import { runAnalysisBlock } from './blockRunner.js';
 import { blockNeedsCalculatorButtons, formatBlockPrepScreen } from '../ui/blockPrepScreen.js';
 import { getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
+import { SERVER_COMPUTE_BLOCKS, parseBirthProfile } from './computeClient.js';
 import {
   BRAND,
   btn,
@@ -1524,9 +1525,24 @@ export async function handleCallback(from, callbackData) {
         const text = await blockPrepText(session, chat.id, runLang);
         return {
           text: `${text}\n\n<i>${u(runLang, 'errorFileRequired')}</i>`,
-          keyboard: blockPrepKeyboard(block.id, session.collected_data),
+          keyboard: blockPrepKeyboard(block.id, session.collected_data, runLang),
         };
       }
+
+      if (SERVER_COMPUTE_BLOCKS.has(block.id) && !parseBirthProfile(session.collected_data)) {
+        const runLang = await resolveLang(from);
+        const timeRaw = String(session.collected_data?.birth_time ?? '').trim().toLowerCase();
+        const hint =
+          timeRaw === 'неизвестно' || timeRaw === 'unknown'
+            ? 'Для этого этапа нужно <b>точное время рождения</b> (ЧЧ:ММ). Начните сессию заново из меню и укажите время.'
+            : 'Проверьте анкету: дата (ДД.ММ.ГГГГ), время (ЧЧ:ММ) и место рождения должны быть заполнены.';
+        const text = await blockPrepText(session, chat.id, runLang);
+        return {
+          text: `${text}\n\n<i>${hint}</i>`,
+          keyboard: blockPrepKeyboard(block.id, session.collected_data, runLang),
+        };
+      }
+
       return runCurrentBlock(from, chat.id);
     }
 
@@ -1782,7 +1798,7 @@ async function runCurrentBlock(from, chatId) {
       extraMessages: parts.slice(1),
     };
   } catch (err) {
-    console.error('Ошибка блока:', err.message);
+    console.error('Ошибка блока:', err.message, err.stack);
     const blockId = BLOCK_STACK[session.block_index]?.id ?? '?';
     await updateSession(userId, {
       step: STEPS.BLOCK_FAILED,

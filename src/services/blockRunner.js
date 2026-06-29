@@ -314,7 +314,7 @@ export async function runAnalysisBlock({ session, chatId, userId, lang = 'ru' })
       precomputed = await fetchPrecomputedForBlock(block.id, data);
     }
     if (!precomputed) {
-      throw new Error(u('ru', 'errorStage'));
+      throw new Error('Compute-сервис вернул пустой ответ для блока ' + block.id);
     }
   }
 

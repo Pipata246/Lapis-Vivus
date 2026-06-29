@@ -1,5 +1,5 @@
 import { Telegraf } from 'telegraf';
-import { loadBotConfig } from './config.js';
+import { loadBotConfig, loadComputeConfig } from './config.js';
 import {
   initUser,
   handleCallback,
@@ -1175,6 +1175,10 @@ function registerHandlers(bot) {
 export function getBot() {
   if (!botInstance) {
     const { botToken } = loadBotConfig();
+    const compute = loadComputeConfig();
+    console.info(
+      `[startup] compute ${compute.enabled ? 'enabled' : 'DISABLED'} url=${compute.apiUrl || '(missing)'}`,
+    );
     botInstance = new Telegraf(botToken);
     registerHandlers(botInstance);
   }

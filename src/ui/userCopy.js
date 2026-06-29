@@ -132,7 +132,14 @@ export function mapErrorToUser(lang, err) {
   if (/файл|file|прикреп/i.test(msg)) return u(lang, 'errorFileRequired');
   if (/платёж|payment|оплат/i.test(msg)) return u(lang, 'errorPayment');
   if (/Стек блоков|cycle complete|завершён/i.test(msg)) return u(lang, 'cycleComplete');
-  if (/Compute|VPS|Vercel|GPTunnel|Supabase|Storage|промпт|JSON|модел|validation|constraint/i.test(msg)) {
+  if (
+    /Compute|VPS|Vercel|GPTunnel|Supabase|Storage|промпт|JSON|модел|validation|constraint|серверн|анкет|время рождения|COMPUTE_API/i.test(
+      msg,
+    )
+  ) {
+    return msg.length <= 320 ? msg : u(lang, 'errorStage');
+  }
+  if (msg === u('ru', 'errorStage') || msg === u('en', 'errorStage')) {
     return u(lang, 'errorStage');
   }
   return u(lang, 'errorGeneric');
