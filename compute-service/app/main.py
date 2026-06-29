@@ -107,7 +107,7 @@ def run_block_compute(body: BirthComputeRequest, block_id: str) -> dict:
     return result
 
 
-app = FastAPI(title="Lapis Vivus Compute", version="1.1.0")
+app = FastAPI(title="Lapis Vivus Compute", version="1.2.0")
 
 
 @app.get("/health")

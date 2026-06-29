@@ -76,6 +76,8 @@ function buildBlockMandate(block, blockIndex, precomputed = null) {
       '✅ Используй precomputed.monolith как единственный источник фактуры:',
       '   • block_1b_pythagoras_data',
       '   • block_1b_ladini_monolith',
+      '   • block_2b_hvd_chakras',
+      '   • block_1d_tzolkin_oracle',
       '   • cross_system_stent_matrix',
       '   • block_1a_rave_data (для кросс-стыковки, не пересчитывать)',
       '✅ Твоя задача — интерпретация по протоколу блока 1B и four_level_conceptual_output',
@@ -177,8 +179,8 @@ function buildOperatorPayload(session, blockIndex, completedBlocks, filesCount, 
           `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
           'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
         : precomputed && block.id === '1B'
-          ? `STRICT: Block 1B — digital matrices and stent tensor already computed on server. ` +
-            `Use precomputed.monolith ONLY. Do NOT recalculate Pythagoras, Ladini or cross-system stents. ` +
+        ? `STRICT: Block 1B — digital matrices and stent tensor already computed on server (V5.2). ` +
+          `Use precomputed.monolith ONLY. Do NOT recalculate Pythagoras, Ladini, HVD, Tzolkin, USIN or cross-system stents. ` +
             `Produce JSON artifact ${jsonArtifactName(block.id)} with remaining_blocks_in_stack=${remaining}. ` +
             'Then ПРОФАНСКИЙ КОММЕНТАРИЙ. One block per answer.'
           : `STRICT: Execute ONLY ${block.description}. ` +
