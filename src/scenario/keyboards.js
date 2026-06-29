@@ -2,6 +2,7 @@ import { CALLBACK_PREFIX } from './constants.js';
 import { calculatorUrlButtons } from './calculatorLinks.js';
 import { getMainMenuKeyboard } from '../navigation.js';
 import { btn } from '../ui/brand.js';
+import { blockNeedsCalculatorButtons } from '../ui/blockPrepScreen.js';
 import { getTreeNode } from './diagnosticTree.js';
 
 function cb(action, value = null) {
@@ -69,10 +70,12 @@ export function confirmKeyboard(lang = 'ru') {
 
 export function blockPrepKeyboard(blockId, collectedData = {}, lang = 'ru') {
   const rows = [];
-  const calcButtons = calculatorUrlButtons(blockId, collectedData);
 
-  for (let i = 0; i < calcButtons.length; i += 2) {
-    rows.push(calcButtons.slice(i, i + 2));
+  if (blockNeedsCalculatorButtons(blockId)) {
+    const calcButtons = calculatorUrlButtons(blockId, collectedData);
+    for (let i = 0; i < calcButtons.length; i += 2) {
+      rows.push(calcButtons.slice(i, i + 2));
+    }
   }
 
   rows.push([{ text: btn(lang, 'runStage'), callback_data: cb('run_block') }]);

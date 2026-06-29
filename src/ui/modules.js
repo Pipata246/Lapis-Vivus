@@ -18,16 +18,16 @@ export const MODULES = {
     part: 'I',
     title: { ru: 'Матрица происхождения', en: 'Matrix of Origin' },
     brief: {
-      ru: 'Картирование генетической структуры личности. Основа последующих модулей сессии.',
-      en: 'Mapping the genetic structure of personality. Foundation for the rest of the session.',
+      ru: 'Бодиграф Human Design — серверный расчёт по дате, времени и месту рождения.',
+      en: 'Human Design bodygraph — server-side compute from birth date, time, and place.',
     },
   },
   '1B': {
     part: 'I',
     title: { ru: 'Числовой код', en: 'Numerical Code' },
     brief: {
-      ru: 'Психоматрица и числовые паттерны даты рождения.',
-      en: 'Psychomatrix and numerical patterns of the birth date.',
+      ru: 'Цифровые матрицы и кросс-системные стенты — серверный расчёт по профилю.',
+      en: 'Digital matrices and cross-system stents — server-side compute from your profile.',
     },
   },
   '1C': {

@@ -46,17 +46,16 @@ import {
 import { saveUserFile, getBlockFiles, deleteAllChatFiles } from '../db/files.js';
 import { uploadTelegramFileToStorage, extractTextFromFile } from './fileStorage.js';
 import { runAnalysisBlock } from './blockRunner.js';
-import { formatCalculatorLinksText, getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
+import { blockNeedsCalculatorButtons, formatBlockPrepScreen } from '../ui/blockPrepScreen.js';
+import { getAllCalculatorLinks } from '../scenario/calculatorLinks.js';
 import {
   BRAND,
   btn,
   formatClientProfile,
   formatInitStep,
-  formatModulePrep,
   formatSessionComplete,
   formatSessionStart,
   formatWelcome,
-  section,
   letterhead,
 } from '../ui/brand.js';
 import { getCompletedBlocksForSession, saveBlockResult } from '../db/blockResults.js';
@@ -475,7 +474,6 @@ async function blockPrepText(session, chatId, lang = 'ru') {
     return `<i>${u(lang, 'cycleComplete')}</i>`;
   }
 
-  // Получаем файлы из БД
   let ownFiles = [];
   try {
     ownFiles = await getBlockFiles(chatId, block.id);
@@ -492,46 +490,16 @@ async function blockPrepText(session, chatId, lang = 'ru') {
     }
   }
 
-  const code = lang === 'en' ? 'en' : 'ru';
-  let fileLine;
-  if (ownFiles.length > 0) {
-    const fileNames = ownFiles.map((f) => f.file_name || (code === 'en' ? 'File' : 'Файл')).join(', ');
-    fileLine =
-      code === 'en'
-        ? `Attached files · ${ownFiles.length} (${fileNames})`
-        : `Прикреплено файлов · ${ownFiles.length} (${fileNames})`;
-  } else if (inheritedFiles.length > 0) {
-    fileLine =
-      code === 'en'
-        ? `Using materials from step 3 · ${inheritedFiles.length}. You may add your own.`
-        : `Используются материалы этапа 3 · ${inheritedFiles.length}. Можно добавить свои.`;
-  } else if (block.requiresExternal) {
-    fileLine = u(lang, 'errorFileRequired');
-  } else {
-    fileLine =
-      code === 'en'
-        ? 'File or text — if needed for this step.'
-        : 'Файл или текст — по необходимости.';
-  }
-
-  const userText = session.collected_data?.block_user_text?.[block.id];
-  let textLine = null;
-  if (userText) {
-    const preview = userText.length > 100 ? `${userText.slice(0, 100)}…` : userText;
-    textLine =
-      code === 'en' ? `Your text · «${preview}»` : `Ваш текст · «${preview}»`;
-  }
-
-  const calcBlock = formatCalculatorLinksText(block.id, session.collected_data);
-
-  const materials = [fileLine, textLine].filter(Boolean).join('\n');
-  const materialsLabel = code === 'en' ? 'Materials' : 'Материалы';
-  const sections = [
-    calcBlock || null,
-    materials ? section(materialsLabel, materials, '◆') : null,
-  ];
-
-  return formatModulePrep(block.id, session.block_index, sections, lang);
+  return formatBlockPrepScreen(
+    block,
+    session.block_index,
+    {
+      collectedData: session.collected_data,
+      ownFiles,
+      inheritedFiles,
+    },
+    lang,
+  );
 }
 
 async function showBlockPrep(session, chatId, lang = 'ru') {
@@ -539,7 +507,7 @@ async function showBlockPrep(session, chatId, lang = 'ru') {
   const text = await blockPrepText(session, chatId, lang);
   return {
     text,
-    keyboard: blockPrepKeyboard(block?.id, session.collected_data),
+    keyboard: blockPrepKeyboard(block?.id, session.collected_data, lang),
   };
 }
 

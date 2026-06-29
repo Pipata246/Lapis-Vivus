@@ -61,8 +61,6 @@ const CALCULATORS = {
 
 /** Калькуляторы по базовому block_id (подблоки 2B.1, 3C_1 и т.д. резолвятся сюда) */
 const BLOCK_CALCULATORS = {
-  '1A': ['humanDesign'],
-  '1B': ['pythagoras'],
   '1C': ['chakraAnalysis', 'destinyMatrix', 'taroPortrait'],
   '1D': ['tzolkin'],
   '1E': ['chakraAnalysis'],
